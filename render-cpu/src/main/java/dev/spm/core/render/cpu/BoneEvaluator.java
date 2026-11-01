@@ -2,11 +2,20 @@ package dev.spm.core.render.cpu;
 
 import dev.spm.core.api.BoneMatrices;
 import dev.spm.core.api.BonePose;
+import dev.spm.core.api.CancellationToken;
+import dev.spm.core.api.ResourceBudget;
 import dev.spm.core.api.Skeleton;
 import java.util.Objects;
 
 /** Scalar bone extraction in normalized Core coordinates. */
 public final class BoneEvaluator {
+    /**
+     * Working credits charged per evaluated bone before allocation: 16 matrix floats, 9 normal
+     * floats, 3 locator floats, plus the visibility and selection flags and the per-bone temporaries.
+     * It is a modelled upper bound, deliberately larger than the exact array sizes, so a budget
+     * rejection happens before any large allocation rather than after it.
+     */
+    public static final long WORKING_BYTES_PER_BONE = 256;
     private BoneEvaluator() {}
     public static BoneMatrices evaluate(Skeleton skeleton, BonePose pose) {
         return evaluate(skeleton, pose, identity());
@@ -15,6 +24,31 @@ public final class BoneEvaluator {
     /** rootPose is an explicit nonsingular affine column-major transform. */
     public static BoneMatrices evaluate(Skeleton skeleton, BonePose pose, float[] rootPose) {
         return extract(skeleton, pose, rootPose, -1);
+    }
+
+    /**
+     * Budgeted evaluation: reserves the modelled working credits up front, so an oversized request
+     * fails with {@link dev.spm.core.api.ResourceBudgetExceededException} before allocating, and
+     * releases them on every path including failure. Callers that already reserve a larger frame
+     * working set (for example {@code ModelFrameRenderer}) should keep using the unbudgeted overload
+     * to avoid double charging.
+     */
+    public static BoneMatrices evaluate(Skeleton skeleton, BonePose pose, float[] rootPose,
+                                        ResourceBudget budget, CancellationToken token) {
+        Objects.requireNonNull(budget);
+        Objects.requireNonNull(token);
+        token.check();
+        long working = Math.multiplyExact((long) Objects.requireNonNull(skeleton).boneCount(),
+                WORKING_BYTES_PER_BONE);
+        var reservation = budget.reserve(working);
+        try {
+            token.check();
+            BoneMatrices result = extract(skeleton, pose, rootPose, -1);
+            token.check();
+            return result;
+        } finally {
+            reservation.close();
+        }
     }
 
     /** Extract one local subtree, ignoring all transforms and hiding above root. */
