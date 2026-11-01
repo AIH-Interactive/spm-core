@@ -61,19 +61,9 @@ pub fn render_rigid(
         }
         count += usize::from(bone.visible);
     }
-    let kernel: unsafe fn(&RigidVertex, &BoneOutput) -> Intermediate = match isa {
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        Isa::Sse2 => x86::sse2,
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        Isa::Avx => x86::avx,
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        Isa::Avx2 => x86::avx2,
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        Isa::Avx2Fma => x86::fma,
-        #[cfg(target_arch = "aarch64")]
-        Isa::Neon => neon::render,
-        _ => scalar,
-    };
+    // The kernel and the tier it reports come from one resolution, so the reported ISA is the one
+    // the executing code really uses (defect N13).
+    let (kernel, id) = kernel(isa);
     let mut output = Vec::new();
     output
         .try_reserve_exact(count)
@@ -111,7 +101,7 @@ pub fn render_rigid(
     }
     Ok(RenderResult {
         vertices: output,
-        isa,
+        isa: id.tier(),
     })
 }
 
@@ -158,6 +148,40 @@ unsafe fn scalar(vertex: &RigidVertex, bone: &BoneOutput) -> Intermediate {
         normal,
         color,
     }
+}
+
+type VertexKernel = unsafe fn(&RigidVertex, &BoneOutput) -> Intermediate;
+
+/// Resolves a tier to the kernel that serves it **and** the identity of that kernel.
+fn kernel(isa: Isa) -> (VertexKernel, crate::KernelId) {
+    use crate::KernelId;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        match isa {
+            Isa::Sse2 => return (x86::sse2, KernelId::Sse2),
+            Isa::Avx => return (x86::avx, KernelId::Avx),
+            Isa::Avx2 => return (x86::avx2, KernelId::Avx2),
+            Isa::Avx2Fma => return (x86::fma, KernelId::Avx2Fma),
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx512 => return (x86::avx512, KernelId::Avx512),
+            _ => {}
+        }
+    }
+    #[cfg(target_arch = "aarch64")]
+    if isa == Isa::Neon {
+        return (neon::render, KernelId::Neon);
+    }
+    (scalar, KernelId::Scalar)
+}
+
+/// The tier this module reports for `isa` without needing a batch.
+pub(crate) fn executed(isa: Isa) -> Isa {
+    kernel(isa).1.tier()
+}
+
+/// Identity of the kernel that serves `isa`; see `crate::KernelId`.
+pub fn kernel_id(isa: Isa) -> crate::KernelId {
+    kernel(isa).1
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -326,6 +350,68 @@ mod x86 {
             position: dot_fma(&bone.transform, 4, vertex.position),
             normal: dot_fma(&bone.normal, 3, vertex.normal),
             color: tint_avx2(vertex.color, bone.color),
+        }
+    }
+
+    /// AVX-512 tier: the dot products use 8-wide packed doubles with a masked load that leaves the
+    /// fourth lane at zero, so the unused homogeneous column never enters the sum.
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx512f")]
+    unsafe fn dot8(matrix: &[f32], stride: usize, point: [f32; 3]) -> [f64; 3] {
+        let a = column(matrix, stride, 0);
+        let b = column(matrix, stride, 1);
+        let c = column(matrix, stride, 2);
+        let translation = if stride == 4 {
+            column(matrix, stride, 3)
+        } else {
+            [0.; 4]
+        };
+        let mut sum = _mm512_maskz_loadu_pd(0b1111, translation.as_ptr());
+        sum = _mm512_add_pd(
+            sum,
+            _mm512_mul_pd(
+                _mm512_maskz_loadu_pd(0b1111, a.as_ptr()),
+                _mm512_set1_pd(point[0] as f64),
+            ),
+        );
+        sum = _mm512_add_pd(
+            sum,
+            _mm512_mul_pd(
+                _mm512_maskz_loadu_pd(0b1111, b.as_ptr()),
+                _mm512_set1_pd(point[1] as f64),
+            ),
+        );
+        sum = _mm512_add_pd(
+            sum,
+            _mm512_mul_pd(
+                _mm512_maskz_loadu_pd(0b1111, c.as_ptr()),
+                _mm512_set1_pd(point[2] as f64),
+            ),
+        );
+        let mut result = [0.; 8];
+        _mm512_mask_storeu_pd(result.as_mut_ptr(), 0b1111, sum);
+        [result[0], result[1], result[2]]
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx512f")]
+    unsafe fn tint_avx512(vertex: u32, bone: u32) -> u32 {
+        let a = _mm512_cvtepu8_epi32(_mm_cvtsi32_si128(vertex as i32));
+        let b = _mm512_cvtepu8_epi32(_mm_cvtsi32_si128(bone as i32));
+        let value = _mm512_add_epi32(_mm512_mullo_epi32(a, b), _mm512_set1_epi32(128));
+        let quotient = _mm512_srli_epi32::<16>(_mm512_mullo_epi32(value, _mm512_set1_epi32(257)));
+        let mut channels = [0u32; 16];
+        _mm512_storeu_si512(channels.as_mut_ptr().cast(), quotient);
+        channels[0] | channels[1] << 8 | channels[2] << 16 | channels[3] << 24
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx512f")]
+    pub(super) unsafe fn avx512(vertex: &RigidVertex, bone: &BoneOutput) -> Intermediate {
+        Intermediate {
+            position: dot8(&bone.transform, 4, vertex.position),
+            normal: dot8(&bone.normal, 3, vertex.normal),
+            color: tint_avx512(vertex.color, bone.color),
         }
     }
 }

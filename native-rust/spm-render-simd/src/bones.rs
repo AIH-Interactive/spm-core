@@ -62,8 +62,18 @@ fn extract(
     }
     normal(root)?;
     let n = bones.len();
-    let mut children = vec![Vec::new(); n];
-    let mut order = Vec::with_capacity(n);
+    // Every stage below reserves fallibly before it can hold `n` items, so a huge batch fails
+    // with `Status::Internal` instead of aborting the process in the allocator (defect N10).
+    let mut degree = Vec::new();
+    degree.try_reserve_exact(n).map_err(|_| Status::Internal)?;
+    degree.resize(n, 0_usize);
+    let mut children = Vec::new();
+    children
+        .try_reserve_exact(n)
+        .map_err(|_| Status::Internal)?;
+    children.resize_with(n, Vec::new);
+    let mut order = Vec::new();
+    order.try_reserve_exact(n).map_err(|_| Status::Internal)?;
     for (i, b) in bones.iter().enumerate() {
         if b.parent < -1
             || b.parent >= n as i32
@@ -82,6 +92,18 @@ fn extract(
         {
             return Err(Status::NonFinite);
         }
+        if b.parent >= 0 {
+            degree[b.parent as usize] += 1;
+        }
+    }
+    // Reserve each child list from its counted degree, so the traversal pushes below cannot
+    // allocate infallibly.
+    for slot in 0..n {
+        children[slot]
+            .try_reserve_exact(degree[slot])
+            .map_err(|_| Status::Internal)?;
+    }
+    for (i, b) in bones.iter().enumerate() {
         if b.parent == -1 {
             order.push(i);
         } else {
@@ -97,12 +119,22 @@ fn extract(
     if order.len() != n {
         return Err(Status::InvalidInput);
     }
-    let mut result = vec![BoneOutput::default(); n];
-    let mut selected = vec![false; n];
+    let mut result = Vec::new();
+    result.try_reserve_exact(n).map_err(|_| Status::Internal)?;
+    result.resize(n, BoneOutput::default());
+    let mut selected = Vec::new();
+    selected
+        .try_reserve_exact(n)
+        .map_err(|_| Status::Internal)?;
+    selected.resize(n, false);
     for i in 0..n {
         result[i].glow = bones[i].glow;
         result[i].color = bones[i].color;
     }
+    // The multiply step is the only SIMD stage of bone evaluation, so its tier is the tier the
+    // batch report may name. Reporting the *request* instead is defect N13: an AVX2 request that
+    // is served by the AVX-era kernel would otherwise claim AVX2 instructions were executed.
+    let (kernel, id) = kernel(isa);
     for i in order {
         let b = &bones[i];
         selected[i] = subtree.is_none()
@@ -123,7 +155,12 @@ fn extract(
         } else {
             result[b.parent as usize].transform
         };
-        let world = multiply(&parent, &local, isa)?;
+        let mut world = [0.; 16];
+        // SAFETY: `select` verified every feature the chosen kernel requires.
+        unsafe { kernel(&parent, &local, &mut world) };
+        if world.iter().any(|v| !v.is_finite()) {
+            return Err(Status::NonFinite);
+        }
         let mut locator = [0.; 3];
         for row in 0..3 {
             let mut value = world[12 + row] as f64;
@@ -142,7 +179,7 @@ fn extract(
             color: b.color,
         };
     }
-    Ok((result, isa))
+    Ok((result, id.tier()))
 }
 
 fn finite(value: f64) -> Result<f32, Status> {
@@ -220,136 +257,228 @@ fn normal(m: &[f32; 16]) -> Result<[f32; 9], Status> {
     Ok(out)
 }
 
-fn multiply(a: &[f32; 16], b: &[f32; 16], isa: Isa) -> Result<[f32; 16], Status> {
-    let mut out = [0.; 16];
+/// A 4x4 column-major multiply that writes its 16 results in place.
+type MulKernel = unsafe fn(&[f32; 16], &[f32; 16], &mut [f32; 16]);
+
+/// Resolves a tier to the kernel that serves it **and** the identity of that kernel.
+///
+/// This single function is the only place the mapping is declared, so a kernel and the ISA it
+/// reports cannot drift apart: every caller uses both halves of the same answer.
+fn kernel(isa: Isa) -> (MulKernel, crate::KernelId) {
+    use crate::KernelId;
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    if matches!(isa, Isa::Sse2 | Isa::Avx | Isa::Avx2 | Isa::Avx2Fma) {
-        // Packed double arithmetic keeps the Java scalar accumulation precision.
-        unsafe {
-            match isa {
-                Isa::Avx2Fma => multiply_fma(a, b, &mut out),
-                Isa::Avx | Isa::Avx2 => multiply_avx(a, b, &mut out),
-                _ => multiply_sse2(a, b, &mut out),
-            }
+    {
+        match isa {
+            Isa::Sse2 => return (x86::multiply_sse2, KernelId::Sse2),
+            Isa::Avx => return (x86::multiply_avx, KernelId::Avx),
+            Isa::Avx2 => return (x86::multiply_avx2, KernelId::Avx2),
+            Isa::Avx2Fma => return (x86::multiply_fma, KernelId::Avx2Fma),
+            #[cfg(target_arch = "x86_64")]
+            Isa::Avx512 => return (x86::multiply_avx512, KernelId::Avx512),
+            _ => {}
         }
-        if out.iter().any(|v| !v.is_finite()) {
-            return Err(Status::NonFinite);
-        }
-        return Ok(out);
     }
-    let _ = isa;
     #[cfg(target_arch = "aarch64")]
     if isa == Isa::Neon {
-        unsafe {
-            multiply_neon(a, b, &mut out);
-        }
-        if out.iter().any(|v| !v.is_finite()) {
-            return Err(Status::NonFinite);
-        }
-        return Ok(out);
+        return (neon::multiply_neon, KernelId::Neon);
     }
-    for col in 0..4 {
-        for row in 0..4 {
-            let mut v = 0.;
-            for k in 0..4 {
-                v += a[k * 4 + row] as f64 * b[col * 4 + k] as f64;
+    (scalar::multiply, KernelId::Scalar)
+}
+
+/// The tier this module reports for `isa` without needing a batch.
+///
+/// For an empty batch no kernel runs, so the report states the tier the dispatched kernel executes
+/// for the requested tier rather than inventing a per-batch answer.
+pub fn executed(isa: Isa) -> Isa {
+    kernel(isa).1.tier()
+}
+
+/// Identity of the kernel that serves `isa`; see `crate::KernelId`.
+pub fn kernel_id(isa: Isa) -> crate::KernelId {
+    kernel(isa).1
+}
+
+mod scalar {
+    /// Portable fallback and the differential reference for every instruction-set tier.
+    ///
+    /// Accumulation is f64 because the Java scalar implementation it must agree with accumulates
+    /// in double. Non-finite results are rejected by the caller, uniformly with the SIMD tiers.
+    pub(super) unsafe fn multiply(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
+        for col in 0..4 {
+            for row in 0..4 {
+                let mut v = 0.;
+                for k in 0..4 {
+                    v += a[k * 4 + row] as f64 * b[col * 4 + k] as f64;
+                }
+                out[col * 4 + row] = v as f32;
             }
-            out[col * 4 + row] = finite(v)?;
         }
     }
-    Ok(out)
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[target_feature(enable = "sse2")]
-unsafe fn multiply_sse2(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
+mod x86 {
     #[cfg(target_arch = "x86")]
     use std::arch::x86::*;
     #[cfg(target_arch = "x86_64")]
     use std::arch::x86_64::*;
-    for col in 0..4 {
-        for row in [0, 2] {
-            let mut accum = _mm_setzero_pd();
+
+    /// Packed double arithmetic keeps the Java scalar accumulation precision.
+    #[target_feature(enable = "sse2")]
+    pub(super) unsafe fn multiply_sse2(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
+        for col in 0..4 {
+            for row in [0, 2] {
+                let mut accum = _mm_setzero_pd();
+                for k in 0..4 {
+                    accum = _mm_add_pd(
+                        accum,
+                        _mm_mul_pd(
+                            _mm_set_pd(a[k * 4 + row + 1] as f64, a[k * 4 + row] as f64),
+                            _mm_set1_pd(b[col * 4 + k] as f64),
+                        ),
+                    );
+                }
+                let mut lanes = [0.; 2];
+                _mm_storeu_pd(lanes.as_mut_ptr(), accum);
+                out[col * 4 + row] = lanes[0] as f32;
+                out[col * 4 + row + 1] = lanes[1] as f32;
+            }
+        }
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn multiply_avx(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
+        for col in 0..4 {
+            let mut accum = _mm256_setzero_pd();
             for k in 0..4 {
-                accum = _mm_add_pd(
+                accum = _mm256_add_pd(
                     accum,
-                    _mm_mul_pd(
-                        _mm_set_pd(a[k * 4 + row + 1] as f64, a[k * 4 + row] as f64),
-                        _mm_set1_pd(b[col * 4 + k] as f64),
+                    _mm256_mul_pd(
+                        _mm256_cvtps_pd(_mm_loadu_ps(a.as_ptr().add(k * 4))),
+                        _mm256_set1_pd(b[col * 4 + k] as f64),
                     ),
                 );
             }
-            let mut lanes = [0.; 2];
-            _mm_storeu_pd(lanes.as_mut_ptr(), accum);
-            out[col * 4 + row] = lanes[0] as f32;
-            out[col * 4 + row + 1] = lanes[1] as f32;
+            _mm_storeu_ps(out.as_mut_ptr().add(col * 4), _mm256_cvtpd_ps(accum));
         }
     }
-}
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[target_feature(enable = "avx")]
-unsafe fn multiply_avx(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
-    #[cfg(target_arch = "x86")]
-    use std::arch::x86::*;
-    #[cfg(target_arch = "x86_64")]
-    use std::arch::x86_64::*;
-    for col in 0..4 {
-        let mut accum = _mm256_setzero_pd();
-        for k in 0..4 {
-            accum = _mm256_add_pd(
-                accum,
-                _mm256_mul_pd(
+    /// Genuine AVX2 tier: one 256-bit row load plus `vpermps` replaces four 128-bit loads.
+    /// The arithmetic order is identical to the AVX tier, so results are bit-identical.
+    #[target_feature(enable = "avx2")]
+    pub(super) unsafe fn multiply_avx2(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
+        let lo = _mm256_loadu_ps(a.as_ptr());
+        let hi = _mm256_loadu_ps(a.as_ptr().add(8));
+        for col in 0..4 {
+            let mut accum = _mm256_setzero_pd();
+            for k in 0..4 {
+                // `lo` holds a[0..8] and `hi` holds a[8..16], so `base` is where each begins.
+                let (source, base) = if k < 2 { (lo, 0) } else { (hi, 8) };
+                let start = (k * 4 - base) as i32;
+                // Lanes 0..3 receive a[k*4..k*4+4]; lanes 4..7 are selected but discarded.
+                let picked = _mm256_permutevar8x32_ps(
+                    source,
+                    _mm256_setr_epi32(
+                        start,
+                        start + 1,
+                        start + 2,
+                        start + 3,
+                        start,
+                        start,
+                        start,
+                        start,
+                    ),
+                );
+                accum = _mm256_add_pd(
+                    accum,
+                    _mm256_mul_pd(
+                        _mm256_cvtps_pd(_mm256_castps256_ps128(picked)),
+                        _mm256_set1_pd(b[col * 4 + k] as f64),
+                    ),
+                );
+            }
+            _mm_storeu_ps(out.as_mut_ptr().add(col * 4), _mm256_cvtpd_ps(accum));
+        }
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn multiply_fma(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
+        for col in 0..4 {
+            let mut accum = _mm256_setzero_pd();
+            for k in 0..4 {
+                accum = _mm256_fmadd_pd(
                     _mm256_cvtps_pd(_mm_loadu_ps(a.as_ptr().add(k * 4))),
                     _mm256_set1_pd(b[col * 4 + k] as f64),
-                ),
-            );
+                    accum,
+                );
+            }
+            _mm_storeu_ps(out.as_mut_ptr().add(col * 4), _mm256_cvtpd_ps(accum));
         }
-        _mm_storeu_ps(out.as_mut_ptr().add(col * 4), _mm256_cvtpd_ps(accum));
     }
-}
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[target_feature(enable = "avx2,fma")]
-unsafe fn multiply_fma(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
-    #[cfg(target_arch = "x86")]
-    use std::arch::x86::*;
+    /// AVX-512 tier: two output columns share one 8-lane packed-double accumulator.
+    ///
+    /// A 4x4 multiply only needs four lanes per column, so the AVX tier leaves half of every
+    /// 256-bit register idle. Here each accumulator holds columns `2k` and `2k+1` side by side:
+    /// lanes 0..3 carry one column's four rows and lanes 4..7 the next column's. The source column
+    /// is broadcast into both halves and the multiplier vector repeats one `b` coefficient per
+    /// half, so two columns advance per iteration.
+    ///
+    /// Accumulation stays `acc = acc + a*b` in `k = 0,1,2,3` order, exactly like the scalar oracle,
+    /// so results are bit-identical to the AVX tier rather than merely close.
     #[cfg(target_arch = "x86_64")]
-    use std::arch::x86_64::*;
-    for col in 0..4 {
-        let mut accum = _mm256_setzero_pd();
-        for k in 0..4 {
-            accum = _mm256_fmadd_pd(
-                _mm256_cvtps_pd(_mm_loadu_ps(a.as_ptr().add(k * 4))),
-                _mm256_set1_pd(b[col * 4 + k] as f64),
-                accum,
+    #[target_feature(enable = "avx512f")]
+    pub(super) unsafe fn multiply_avx512(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
+        for pair in 0..2 {
+            let (left, right) = (pair * 2, pair * 2 + 1);
+            let mut accum = _mm512_setzero_pd();
+            for k in 0..4 {
+                // Both halves get the same source column a[k*4..k*4+4].
+                let source =
+                    _mm512_broadcast_f64x4(_mm256_cvtps_pd(_mm_loadu_ps(a.as_ptr().add(k * 4))));
+                let lo = b[left * 4 + k] as f64;
+                let hi = b[right * 4 + k] as f64;
+                // `_mm512_set_pd` lists lanes from the highest index down, so lane 0 = `lo`.
+                let factor = _mm512_set_pd(hi, hi, hi, hi, lo, lo, lo, lo);
+                accum = _mm512_add_pd(accum, _mm512_mul_pd(source, factor));
+            }
+            let packed = _mm512_cvtpd_ps(accum);
+            _mm_storeu_ps(
+                out.as_mut_ptr().add(left * 4),
+                _mm256_castps256_ps128(packed),
+            );
+            _mm_storeu_ps(
+                out.as_mut_ptr().add(right * 4),
+                _mm256_extractf128_ps(packed, 1),
             );
         }
-        _mm_storeu_ps(out.as_mut_ptr().add(col * 4), _mm256_cvtpd_ps(accum));
     }
 }
 
 #[cfg(target_arch = "aarch64")]
-#[target_feature(enable = "neon")]
-unsafe fn multiply_neon(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
+mod neon {
     use std::arch::aarch64::*;
-    for col in 0..4 {
-        for row in [0, 2] {
-            let mut accum = vdupq_n_f64(0.);
-            for k in 0..4 {
-                let lanes = [a[k * 4 + row] as f64, a[k * 4 + row + 1] as f64];
-                accum = vaddq_f64(
-                    accum,
-                    vmulq_f64(
-                        vld1q_f64(lanes.as_ptr()),
-                        vdupq_n_f64(b[col * 4 + k] as f64),
-                    ),
-                );
+
+    #[target_feature(enable = "neon")]
+    pub(super) unsafe fn multiply_neon(a: &[f32; 16], b: &[f32; 16], out: &mut [f32; 16]) {
+        for col in 0..4 {
+            for row in [0, 2] {
+                let mut accum = vdupq_n_f64(0.);
+                for k in 0..4 {
+                    let lanes = [a[k * 4 + row] as f64, a[k * 4 + row + 1] as f64];
+                    accum = vaddq_f64(
+                        accum,
+                        vmulq_f64(
+                            vld1q_f64(lanes.as_ptr()),
+                            vdupq_n_f64(b[col * 4 + k] as f64),
+                        ),
+                    );
+                }
+                let mut lanes = [0.; 2];
+                vst1q_f64(lanes.as_mut_ptr(), accum);
+                out[col * 4 + row] = lanes[0] as f32;
+                out[col * 4 + row + 1] = lanes[1] as f32;
             }
-            let mut lanes = [0.; 2];
-            vst1q_f64(lanes.as_mut_ptr(), accum);
-            out[col * 4 + row] = lanes[0] as f32;
-            out[col * 4 + row + 1] = lanes[1] as f32;
         }
     }
 }

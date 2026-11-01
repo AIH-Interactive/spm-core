@@ -3,6 +3,10 @@ pub const ABI_VERSION: u32 = 1;
 /// JNI revision 4 adds deterministic call-scoped native arena ownership.
 pub const JNI_ABI_VERSION: u32 = 4;
 
+/// Requested or observed instruction set. `Auto` is a request and is never observed.
+///
+/// A reported ISA is the tier whose instructions a kernel actually executed; it never exceeds
+/// the selected request. Codes are a stable wire format and must match the Java enum exactly.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u32)]
 pub enum Isa {
@@ -13,6 +17,8 @@ pub enum Isa {
     Avx2 = 4,
     Avx2Fma = 5,
     Neon = 6,
+    /// x86 AVX-512 Foundation (`avx512f`). Code 7 continues the existing 0..=6 sequence.
+    Avx512 = 7,
 }
 
 impl TryFrom<u32> for Isa {
@@ -26,6 +32,7 @@ impl TryFrom<u32> for Isa {
             4 => Ok(Self::Avx2),
             5 => Ok(Self::Avx2Fma),
             6 => Ok(Self::Neon),
+            7 => Ok(Self::Avx512),
             _ => Err(Status::UnsupportedIsa),
         }
     }
