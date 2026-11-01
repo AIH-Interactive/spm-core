@@ -120,6 +120,35 @@ tasks.register('bundleArtifacts') {
     dependsOn tasks.named('writeDependencyInventory')
 }
 
+tasks.register('sbom') {
+    group = 'verification'
+    description = 'Generate an SPDX 2.3 SBOM for the current resolved dependency closure and product jars.'
+    dependsOn tasks.named('writeDependencyInventory')
+    dependsOn subprojects.findAll { !(it.name in ['verification', 'integration-tests']) }.collect { p -> p.tasks.named('jar') }
+    doLast {
+        def python = providers.environmentVariable('PYTHON').getOrElse('python')
+        def revision = providers.exec {
+            commandLine 'git', 'rev-parse', 'HEAD'
+        }.standardOutput.asText.get().trim()
+        if (!(revision ==~ /[0-9a-f]{40}/)) {
+            throw new GradleException("Cannot generate an SBOM without an exact 40-hex source revision (got '${revision}')")
+        }
+        def created = new java.text.SimpleDateFormat('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'')
+                .with { it.timeZone = TimeZone.getTimeZone('UTC'); it }.format(new Date())
+        def output = layout.buildDirectory.file('reports/sbom.spdx.json').get().asFile
+        output.parentFile.mkdirs()
+        def result = providers.exec {
+            commandLine python, rootProject.file('scripts/sbom.py').absolutePath,
+                    '--root', rootDir.absolutePath,
+                    '--revision', revision,
+                    '--version', project.version.toString(),
+                    '--created', created,
+                    '--output', output.absolutePath
+        }
+        logger.lifecycle("SBOM: ${result.standardOutput.asText.get().trim()}")
+    }
+}
+
 tasks.register('publishCandidate') {
     group = 'publishing'
     description = 'Publish product modules to build/candidate-maven for an immutable preview package.'
