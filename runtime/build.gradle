@@ -1,0 +1,8 @@
+dependencies {
+    api project(':api')
+    api project(':acceleration-api')
+    api project(':scene')
+    implementation project(':render-cpu')
+    implementation project(':format-bedrock')
+    implementation project(':format-ysm')
+}

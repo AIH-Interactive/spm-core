@@ -1,0 +1,8 @@
+.gradle/
+**/build/
+native-rust/target/
+*.log
+.idea/
+*.iml
+__pycache__/
+*.pyc

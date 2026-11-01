@@ -1,0 +1,5 @@
+dependencies {
+    api project(':api')
+    implementation project(':codec')
+    implementation 'io.airlift:aircompressor:0.27'
+}

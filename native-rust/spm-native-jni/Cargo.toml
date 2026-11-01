@@ -1,0 +1,16 @@
+[package]
+name = "spm-native-jni"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+spm-render-simd = { path = "../spm-render-simd" }
+spm-native-abi = { path = "../spm-native-abi" }
+jni = "=0.21.1"
+
+[lib]
+name = "spm_core_native"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"

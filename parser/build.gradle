@@ -1,0 +1,19 @@
+dependencies {
+    api project(':api')
+    implementation project(':format-common')
+    implementation project(':format-ysm')
+    implementation project(':format-bedrock')
+    implementation project(':format-bbmodel')
+    implementation project(':format-v3d')
+    testImplementation project(':runtime')
+    testImplementation project(':native-jni')
+}
+tasks.named('test') {
+    def nativeLibrary = providers.gradleProperty('spmNativeLibrary')
+    if(nativeLibrary.isPresent()) systemProperty 'spm.native.library', nativeLibrary.get()
+    def corpus = providers.gradleProperty('spmCorpusDirectory')
+    if (corpus.isPresent()) {
+        systemProperty 'spm.corpus.directory', corpus.get()
+        maxHeapSize = '2g'
+    }
+}

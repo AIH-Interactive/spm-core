@@ -1,0 +1,106 @@
+plugins { id 'base' }
+
+allprojects {
+    group = 'dev.spm.core'
+    version = providers.gradleProperty('spmCoreVersion').get()
+    repositories { mavenCentral() }
+}
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'maven-publish'
+    java {
+        toolchain { languageVersion = JavaLanguageVersion.of(25) }
+        withSourcesJar()
+        withJavadocJar()
+    }
+    dependencyLocking { lockAllConfigurations() }
+    tasks.register('resolveDependencies') {
+        group = 'verification'
+        doLast { configurations.findAll { it.canBeResolved }.each { it.resolve() } }
+    }
+    tasks.register('writeDependencyInventory') {
+        group = 'verification'
+        doLast {
+            def records = []
+            ['runtimeClasspath','testRuntimeClasspath'].each { scope ->
+                configurations.named(scope).get().incoming.artifacts.artifacts.each { artifact ->
+                    def component = artifact.id.componentIdentifier
+                    if (component instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier) {
+                        def sha = java.security.MessageDigest.getInstance('SHA-256').digest(artifact.file.bytes).encodeHex().toString()
+                        records << [group:component.group, name:component.module, version:component.version,
+                                    file:artifact.file.name, sha256:sha, scope:scope]
+                    }
+                }
+            }
+            def destination = layout.buildDirectory.file('metadata/dependencies.json').get().asFile
+            destination.parentFile.mkdirs()
+            def buildInputs = new TreeMap<String,String>()
+            fileTree(rootDir) {
+                include '**/*.gradle', '**/*.gradle.kts', '**/gradle.properties', '**/gradle.lockfile', 'gradle/**', 'gradlew', 'gradlew.bat'
+                exclude '**/build/**', '**/target/**', '**/.git/**', '**/.gradle/**', '**/.idea/**', '**/__pycache__/**'
+            }.each { input ->
+                def relative = rootDir.toPath().relativize(input.toPath()).toString().replace('\\','/')
+                buildInputs[relative] = java.security.MessageDigest.getInstance('SHA-256').digest(input.bytes).encodeHex().toString()
+            }
+            destination.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([project:project.name, dependencies:records, buildInputs:buildInputs])) + '\n'
+        }
+    }
+    tasks.withType(JavaCompile).configureEach {
+        options.release = 17
+        options.encoding = 'UTF-8'
+        options.compilerArgs += ['-Xlint:all', '-Werror']
+    }
+    tasks.withType(AbstractArchiveTask).configureEach {
+        preserveFileTimestamps = false
+        reproducibleFileOrder = true
+    }
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(providers.gradleProperty('spmTestJavaVersion').orElse('25').get().toInteger())
+        }
+        jvmArgs '--enable-native-access=ALL-UNNAMED'
+        testLogging { events 'failed', 'skipped'; exceptionFormat 'full' }
+    }
+    tasks.named('processResources') {
+        from(rootProject.file('LICENSE')) { into 'META-INF/spm-core' }
+        from(rootProject.file('NOTICE')) { into 'META-INF/spm-core' }
+        from(rootProject.file('THIRD_PARTY_NOTICES.md')) { into 'META-INF/spm-core' }
+        from(rootProject.file('provenance')) { into 'META-INF/spm-core/provenance' }
+    }
+    dependencies {
+        testImplementation platform('org.junit:junit-bom:5.12.1')
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+                pom {
+                    name = "SPM Core ${project.name}"
+                    description = 'Independent host-neutral model runtime and optional Rust acceleration'
+                    licenses { license { name = 'MIT License'; url = 'https://opensource.org/licenses/MIT' } }
+                }
+            }
+        }
+    }
+}
+tasks.named('check') { dependsOn subprojects.collect { it.tasks.named('check') } }
+tasks.register('resolveDependencies') {
+    group = 'verification'
+    description = 'Resolve every resolvable configuration for lock and checksum generation.'
+    dependsOn subprojects.collect { it.tasks.named('resolveDependencies') }
+}
+tasks.register('writeDependencyInventory') {
+    group = 'verification'
+    dependsOn subprojects.collect { it.tasks.named('writeDependencyInventory') }
+}
+tasks.register('bundleArtifacts') {
+    group = 'build'
+    description = 'Build binary/source/javadoc jars and POMs for product modules.'
+    dependsOn subprojects.findAll { !(it.name in ['verification','integration-tests']) }.collectMany { p ->
+        ['jar','sourcesJar','javadocJar','generatePomFileForMavenJavaPublication'].collect { p.tasks.named(it) }
+    }
+    dependsOn tasks.named('writeDependencyInventory')
+}

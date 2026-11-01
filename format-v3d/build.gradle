@@ -1,0 +1,5 @@
+dependencies {
+    api project(':api')
+    implementation project(':format-ysm')
+    implementation project(':format-common')
+}

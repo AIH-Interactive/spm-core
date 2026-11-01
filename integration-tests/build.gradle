@@ -1,0 +1,9 @@
+dependencies {
+    testImplementation project(':native-jni')
+    testImplementation project(':render-cpu')
+    testImplementation project(':runtime')
+}
+tasks.named('test') {
+    def nativeLibrary = providers.gradleProperty('spmNativeLibrary')
+    if (nativeLibrary.isPresent()) systemProperty 'spm.native.library', nativeLibrary.get()
+}

@@ -1,0 +1,15 @@
+dependencies {
+    testImplementation project(':api')
+    testImplementation project(':codec')
+    testImplementation project(':format-ysm')
+    testImplementation project(':render-cpu')
+    testImplementation project(':scene')
+    testImplementation project(':acceleration-api')
+    testImplementation project(':native-jni')
+    testImplementation project(':format-bedrock')
+    testImplementation project(':runtime')
+    testImplementation project(':format-bbmodel')
+    testImplementation project(':format-v3d')
+    testImplementation project(':format-common')
+    testImplementation project(':parser')
+}
