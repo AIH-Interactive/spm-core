@@ -62,8 +62,8 @@ final class HistoricalLowering {
         variant(type,key,identity,struct(unwrap(source.field("geo"))),materials,source.fields().get("animation"),source.fields().get("controller"));
     }
     private void retain(long bytes)throws IOException {
-        token.check();if(bytes<0||bytes>policy.maxExpandedBytes()-retained)throw new IOException("YSM projection expanded-byte limit");
-        reservations.add(YsmArchiveCodec.reserve(budget,bytes));retained+=bytes;
+        token.check();if(bytes<0||bytes>policy.maxExpandedBytes()-retained)throw new DecodeLimitException(ImportErrorCode.EXPANDED_LIMIT,"YSM projection expanded-byte limit");
+        YsmArchiveCodec.reserve(budget,bytes,reservations);retained+=bytes;
     }
     private List<ModelDocument.Material> textures(HistoricalValue source,boolean legacy)throws IOException {
         var result=new ArrayList<ModelDocument.Material>();

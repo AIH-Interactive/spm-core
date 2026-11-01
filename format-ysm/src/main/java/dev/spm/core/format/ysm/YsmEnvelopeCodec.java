@@ -63,7 +63,7 @@ public final class YsmEnvelopeCodec {
                     if (count > limit - staging.size()) throw new IOException("V3 expanded-byte limit");
                     staging.write(block, 0, count);
                 }
-                retained.add(YsmArchiveCodec.reserve(budget, staging.size()));
+                YsmArchiveCodec.reserve(budget, staging.size(),retained);
                 plain = staging.copy();
             } catch (RuntimeException invalid) {
                 if (invalid instanceof java.util.concurrent.CancellationException) throw invalid;

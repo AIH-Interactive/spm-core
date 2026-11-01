@@ -74,6 +74,14 @@ subprojects {
         testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     }
     publishing {
+        repositories {
+            if (!(project.name in ['verification', 'integration-tests'])) {
+                maven {
+                    name = 'candidate'
+                    url = rootProject.layout.buildDirectory.dir('candidate-maven')
+                }
+            }
+        }
         publications {
             mavenJava(MavenPublication) {
                 from components.java
@@ -82,6 +90,13 @@ subprojects {
                     description = 'Independent host-neutral model runtime and optional Rust acceleration'
                     licenses { license { name = 'MIT License'; url = 'https://opensource.org/licenses/MIT' } }
                 }
+            }
+        }
+    }
+    tasks.withType(org.gradle.api.publish.maven.tasks.PublishToMavenRepository).configureEach {
+        doFirst {
+            if (repository.name == 'candidate' && !(project.version.toString() ==~ /0\.1\.0-preview\.[0-9a-f]{12}/)) {
+                throw new GradleException('Candidate publication requires -PspmCoreVersion=0.1.0-preview.<source SHA12>')
             }
         }
     }
@@ -101,6 +116,20 @@ tasks.register('bundleArtifacts') {
     description = 'Build binary/source/javadoc jars and POMs for product modules.'
     dependsOn subprojects.findAll { !(it.name in ['verification','integration-tests']) }.collectMany { p ->
         ['jar','sourcesJar','javadocJar','generatePomFileForMavenJavaPublication'].collect { p.tasks.named(it) }
+    }
+    dependsOn tasks.named('writeDependencyInventory')
+}
+
+tasks.register('publishCandidate') {
+    group = 'publishing'
+    description = 'Publish product modules to build/candidate-maven for an immutable preview package.'
+    doFirst {
+        if (!(project.version.toString() ==~ /0\.1\.0-preview\.[0-9a-f]{12}/)) {
+            throw new GradleException('Use -PspmCoreVersion=0.1.0-preview.<exact source commit first 12 hex digits>')
+        }
+    }
+    dependsOn subprojects.findAll { !(it.name in ['verification', 'integration-tests']) }.collect { p ->
+        p.tasks.named('publishMavenJavaPublicationToCandidateRepository')
     }
     dependsOn tasks.named('writeDependencyInventory')
 }

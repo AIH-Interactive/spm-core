@@ -66,7 +66,8 @@ class ParserPipelineTest {
                 assertThrows(java.nio.ReadOnlyBufferException.class,()->prefix.put(0,(byte)0));return prefix.get(0)=='F';
             }
             @Override public ImportResult importModel(ImportRequest actual){
-                assertSame(request,actual);called.incrementAndGet();
+                assertSame(request.budget(),actual.budget());assertSame(request.cancellation(),actual.cancellation());
+                assertSame(request.policy(),actual.policy());assertEquals(request.source().identity(),actual.source().identity());called.incrementAndGet();
                 return new ImportResult(List.of(),List.of(),key->new ByteArrayInputStream(new byte[0]),()->{});
             }
         };
@@ -82,5 +83,26 @@ class ParserPipelineTest {
         var request=new ImportRequest(source,FormatHint.BEDROCK,DecodePolicy.conservative(),budget,new CancellationToken());
         assertEquals(ImportErrorCode.SOURCE_IO,assertThrows(ModelImportException.class,()->new SpmModelParser().importModel(request)).diagnostic().code());
         assertEquals(0,budget.used(),"failed source close must not orphan an already constructed snapshot");
+    }
+    @Test void extensionParsesTheExactProbedBytesFromAOneShotSourceAndPinsOpenStreams() throws Exception {
+        var budget=new ResourceBudget(1<<20);var opens=new AtomicInteger();byte[] bytes={'F','U','T','R'};byte[] expected=bytes.clone();
+        var source=new ModelSource("one-shot",new ResourceKey("root.future"),key->{
+            if(opens.incrementAndGet()!=1)throw new IOException("Source is not replayable");return new ByteArrayInputStream(bytes);
+        });
+        var request=new ImportRequest(source,FormatHint.AUTO,DecodePolicy.conservative(),budget,new CancellationToken());
+        ModelFormatAdapter extension=new ModelFormatAdapter(){
+            @Override public String formatId(){return "one-shot-format";}
+            @Override public boolean supports(FormatHint hint){return hint==FormatHint.AUTO;}
+            @Override public boolean accepts(FormatHint hint,ResourceKey entry,ByteBuffer prefix){boolean matches=prefix.get(0)=='F';bytes[0]='X';return matches;}
+            @Override public ImportResult importModel(ImportRequest actual) throws ModelImportException {
+                try(var input=actual.source().resolver().open(actual.source().entry())){assertArrayEquals(expected,input.readAllBytes());}
+                catch(IOException io){throw new ModelImportException(new ImportDiagnostic(ImportDiagnostic.Severity.ERROR,ImportErrorCode.SOURCE_IO,source.entry(),-1,io.getMessage()),io);}
+                return new ImportResult(List.of(),List.of(),actual.source().resolver(),()->{});
+            }
+        };
+        var result=new SpmModelParser(List.of(extension)).importModel(request);
+        var stream=result.resources().open(source.entry());result.close();
+        assertEquals(1,opens.get());assertTrue(budget.used()>0,"snapshot must remain charged for the borrowed stream");
+        assertArrayEquals(expected,stream.readAllBytes());stream.close();stream.close();assertEquals(0,budget.used());
     }
 }

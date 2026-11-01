@@ -9,15 +9,19 @@ import java.util.TreeMap;
 
 /** Private candidate state, copied before each scene frame and committed by its owner. */
 final class ControllerRuntime<P> {
-    record WeightedClip(AnimationClip clip, double weight) { }
+    record WeightedClip(AnimationClip clip, double weight, int slot) { }
     /** One graph scheduler; scalar and typed pose implementations supply only clip execution. */
     interface Execution<P> {
         P empty();
         P sample(List<WeightedClip> clips,double elapsed,MolangContext context);
         P blend(P from,P target,double progress,ScriptBudget budget);
-        default boolean finished(AnimationClip clip,double elapsed) { return !clip.looping() && elapsed>=clip.durationSeconds(); }
-        default void emit(AnimationClip clip,double start,double end,boolean initial,long step,MolangContext context,List<EffectTimeline.Pending> effects) {
-            EffectTimeline.append(clip,start,end,initial,step,effects,context.budget());
+        default Execution<P> copy() { return this; }
+        default void begin(List<WeightedClip> clips,MolangContext context) { }
+        default void beforeExit(List<WeightedClip> clips,double elapsed,long step,MolangContext context,List<EffectTimeline.Pending> effects) { }
+        default double blendSeconds(String source,String target,double legacy) { return legacy; }
+        default boolean finished(WeightedClip animation,double elapsed) { return !animation.clip.looping() && elapsed>=animation.clip.durationSeconds(); }
+        default void emit(WeightedClip animation,double start,double end,boolean initial,long step,MolangContext context,List<EffectTimeline.Pending> effects) {
+            if (animation.weight>0) EffectTimeline.append(animation.clip,start,end,initial,step,effects,context.budget());
         }
         default void enter(String state,long step,MolangContext context,List<EffectTimeline.Pending> effects) { }
         default boolean traverseInitialEmptyStates() { return false; }
@@ -38,7 +42,7 @@ final class ControllerRuntime<P> {
     }
     private ControllerRuntime(ControllerRuntime<P> other) {
         definition = other.definition;
-        execution = other.execution;
+        execution = other.execution.copy();
         state = other.state;
         enteredStep = other.enteredStep;
         currentStep = other.currentStep;
@@ -62,7 +66,7 @@ final class ControllerRuntime<P> {
         for (WeightedClip animation : active) {
             if (animation.weight <= 0) continue;
             applied = true;
-            boolean finished = execution.finished(animation.clip,elapsed);
+            boolean finished = execution.finished(animation,elapsed);
             any |= finished;
             all &= finished;
         }
@@ -75,6 +79,7 @@ final class ControllerRuntime<P> {
         run(definition.states().get(state).onEntry(), contextAt(context, 0));
         execution.enter(state,0,contextAt(context,0),effects);
         weights(contextAt(context, 0));
+        execution.begin(active,contextAt(context,0));
         initialEffects(0, effects, contextAt(context,0));
         sample(0, context);
         if(execution.traverseInitialEmptyStates() && definition.states().get(state).animations().isEmpty()) tick(0,context,effects);
@@ -99,14 +104,16 @@ final class ControllerRuntime<P> {
             if (target.animations().isEmpty() && !visited.add(selected.target())) {
                 throw new MolangException(MolangException.Reason.CONTROLLER_CYCLE, "Empty controller state cycle at " + selected.target());
             }
+            execution.beforeExit(active,timeAt(step),step,sourceContext,effects);
             run(source.onExit(), sourceContext);
+            blendSeconds = execution.blendSeconds(state,selected.target(),target.blendSeconds());
             state = selected.target();
             enteredStep = step;
             blendFrom = pose;
-            blendSeconds = target.blendSeconds();
             run(target.onEntry(), contextAt(context, step));
             execution.enter(state,step,contextAt(context,step),effects);
             weights(contextAt(context, step));
+            execution.begin(active,contextAt(context,step));
             initialEffects(step, effects, contextAt(context,step));
             transitioned = true;
             if (!target.animations().isEmpty()) break;
@@ -115,9 +122,7 @@ final class ControllerRuntime<P> {
             weights(contextAt(context, step));
             for (WeightedClip animation : active) {
                 budget.step();
-                if (animation.weight > 0) {
-                    execution.emit(animation.clip,Math.max(0,timeAt(step-1)),timeAt(step),false,step,contextAt(context,step),effects);
-                }
+                execution.emit(animation,Math.max(0,timeAt(step-1)),timeAt(step),false,step,contextAt(context,step),effects);
             }
         }
         sample(step, context);
@@ -130,7 +135,7 @@ final class ControllerRuntime<P> {
         for (ControllerDefinition.ClipBinding binding : definition.states().get(state).animations()) {
             context.budget().step();
             double weight = Math.max(0, binding.weight().evaluate(context));
-            result.add(new WeightedClip(definition.clips().get(binding.clip()), weight));
+            result.add(new WeightedClip(definition.clips().get(binding.clip()), weight,result.size()));
         }
         active = List.copyOf(result);
     }
@@ -138,7 +143,7 @@ final class ControllerRuntime<P> {
         ScriptBudget budget=currentContext.budget();
         for (WeightedClip animation : active) {
             budget.step();
-            if (animation.weight > 0) execution.emit(animation.clip,0,0,true,step,currentContext,effects);
+            execution.emit(animation,0,0,true,step,currentContext,effects);
         }
     }
     private void sample(long step,MolangContext context) {

@@ -5,6 +5,7 @@ import dev.spm.core.runtime.ModelFrameRenderer;
 import dev.spm.core.acceleration.CpuComputeProvider;
 import dev.spm.core.acceleration.Isa;
 import dev.spm.core.nativejni.NativeComputeProvider;
+import dev.spm.core.render.cpu.BoneEvaluator;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,7 +33,9 @@ class PrivateCorpusTest {
             var files=inputs.filter(Files::isRegularFile).filter(p->p.getFileName().toString().endsWith(".ysm")).sorted().toList();
             assertFalse(files.isEmpty(),"No private model inputs found");
             for(Path file:files){
-                var budget=new ResourceBudget(512L<<20);String key=root.relativize(file).toString().replace('\\','/');
+                long budgetMiB=Long.parseLong(System.getProperty("spm.corpus.budgetMiB","512"));
+                if(budgetMiB<1||budgetMiB>2048)throw new IllegalArgumentException("Private corpus budget must be 1..2048 MiB");
+                var budget=new ResourceBudget(Math.multiplyExact(budgetMiB,1L<<20));String key=root.relativize(file).toString().replace('\\','/');
                 ResourceResolver resources=resource->{
                     Path path=root.resolve(resource.path()).normalize().toRealPath();
                     if(!path.startsWith(root))throw new IOException("Resource escaped private corpus");
@@ -42,8 +45,17 @@ class PrivateCorpusTest {
                 int variants=0,vertices=0;
                 try(var result=new SpmModelParser().importModel(new ImportRequest(source,FormatHint.AUTO,DecodePolicy.localModel(),budget,new CancellationToken()))){
                     assertFalse(result.models().isEmpty(),"No executable variants");
+                    long retained=budget.used();
                     for(var model:result.models()){
                         var document=model.asset().document();variants++;
+                        if(nativeProvider!=null){
+                            var expected=BoneEvaluator.evaluate(document.skeleton(),document.bindPose());
+                            var actual=nativeProvider.evaluateBones(document.skeleton(),document.bindPose());
+                            near(expected.transforms(),actual.transforms());near(expected.normals(),actual.normals());
+                            near(expected.locatorPositions(),actual.locatorPositions());
+                            assertArrayEquals(expected.visible(),actual.visible());assertArrayEquals(expected.descendantVisible(),actual.descendantVisible());
+                            assertArrayEquals(expected.glow(),actual.glow());assertArrayEquals(expected.colorsRgba(),actual.colorsRgba());
+                        }
                         try(var frame=ModelFrameRenderer.render(model.asset(),document.bindPose(),budget,new CancellationToken())){
                             for(var mesh:frame.meshes())vertices+=mesh.vertices().vertexCount();
                             if(nativeProvider!=null)try(var accelerated=ModelFrameRenderer.render(model.asset(),document.bindPose(),nativeProvider,budget,new CancellationToken())){
@@ -62,11 +74,12 @@ class PrivateCorpusTest {
                         }
                     }
                     loaded++;
-                    System.out.println("CORPUS_OK\t"+key+"\tvariants="+variants+"\tvertices="+vertices);
+                    System.out.println("CORPUS_OK\t"+key+"\tvariants="+variants+"\tvertices="+vertices+"\tretainedBytes="+retained+"\tpeakBytes="+budget.peakUsed()+"\tbudgetMiB="+budgetMiB);
                 }catch(ModelImportException problem){
                     String failure=key+"\t"+problem.diagnostic().code()+"\t"+problem.getMessage();failures.add(failure);System.out.println("CORPUS_FAILED\t"+failure);
-                }
-                assertEquals(0,budget.used(),"Retained budget after "+key);
+                }catch(ResourceBudgetExceededException exhausted){
+                    String failure=key+"\tBUDGET_EXCEEDED\tframe credits exceeded configured local budget";failures.add(failure);System.out.println("CORPUS_FAILED\t"+failure);
+                }finally{assertEquals(0,budget.used(),"Retained budget after "+key);}
             }
             System.out.println("CORPUS_SUMMARY total="+files.size()+" loaded="+loaded+" failures="+failures.size());
         }

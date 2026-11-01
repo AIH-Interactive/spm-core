@@ -8,13 +8,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Bounded executable animation_controllers graph; unknown runtime fields fail explicitly. */
+/**
+ * Bounded executable animation_controllers graph; unknown runtime fields fail explicitly.
+ * An explicit blend_via_shortest_path selects outgoing state duration and Euler-axis blending;
+ * without that field, Core retains its incoming duration and quaternion interpolation behavior.
+ */
 public final class PoseControllerDefinition {
     final ControllerDefinition graph;
     final Map<String,List<String>> sounds;
     final PoseAnimationLibrary library;
-    private PoseControllerDefinition(ControllerDefinition graph,Map<String,List<String>> sounds,PoseAnimationLibrary library) {
-        this.graph=graph; this.sounds=Map.copyOf(sounds); this.library=library;
+    final Map<String,Boolean> outgoingRotation;
+    private PoseControllerDefinition(ControllerDefinition graph,Map<String,List<String>> sounds,PoseAnimationLibrary library,Map<String,Boolean> outgoingRotation) {
+        this.graph=graph; this.sounds=Map.copyOf(sounds); this.library=library; this.outgoingRotation=Map.copyOf(outgoingRotation);
     }
     public static PoseControllerDefinition decode(JsonObject source,String name,PoseAnimationLibrary library,ScriptBudget budget) {
         return decode(source,name,library,Map.of(),budget);
@@ -33,10 +38,16 @@ public final class PoseControllerDefinition {
         Map<String,ControllerDefinition.State> states=new LinkedHashMap<>();
         Map<String,AnimationClip> descriptors=new LinkedHashMap<>();
         Map<String,List<String>> sounds=new LinkedHashMap<>();
+        Map<String,Boolean> outgoingRotation=new LinkedHashMap<>();
         for(var declaration:declarations.values().entrySet()) {
             budget.step(); validName(declaration.getKey());
             JsonObject state=object(declaration.getValue());
-            fields(state,Set.of("animations","transitions","on_entry","on_exit","blend_transition","sound_effects"));
+            fields(state,Set.of("animations","transitions","on_entry","on_exit","blend_transition","sound_effects","blend_via_shortest_path"));
+            JsonValue shortest=state.values().get("blend_via_shortest_path");
+            if (shortest!=null) {
+                if (!(shortest instanceof JsonBoolean bool)) throw fail(MolangException.Reason.SYNTAX,"blend_via_shortest_path must be boolean");
+                outgoingRotation.put(declaration.getKey(),bool.value());
+            }
             List<ControllerDefinition.ClipBinding> clips=new ArrayList<>();
             for(JsonValue binding:array(state.values().get("animations"),64)) {
                 budget.step();
@@ -71,7 +82,7 @@ public final class PoseControllerDefinition {
             states.put(declaration.getKey(),new ControllerDefinition.State(clips,transitions,decoder.scripts(state.values().get("on_entry")),decoder.scripts(state.values().get("on_exit")),blend));
         }
         budget.checkCancelled();
-        return new PoseControllerDefinition(new ControllerDefinition(initial,descriptors,states),sounds,library);
+        return new PoseControllerDefinition(new ControllerDefinition(initial,descriptors,states),sounds,library,outgoingRotation);
     }
     public String initialState() { return graph.initialState(); }
     private static final class Decoder {

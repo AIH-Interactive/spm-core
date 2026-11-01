@@ -6,6 +6,7 @@ import dev.spm.core.format.bbmodel.BbmodelJsonImporter;
 import dev.spm.core.format.common.BoundedJson;
 import dev.spm.core.format.ysm.*;
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.List;
@@ -18,10 +19,12 @@ public final class SpmModelParser implements ModelImporter {
     private final List<ModelFormatAdapter> extensions;
     public SpmModelParser(){this(List.of());}
     public SpmModelParser(List<ModelFormatAdapter> extensions){
-        this.extensions=List.copyOf(extensions);var ids=new HashSet<String>();
+        var registered=new java.util.ArrayList<>(List.copyOf(extensions));var ids=new HashSet<String>();
         ids.addAll(Set.of("ysm","ysm-payload","bedrock","bbmodel"));
-        for(var adapter:this.extensions)if(!adapter.formatId().matches("[a-z][a-z0-9-]{0,63}")||!ids.add(adapter.formatId()))
+        for(var adapter:registered)if(!adapter.formatId().matches("[a-z][a-z0-9-]{0,63}")||!ids.add(adapter.formatId()))
             throw new IllegalArgumentException("Duplicate or invalid format adapter id");
+        if(!ids.contains("v3d"))registered.add(new V3dModelAdapter());
+        this.extensions=List.copyOf(registered);
     }
     @Override public boolean supports(FormatHint hint){
         Objects.requireNonNull(hint);
@@ -40,7 +43,14 @@ public final class SpmModelParser implements ModelImporter {
                 if(hint==FormatHint.AUTO)hint=detect(bytes,request);
                 if(hint==null || !supportsBuiltin(hint)){
                     for(var adapter:extensions)if(adapter.supports(request.hint()) && adapter.accepts(request.hint(),request.source().entry(),prefix(bytes))) {
-                        request.cancellation().check();return adapter.importModel(request);
+                        request.cancellation().check();builder.retain(snapshot.retain());
+                        ResourceResolver replay=key->key.equals(request.source().entry())?new ByteArrayInputStream(bytes):request.source().resolver().open(key);
+                        var source=new ModelSource(request.source().identity(),request.source().entry(),replay);
+                        var replayRequest=new ImportRequest(source,request.hint(),request.policy(),request.budget(),request.cancellation(),request.sourceProfile(),request.actionProfile());
+                        var imported=adapter.importModel(replayRequest);builder.retain(imported);
+                        for(var model:imported.models())builder.add(model.key(),model.asset().document());
+                        for(var diagnostic:imported.diagnostics())builder.diagnostic(diagnostic);
+                        builder.resources(imported.resources());request.cancellation().check();return builder.finish();
                     }
                     throw failure(request,ImportErrorCode.UNSUPPORTED_FORMAT,null);
                 }

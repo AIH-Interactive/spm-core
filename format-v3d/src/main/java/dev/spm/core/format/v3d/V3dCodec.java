@@ -53,12 +53,13 @@ public final class V3dCodec {
                 if (!standard(key) && !decodedPath(key.path())) throw new IOException("Unknown/unsafe V3D package path");
                 if (snapshot.containsKey(key)) throw new IOException("Duplicate V3D resource key");
                 if (value.length>Math.min(policy.maxInputBytes(),policy.maxExpandedBytes())-total) throw new IOException("Aggregate V3D input/expanded limit");
-                reservations.add(reserve(budget,value.length)); total+=value.length; snapshot.put(key,value.clone());
+                try{budget.reserve(value.length,reservations);}catch(IllegalStateException exhausted){throw new IOException("V3D resource budget exceeded",exhausted);}
+                total+=value.length; snapshot.put(key,value.clone());
             }
             byte[] manifestBytes=required(snapshot,V3dManifest.MANIFEST), integrityBytes=required(snapshot,V3dManifest.INTEGRITY);
             if (manifestBytes.length>(16<<20) || integrityBytes.length>(16<<20)) throw new IOException("V3D metadata size limit");
             var jsonPolicy=new DecodePolicy(Math.min(policy.maxInputBytes(),16<<20),policy.maxExpandedBytes(),policy.maxEntries(),
-                    Math.min(policy.maxStringBytes(),65535),Math.min(policy.maxDepth(),64));
+                    Math.min(policy.maxStringBytes(),65535),Math.min(policy.maxDepth(),64),policy.maxObjects(),policy.maxCollectionEntries());
             V3dManifest manifest;
             try (var quota=new BoundedJson.Quota(jsonPolicy,budget,token)) {
                 JsonObject main=BoundedJson.read(manifestBytes,quota), integrity=BoundedJson.read(integrityBytes,quota);
@@ -67,7 +68,7 @@ public final class V3dCodec {
                 long metadata=4096+manifest.decoded().map(decoded->decoded.files().keySet().stream()
                         .mapToLong(key->256L+key.path().length()*2L).sum()).orElse(0L);
                 if (metadata>policy.maxExpandedBytes()-total) throw new IOException("V3D retained metadata limit");
-                reservations.add(reserve(budget,metadata));
+                try{budget.reserve(metadata,reservations);}catch(IllegalStateException exhausted){throw new IOException("V3D resource budget exceeded",exhausted);}
             }
             verifyFile(snapshot,manifest.source().path(),manifest.source().size(),manifest.source().sha256(),token);
             verifyFile(snapshot,manifest.wire().path(),manifest.wire().rawSize(),manifest.wire().sha256(),token);
@@ -75,6 +76,7 @@ public final class V3dCodec {
             if (ByteBuffer.wrap(wire).order(ByteOrder.LITTLE_ENDIAN).getInt()!=manifest.source().innerVersion()) {
                 throw new IOException("V3D wire inner version mismatch");
             }
+            verifySourceWire(snapshot.get(V3dManifest.SOURCE),wire,policy,budget,token);
             if (verification==Verification.FULL && manifest.decoded().isPresent()) {
                 for (var entry:manifest.decoded().orElseThrow().files().entrySet()) {
                     verifyFile(snapshot,entry.getKey(),entry.getValue().size(),entry.getValue().sha256(),token);
@@ -84,6 +86,22 @@ public final class V3dCodec {
             var result=new V3dPackage(snapshot,manifest,verification,reservations); reservations.clear(); return result;
         } catch (IllegalArgumentException invalid) { throw new IOException("Invalid V3D package metadata/path",invalid); }
         finally { reservations.forEach(ResourceBudget.Reservation::close); }
+    }
+    @SuppressWarnings("try")
+    private static void verifySourceWire(byte[] source,byte[] wire,DecodePolicy policy,ResourceBudget budget,
+                                         CancellationToken token) throws IOException {
+        try(var plaintext=YsmEnvelopeCodec.decode(source,policy,budget,token);
+            var input=plaintext.open();var scratch=reserve(budget,8192)) {
+            byte[] block=new byte[8192];int offset=0,count;
+            while((count=input.read(block))!=-1) {
+                token.check();
+                if(count>wire.length-offset)throw new IOException("V3D source/wire payload mismatch");
+                for(int i=0;i<count;i++)if(block[i]!=wire[offset+i])throw new IOException("V3D source/wire payload mismatch");
+                offset+=count;
+            }
+            token.check();
+            if(offset!=wire.length)throw new IOException("V3D source/wire payload mismatch");
+        }
     }
     static ResourceBudget.Reservation reserve(ResourceBudget budget,long bytes) throws IOException {
         try { return budget.reserve(bytes); } catch (IllegalStateException exhausted) { throw new IOException("V3D resource budget exceeded",exhausted); }

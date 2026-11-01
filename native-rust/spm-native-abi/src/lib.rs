@@ -1,7 +1,7 @@
 //! Versioned logical CPU compute contract; no game or GPU types.
 pub const ABI_VERSION: u32 = 1;
-/// JNI revision 3 includes RGBA, subtree extraction and complete rigid vertex batches.
-pub const JNI_ABI_VERSION: u32 = 3;
+/// JNI revision 4 adds deterministic call-scoped native arena ownership.
+pub const JNI_ABI_VERSION: u32 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u32)]

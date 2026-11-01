@@ -50,8 +50,17 @@ final class ParserInput {
     static final class Snapshot implements AutoCloseable {
         private byte[] bytes;
         private final ResourceBudget.Reservation credit;
+        private int references=1;
+        private boolean retired;
         Snapshot(byte[] bytes,ResourceBudget.Reservation credit){this.bytes=bytes;this.credit=credit;}
-        byte[] bytes(){if(bytes==null)throw new IllegalStateException("Source snapshot closed");return bytes;}
-        @Override public void close(){bytes=null;credit.close();}
+        synchronized byte[] bytes(){if(retired)throw new IllegalStateException("Source snapshot closed");return bytes;}
+        synchronized AutoCloseable retain(){
+            if(retired)throw new IllegalStateException("Source snapshot closed");
+            if(references==Integer.MAX_VALUE)throw new IllegalStateException("Too many source leases");
+            var returned=new java.util.concurrent.atomic.AtomicBoolean();
+            AutoCloseable lease=()->{if(returned.compareAndSet(false,true))release();};references++;return lease;
+        }
+        private synchronized void release(){if(--references==0){bytes=null;credit.close();}}
+        @Override public synchronized void close(){if(retired)return;retired=true;release();}
     }
 }

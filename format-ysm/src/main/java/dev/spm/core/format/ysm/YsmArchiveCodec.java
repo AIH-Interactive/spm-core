@@ -114,7 +114,7 @@ public final class YsmArchiveCodec {
                 }
                 if (inflater.getRemaining() != 0) throw new IOException("Trailing zlib stream data");
                 // Charge the retained copy before it is allocated, then hand ownership to the caller.
-                retained.add(reserve(budget, staging.size()));
+                reserve(budget, staging.size(),retained);
                 return staging.copy();
             }
         } catch (DataFormatException malformed) { throw new IOException("Malformed zlib stream", malformed); }
@@ -124,6 +124,10 @@ public final class YsmArchiveCodec {
     static ResourceBudget.Reservation reserve(ResourceBudget budget, long bytes) throws IOException {
         try { return budget.reserve(bytes); }
         catch (IllegalStateException exhausted) { throw new IOException("Decode live-byte budget exceeded", exhausted); }
+    }
+    static ResourceBudget.Reservation reserve(ResourceBudget budget,long bytes,Collection<? super ResourceBudget.Reservation> owner) throws IOException {
+        try{return budget.reserve(bytes,owner);}
+        catch(IllegalStateException exhausted){throw new IOException("Decode live-byte budget exceeded",exhausted);}
     }
     private static byte[] decrypt(byte[] input, int offset, int size, byte[] key, byte[] iv) throws IOException {
         try {

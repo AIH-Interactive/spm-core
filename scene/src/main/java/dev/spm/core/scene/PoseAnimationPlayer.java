@@ -64,6 +64,8 @@ public final class PoseAnimationPlayer {
         if (pending) {
             candidate.clip=requested==null?null:library.clip(requested);
             candidate.startedStep=firstStep;
+            candidate.playback=null;
+            candidate.playback=candidate.clip!=null && candidate.clip.delayed()?new PoseClipPlayback(candidate.clip,local(candidate,firstStep,0,context)):null;
             candidate.blendFrom=candidate.pose;
             candidate.blendSeconds=requestedBlend;
             candidate.onceEnded=false;
@@ -80,8 +82,8 @@ public final class PoseAnimationPlayer {
         budget.checkCancelled();
         double elapsed=Math.max(0,(advance.totalSteps()-candidate.startedStep)/60.0);
         String name=candidate.clip==null?"":candidate.clip.name();
-        double animationTime=candidate.clip==null?0:candidate.clip.localTime(elapsed);
-        boolean finished=candidate.clip==null || candidate.clip.loop()!=PoseAnimationLibrary.Loop.LOOP && elapsed>=candidate.clip.duration();
+        double animationTime=candidate.clip==null?0:candidate.playback!=null?candidate.playback.localTime():candidate.clip.localTime(elapsed);
+        boolean finished=finished(candidate,elapsed);
         PoseFrame frame=new PoseFrame(instanceId,0,frameId,advance.totalSteps(),advance.totalSteps()/60.0,
                 advance.interpolation(),advance.droppedSteps(),name,animationTime,finished,candidate.pose,context.variables(),effects);
         long nextSequence=Math.addExact(effectSequence,effects.size());
@@ -91,13 +93,16 @@ public final class PoseAnimationPlayer {
     }
     private MolangContext local(State candidate,long step,double localTime,MolangContext context) {
         return context.overlay(Map.of("anim_time",localTime,"life_time",step/60.0,"delta_time",1.0/60,
-                "animation_finished",candidate.clip!=null && candidate.clip.loop()!=PoseAnimationLibrary.Loop.LOOP
-                        && (step-candidate.startedStep)/60.0>=candidate.clip.duration()?1.0:0.0));
+                "animation_finished",finished(candidate,(step-candidate.startedStep)/60.0)?1.0:0.0));
+    }
+    private static boolean finished(State candidate,double elapsed) {
+        return candidate.clip==null || (candidate.playback!=null?candidate.playback.finished(elapsed):
+                candidate.clip.loop()!=PoseAnimationLibrary.Loop.LOOP && elapsed>=candidate.clip.duration());
     }
     private void sample(State candidate,long step,MolangContext context) {
         double elapsed=Math.max(0,(step-candidate.startedStep)/60.0);
-        double localTime=candidate.clip==null?0:candidate.clip.localTime(elapsed);
-        boolean drive=candidate.clip!=null && !candidate.onceEnded;
+        double localTime=candidate.clip==null?0:candidate.playback!=null?candidate.playback.localTime():candidate.clip.localTime(elapsed);
+        boolean drive=candidate.clip!=null && !candidate.onceEnded && (candidate.playback==null || candidate.playback.started());
         PoseAnimationLibrary.Sample sampled=library.sample(candidate.clip,localTime,local(candidate,step,localTime,context),bindPose,drive);
         float[] rotations=sampled.pose().rotations(),positions=sampled.pose().translations(),scales=sampled.pose().scales();
         float[][] target={rotations,positions,scales};
@@ -128,7 +133,7 @@ public final class PoseAnimationPlayer {
             }
         }
         candidate.pose=new BonePose(rotations,positions,scales,bindPose.ownHidden(),bindPose.childrenHidden(),bindPose.glow(),bindPose.colorsRgba());
-        if (candidate.clip!=null && candidate.clip.loop()==PoseAnimationLibrary.Loop.ONCE && elapsed>=candidate.clip.duration()) candidate.onceEnded=true;
+        if (candidate.clip!=null && candidate.clip.loop()==PoseAnimationLibrary.Loop.ONCE && finished(candidate,elapsed)) candidate.onceEnded=true;
     }
     private static void blend(int channel,float[] start,float[] end,int offset,double progress,float[] target) {
         if (channel==0) PoseRotation.blend(start,end,offset,progress,target);
@@ -136,7 +141,8 @@ public final class PoseAnimationPlayer {
     }
     private void emit(State candidate,double start,double end,boolean initial,long step,MolangContext context,List<EffectCommand> effects) {
         List<EffectTimeline.Pending> pendingEffects=new ArrayList<>();
-        PoseClipTimeline.append(candidate.clip,start,end,initial,step,local(candidate,step,start,context),pendingEffects);
+        if (candidate.playback!=null) candidate.playback.advance(end,step,local(candidate,step,start,context),pendingEffects,true);
+        else PoseClipTimeline.append(candidate.clip,start,end,initial,step,local(candidate,step,start,context),pendingEffects);
         for(var effect:pendingEffects) {
             if(effects.size()>=4096) throw new MolangException(MolangException.Reason.CAPACITY,"Too many effects in one frame");
             var cue=effect.cue();
@@ -145,6 +151,7 @@ public final class PoseAnimationPlayer {
     }
     private static final class State {
         PoseAnimationLibrary.Clip clip;
+        PoseClipPlayback playback;
         long startedStep;
         BonePose pose;
         BonePose blendFrom;
@@ -162,6 +169,7 @@ public final class PoseAnimationPlayer {
         }
         private State(State other) {
             clip=other.clip; startedStep=other.startedStep; pose=other.pose; blendFrom=other.blendFrom;
+            playback=other.playback==null?null:other.playback.copy();
             blendSeconds=other.blendSeconds; onceEnded=other.onceEnded;
             driven=other.driven.clone(); lastDriven=other.lastDriven.clone(); resetStart=other.resetStart.clone();
             anchors=new float[][]{other.anchors[0].clone(),other.anchors[1].clone(),other.anchors[2].clone()};

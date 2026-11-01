@@ -3,6 +3,8 @@ package dev.spm.core.format.v3d;
 import dev.spm.core.api.ResourceKey;
 import dev.spm.core.api.ResourceBudget;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 import java.util.*;
 
 /** Immutable owned logical package. Hosts own filesystem paths, atomic publication and cache locks. */
@@ -21,6 +23,12 @@ public final class V3dPackage implements AutoCloseable {
         open(); byte[] bytes=files.get(key);
         if (bytes==null) throw new IOException("V3D resource is absent: "+key.path());
         return bytes.clone();
+    }
+    /** Borrowed immutable stream; the caller must pin this package owner until the stream closes. */
+    public synchronized InputStream open(ResourceKey key) throws IOException {
+        open(); byte[] bytes=files.get(Objects.requireNonNull(key));
+        if (bytes==null) throw new IOException("V3D resource is absent: "+key.path());
+        return new ByteArrayInputStream(bytes);
     }
     public V3dManifest manifest() { return manifest; }
     public V3dCodec.Verification verification() { return verification; }

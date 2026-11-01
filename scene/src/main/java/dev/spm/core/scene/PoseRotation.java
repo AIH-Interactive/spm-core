@@ -3,6 +3,13 @@ package dev.spm.core.scene;
 /** Final-local ZYX rotation interpolation. Initial rotation has already been included in both inputs. */
 final class PoseRotation {
     private PoseRotation() { }
+    static void axes(float[] start,float[] end,int offset,double alpha,boolean shortest,float[] result) {
+        for (int axis=0;axis<3;axis++) {
+            int index=offset+axis; double delta=(double)end[index]-start[index];
+            if (shortest) delta-=Math.floor((delta+Math.PI)/(2*Math.PI))*2*Math.PI;
+            result[index]=PoseAnimationLibrary.representable(start[index]+delta*alpha);
+        }
+    }
     static void blend(float[] start,float[] end,int offset,double alpha,float[] result) {
         if (alpha<=0) { System.arraycopy(start,offset,result,offset,3); return; }
         if (alpha>=1) { System.arraycopy(end,offset,result,offset,3); return; }

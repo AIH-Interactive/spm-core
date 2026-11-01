@@ -15,7 +15,7 @@ import java.util.Objects;
 
 /** Explicit, content-checked optional provider. Never downloads or loads old libraries. */
 public final class NativeTransforms {
-    public static final int ABI_VERSION=3;
+    public static final int ABI_VERSION=4;
     private static Path loadedPath;
     private static String loadedDigest;
     private static boolean ready;
@@ -55,14 +55,22 @@ public final class NativeTransforms {
     public boolean supported(Isa isa) { return nSupported(Objects.requireNonNull(isa).code()); }
     public TransformResult transform(float[] matrix,float[] positions,Isa requested) {
         ScalarTransforms.validate(matrix,positions);
-        ByteBuffer m=buffer(64), p=buffer(Math.multiplyExact(positions.length,4)), out=buffer(Math.multiplyExact(positions.length,4));
-        for(float v:matrix)m.putFloat(v);
-        for(float v:positions)p.putFloat(v);
-        long outcome=transformBuffers(m,p,out,positions.length/3,requested);
-        float[] result=new float[positions.length];
-        for(int i=0;i<result.length;i++)result[i]=out.getFloat(i*4);
-        return new TransformResult(result,(int)outcome,Isa.fromCode((int)(outcome>>>32)));
+        Objects.requireNonNull(requested);
+        int bytes=Math.multiplyExact(positions.length,4);
+        try(NativeArena arena=NativeArena.allocate(64,bytes,bytes)) {
+            ByteBuffer m=arena.slice(64), p=arena.slice(bytes), out=arena.slice(bytes);
+            for(float v:matrix)m.putFloat(v);
+            for(float v:positions)p.putFloat(v);
+            long outcome=transformBuffers(m,p,out,positions.length/3,requested);
+            float[] result=new float[positions.length];
+            for(int i=0;i<result.length;i++)result[i]=out.getFloat(i*4);
+            return new TransformResult(result,(int)outcome,Isa.fromCode((int)(outcome>>>32)));
+        }
     }
+    /** Read-only count of live per-call native arenas; never requires a GC to return to zero. */
+    public static long ownedArenaCount() { return NativeArena.owned(false); }
+    /** Physical bytes retained by live native arenas (a zero-capacity arena retains one byte). */
+    public static long ownedArenaBytes() { return NativeArena.owned(true); }
     /** Operates from each buffer's base, ignoring position/limit; caller owns buffers for the call. */
     public long transformBuffers(ByteBuffer matrix,ByteBuffer positions,ByteBuffer output,int count,Isa requested) {
         Objects.requireNonNull(matrix); Objects.requireNonNull(positions); Objects.requireNonNull(output); Objects.requireNonNull(requested);
@@ -77,7 +85,6 @@ public final class NativeTransforms {
         if((int)result!=count) throw new IllegalStateException("Incomplete native result");
         return result;
     }
-    private static ByteBuffer buffer(int bytes) { return ByteBuffer.allocateDirect(bytes).order(ByteOrder.LITTLE_ENDIAN); }
     private static native int nAbiVersion();
     private static native boolean nSupported(int isa);
     private static native long nTransform(ByteBuffer matrix,ByteBuffer input,ByteBuffer output,int count,int isa);

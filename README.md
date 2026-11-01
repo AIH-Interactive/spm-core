@@ -29,6 +29,47 @@ Use `spm_core_native.dll` on Windows and `libspm_core_native.dylib` on macOS. On
 
 ## Use
 
+The `parser` module is the unified loading entry point. A separate SPM parser project or an original
+native parser binary is not required. `SpmModelParser` reads YSM V1/V2 raw archives, V3 envelopes and
+historical payloads 1–32, verified V3D packages, plus the supported Bedrock/BBModel geometry subsets. AUTO detects file
+domains; headerless historical payloads require the explicit `YSM_PAYLOAD` hint.
+
+```java
+var request = new ImportRequest(
+    new ModelSource("local-model", new ResourceKey("avatar.ysm"), authorizedResolver),
+    FormatHint.AUTO, DecodePolicy.localModel(), sharedBudget, cancellation);
+try (ImportResult imported = new SpmModelParser().importModel(request)) {
+    for (var model : imported.models()) {
+        try (CpuFrame frame = ModelFrameRenderer.render(
+                model.asset(), model.asset().document().bindPose(), sharedBudget, cancellation)) {
+            // Submit the immutable frame through the Host's graphics implementation.
+        }
+    }
+}
+```
+
+Use `dev.spm.core.parser.SpmModelParser` with the request/result types in `dev.spm.core.api`.
+The Host supplies the authorized resource resolver, shared budget and cancellation token. Raw YSM
+authoring JSON accepts C/Java comments; generic JSON remains strict. `ModelImportException` exposes
+a stable diagnostic code for malformed input, limits, cancellation, unsupported features and source
+I/O. Local-file limits are explicit; `conservative()` and the five-argument policy constructor keep
+their strict object limits. `budget.peakUsed()` reports admitted allocation credits, not JVM heap size.
+
+Additional formats register through `new SpmModelParser(List<ModelFormatAdapter>)`. Each adapter has
+a unique `formatId`, a read-only bounded probe and the same request budget/token. The parser replays
+the exact probed root snapshot, including for one-shot sources, and pins it until dependent assets
+and streams close. Extensions return the same owned `ImportResult`; a plugin must implement the
+geometry/animation capabilities it declares. The GLTF/GLB hints reserve extension points and do not
+declare built-in weighted rendering or Lua execution.
+
+V3D sources use a logical `v3d.json` entry and authorized sibling resources. Admission checks the
+actual decrypted source against the declared wire, in addition to hashes and bounded paths. Edited
+decoded workspaces do not replace the executable wire. Filesystem cache publication remains Host-owned.
+
+`NativeComputeProvider.load(path, expectedSha256, Isa.AUTO)` can be passed explicitly to
+`ModelFrameRenderer.render`. It records the resolved Rust ISA in the frame backend. Java scalar
+remains the default and does not load a native library.
+
 The public model representation is `dev.spm.core.api.ModelDocument`: immutable skeleton, bind pose, geometry, material references and source metadata. Import functions require explicit `DecodePolicy`, shared `ResourceBudget` and `CancellationToken` values.
 
 ```java
@@ -47,6 +88,12 @@ try (ModelAsset asset = BedrockJsonImporter.importAsset(jsonBytes, policy, budge
 Owned archives, decoded payloads, import results, model assets and CPU frames must be closed. Asset retirement stops new leases; an owned render frame keeps its exact source asset charged until the frame closes. Borrowed documents and frame outputs must not outlive their owner/lease. Legacy `importJson` is a construction-only convenience and does not account for retained assets; use `importAsset` for caches and asynchronous rendering. Share the same budget across related work. `ResourceRegistry` binds leases to concrete generations so replacement and late asynchronous completion cannot retire a newer asset accidentally.
 
 `PoseAnimationLibrary` and `PoseAnimationPlayer` evaluate supported Bedrock TRS animation trees into `BonePose`. `SceneInstance` supports explicit inputs, numeric Molang programs, scalar clips and controller graphs. Reusing a frame ID returns its immutable snapshot; effects carry owner/frame identity and are claimed separately by the Host.
+
+Typed clips/controllers support declared start/loop delays, clip weights, authored-channel overrides
+and explicit shortest-axis blending. Their clocks, variables, PRNG, commands and effects commit
+transactionally. Fields omitted by callers preserve the existing Core defaults. These declared-field
+contracts follow documented Bedrock behavior and explicit Core scheduling rules; they do not certify
+equivalence to historical native behavior that was unavailable in the allowed source.
 
 `NativeTransforms.load(path, expectedSha256)` verifies explicit native content and the JNI ABI before enabling it. It never downloads code. A failed native load must leave the Java path selected; a failed load that has already entered the JVM may require a fresh process to replace its bindings. CPU/native computation and GPU submission are separate capabilities.
 

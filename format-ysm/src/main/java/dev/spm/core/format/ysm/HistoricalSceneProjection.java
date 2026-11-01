@@ -14,6 +14,16 @@ final class HistoricalSceneProjection {
     private final CancellationToken token;
     private final Retention retention;
     private final List<JsonValue> limitations=new ArrayList<>();
+    // Small, per-import intern tables. Parent arrays/maps still account for every reference.
+    private static final int INTERN_LIMIT=4096;
+    private final Map<Long,JsonNumber> numbers=new HashMap<>();
+    private final Map<String,JsonString> strings=new HashMap<>();
+    private record VectorKey(JsonValue x,JsonValue y,JsonValue z){}
+    private record FrameKey(List<String> fields,JsonValue pre,JsonValue post,JsonValue mode){}
+    private final Map<VectorKey,JsonArray> vectors=new HashMap<>();
+    private final Map<FrameKey,JsonObject> frames=new HashMap<>();
+    private final Map<Long,String> timestamps=new HashMap<>();
+    private JsonBoolean trueValue,falseValue;
     private int nodes;
     private HistoricalSceneProjection(DecodePolicy policy,CancellationToken token,Retention retention) {
         this.policy=policy;this.token=token;this.retention=retention;
@@ -30,7 +40,7 @@ final class HistoricalSceneProjection {
         Map<String,JsonObject> animationSets=work.sets(animations,true),controllerSets=work.sets(controllers,false);
         Map<String,JsonValue> flatAnimations=work.flatten(animationSets,"animations"),flatControllers=work.flatten(controllerSets,"animation_controllers");
         var provenance=work.object(Map.of("source_profile",work.text("ysm-historical-inner-"+version),
-                "animation_sets",work.object(animationSets),"controller_sets",work.object(controllerSets),
+                "animation_sets",work.object(new LinkedHashMap<>(animationSets)),"controller_sets",work.object(new LinkedHashMap<>(controllerSets)),
                 "limitations",work.array(work.limitations)));
         return work.object(Map.of("animation_interpolation_profile",work.text("HISTORICAL_YSM"),
                 "animations",work.object(flatAnimations),"animation_controllers",work.object(flatControllers),"historical_scene",provenance));
@@ -99,7 +109,6 @@ final class HistoricalSceneProjection {
             HistoricalValue raw=unwrap(source.fields().get(field));if(raw==null)continue;
             String target=switch(field){case "weight"->"blend_weight";case "override_previous"->"override_previous_animation";default->field;};
             result.put(target,raw instanceof Bool bool?bool(bool.value()):molang(struct(raw),path+"/"+field));
-            limitation(path+"/"+target+": retained; typed clip runtime does not implement this field");
         }
         var bones=new LinkedHashMap<String,JsonValue>();
         for(HistoricalValue value:sequence(source.field("bones"))) {
@@ -138,16 +147,22 @@ final class HistoricalSceneProjection {
     }
     private JsonObject track(List<HistoricalValue> frames,String path)throws IOException {
         var result=new LinkedHashMap<String,JsonValue>();
+        var duplicateTimes=new HashSet<String>();
         for(HistoricalValue value:frames) {
             token.check();Struct frame=struct(value);String time=timestamp(frame.field("tick"),path);long easing=unsigned(frame.field("easing"));
             String mode=switch((int)easing){case 0,1->"linear";case 2->"catmullrom";default->{limitation(path+": unknown easing enum "+easing);yield "historical_easing_"+easing;}};
             var entry=new LinkedHashMap<String,JsonValue>();entry.put("pre",vector(frame.field("pre"),path));
             HistoricalValue post=unwrap(frame.field("post"));if(post!=null)entry.put("post",vector(post,path));
             entry.put("lerp_mode",text(mode));
-            JsonObject projected=object(entry);JsonValue previous=result.putIfAbsent(time,projected);
+            // Bedrock's vector shorthand has exactly the same default linear interpolation when
+            // the authored pre/post agree. The exact optional fields remain in archival IR.
+            JsonValue projected=mode.equals("linear")&&(post==null||entry.get("pre").equals(entry.get("post")))
+                    ?entry.get("pre"):object(entry);
+            JsonValue previous=result.putIfAbsent(time,projected);
             if(previous!=null) {
                 var duplicates=new ArrayList<JsonValue>();
-                if(previous instanceof JsonArray array)duplicates.addAll(array.values());else duplicates.add(previous);
+                if(duplicateTimes.contains(time))duplicates.addAll(((JsonArray)previous).values());
+                else{charge(48);duplicateTimes.add(time);duplicates.add(previous);}
                 duplicates.add(projected);result.put(time,array(duplicates));
                 limitation(path+": duplicate keyframes at "+time+" retained as array; executable interpretation unavailable");
             }
@@ -199,7 +214,7 @@ final class HistoricalSceneProjection {
             result.put("blend_transition",object(points));limitation(path+": segmented blend curve retained; typed controller supports only numeric linear blend_transition");
         }
         if(source.field("blend_via_shortest_path") instanceof Bool shortest && shortest.value()) {
-            result.put("blend_via_shortest_path",bool(true));limitation(path+": authored blend_via_shortest_path retained; not interpreted by typed controller decoder");
+            result.put("blend_via_shortest_path",bool(true));
         }
         if(source.fields().containsKey("sounds"))result.put("sound_effects",strings(source.field("sounds")));
         return object(result);
@@ -229,19 +244,48 @@ final class HistoricalSceneProjection {
         }
         return keyNumber(value.value());
     }
-    private String keyNumber(double value)throws IOException {String text=BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();charge(48L+text.length()*2L);return text;}
-    private JsonNumber decimal(double value)throws IOException {charge(96);return new JsonNumber(BigDecimal.valueOf(value));}
+    private String keyNumber(double value)throws IOException {
+        token.check();long bits=Double.doubleToLongBits(value);var existing=timestamps.get(bits);if(existing!=null)return existing;
+        String text=BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();boolean cache=timestamps.size()<INTERN_LIMIT*4;
+        charge((cache?112L:48L)+text.length()*2L);if(cache)timestamps.put(bits,text);return text;
+    }
+    private JsonNumber decimal(double value)throws IOException {
+        token.check();long bits=Double.doubleToLongBits(value);var existing=numbers.get(bits);if(existing!=null)return existing;
+        boolean cache=numbers.size()<INTERN_LIMIT;charge(cache?160:96);
+        var result=new JsonNumber(BigDecimal.valueOf(value));if(cache)numbers.put(bits,result);return result;
+    }
     private JsonString text(String value)throws IOException {
+        token.check();
         if((long)value.length()*2>policy.maxStringBytes()*2L)throw new IOException("Historical metadata string limit");
-        charge(64L+value.length()*2L);return new JsonString(value);
+        var existing=strings.get(value);if(existing!=null)return existing;
+        boolean cache=value.length()<=512&&strings.size()<INTERN_LIMIT;charge((cache?128L:64L)+value.length()*2L);
+        var result=new JsonString(value);if(cache)strings.put(value,result);return result;
     }
-    private JsonBoolean bool(boolean value)throws IOException {charge(48);return new JsonBoolean(value);}
-    private JsonObject object(Map<String,? extends JsonValue> values)throws IOException {
+    private JsonBoolean bool(boolean value)throws IOException {
+        token.check();var existing=value?trueValue:falseValue;if(existing!=null)return existing;
+        charge(48);var result=new JsonBoolean(value);if(value)trueValue=result;else falseValue=result;return result;
+    }
+    private JsonObject object(Map<String,JsonValue> values)throws IOException {
+        token.check();FrameKey frame=null;
+        if(values.get("pre") instanceof JsonArray && values.get("lerp_mode") instanceof JsonString
+                && values.keySet().stream().allMatch(k->k.equals("pre")||k.equals("post")||k.equals("lerp_mode"))){
+            frame=new FrameKey(List.copyOf(values.keySet()),values.get("pre"),values.get("post"),values.get("lerp_mode"));
+            var existing=frames.get(frame);if(existing!=null)return existing;
+        }
         collection(values.size());long bytes=160L+values.size()*96L;
-        for(String key:values.keySet()){token.check();bytes=Math.addExact(bytes,48L+key.length()*2L);}
-        charge(bytes);return new JsonObject(new LinkedHashMap<>(values));
+        boolean cache=frame!=null&&frames.size()<INTERN_LIMIT;charge(cache?Math.addExact(bytes,128):bytes);
+        // JsonObject already takes its own defensive map copy. Keys are borrowed immutable strings
+        // (source strings, literals, or charged timestamp entries), rather than fresh key copies.
+        var result=new JsonObject(values);if(cache)frames.put(frame,result);return result;
     }
-    private JsonArray array(List<? extends JsonValue> values)throws IOException {collection(values.size());charge(96L+values.size()*16L);return new JsonArray(new ArrayList<>(values));}
+    private JsonArray array(List<? extends JsonValue> values)throws IOException {
+        collection(values.size());VectorKey vector=null;
+        if(values.size()==3&&values.stream().allMatch(v->v instanceof JsonNumber||v instanceof JsonString)){
+            vector=new VectorKey(values.get(0),values.get(1),values.get(2));var existing=vectors.get(vector);if(existing!=null)return existing;
+        }
+        boolean cache=vector!=null&&vectors.size()<INTERN_LIMIT;charge(96L+values.size()*16L+(cache?96:0));
+        var result=new JsonArray(new ArrayList<>(values));if(cache)vectors.put(vector,result);return result;
+    }
     private void limitation(String message)throws IOException {collection(limitations.size()+1);limitations.add(text(message));}
     private void charge(long bytes)throws IOException {token.check();if(++nodes>policy.maxObjects())throw new IOException("Historical scene metadata node limit");retention.retain(bytes);}
     private void collection(int count)throws IOException {token.check();if(count>policy.maxCollectionEntries())throw new IOException("Historical scene metadata collection limit");}

@@ -6,10 +6,9 @@ import dev.spm.core.api.BonePose;
 import dev.spm.core.api.Skeleton;
 import dev.spm.core.api.LayoutDescriptor;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Objects;
 
-/** JNI ABI v3 logical bone extraction; no GPU layout or state is involved. */
+/** Logical bone wire v1 extraction; no GPU layout or state is involved. */
 public final class NativeBoneEvaluator {
     private static final int BONE_STRIDE=LayoutDescriptor.boneWireV1().stride();
     private NativeBoneEvaluator() { }
@@ -25,33 +24,35 @@ public final class NativeBoneEvaluator {
         Objects.requireNonNull(requested);
         int n=skeleton.boneCount();
         if(pose.boneCount()!=n || root.length!=16) throw new IllegalArgumentException("Bone request size mismatch");
-        ByteBuffer parents=buffer(n,4),pivots=buffer(n,12),channels=buffer(n,48),outer=buffer(1,64),output=buffer(n,BONE_STRIDE);
-        int[] parent=skeleton.parents(),glow=pose.glow(),colors=pose.colorsRgba();
-        float[] pivot=skeleton.pivots(),r=pose.rotations(),t=pose.translations(),s=pose.scales();
-        boolean[] own=pose.ownHidden(),children=pose.childrenHidden();
-        for(int i=0;i<n;i++) {
-            parents.putInt(parent[i]);
-            for(int a=0;a<3;a++)pivots.putFloat(pivot[i*3+a]);
-            for(int a=0;a<3;a++)channels.putFloat(r[i*3+a]);
-            for(int a=0;a<3;a++)channels.putFloat(t[i*3+a]);
-            for(int a=0;a<3;a++)channels.putFloat(s[i*3+a]);
-            channels.putInt((own[i]?1:0)|(children[i]?2:0)).putInt(glow[i]).putInt(colors[i]);
+        int parentBytes=Math.multiplyExact(n,4),pivotBytes=Math.multiplyExact(n,12),channelBytes=Math.multiplyExact(n,48),outputBytes=Math.multiplyExact(n,BONE_STRIDE);
+        try(NativeArena arena=NativeArena.allocate(parentBytes,pivotBytes,channelBytes,64,outputBytes)) {
+            ByteBuffer parents=arena.slice(parentBytes),pivots=arena.slice(pivotBytes),channels=arena.slice(channelBytes),outer=arena.slice(64),output=arena.slice(outputBytes);
+            int[] parent=skeleton.parents(),glow=pose.glow(),colors=pose.colorsRgba();
+            float[] pivot=skeleton.pivots(),r=pose.rotations(),t=pose.translations(),s=pose.scales();
+            boolean[] own=pose.ownHidden(),children=pose.childrenHidden();
+            for(int i=0;i<n;i++) {
+                parents.putInt(parent[i]);
+                for(int a=0;a<3;a++)pivots.putFloat(pivot[i*3+a]);
+                for(int a=0;a<3;a++)channels.putFloat(r[i*3+a]);
+                for(int a=0;a<3;a++)channels.putFloat(t[i*3+a]);
+                for(int a=0;a<3;a++)channels.putFloat(s[i*3+a]);
+                channels.putInt((own[i]?1:0)|(children[i]?2:0)).putInt(glow[i]).putInt(colors[i]);
+            }
+            for(float value:root)outer.putFloat(value);
+            long outcome=nEvaluate(parents,pivots,channels,outer,output,n,requested.code(),subtree);
+            if(outcome<0 || (int)outcome!=n) throw new IllegalArgumentException("Native bone computation rejected: "+outcome);
+            float[] transforms=new float[Math.multiplyExact(n,16)],normals=new float[Math.multiplyExact(n,9)],locators=new float[Math.multiplyExact(n,3)];
+            boolean[] visible=new boolean[n],descendants=new boolean[n];
+            int[] lights=new int[n],outputColors=new int[n];
+            for(int i=0;i<n;i++) {
+                output.position(i*BONE_STRIDE);
+                for(int j=0;j<16;j++)transforms[i*16+j]=output.getFloat();
+                for(int j=0;j<9;j++)normals[i*9+j]=output.getFloat();
+                for(int j=0;j<3;j++)locators[i*3+j]=output.getFloat();
+                visible[i]=output.getInt()!=0;descendants[i]=output.getInt()!=0;lights[i]=output.getInt();outputColors[i]=output.getInt();
+            }
+            return new BoneMatrices(transforms,normals,visible,descendants,locators,lights,outputColors);
         }
-        for(float value:root)outer.putFloat(value);
-        long outcome=nEvaluate(parents,pivots,channels,outer,output,n,requested.code(),subtree);
-        if(outcome<0 || (int)outcome!=n) throw new IllegalArgumentException("Native bone computation rejected: "+outcome);
-        float[] transforms=new float[Math.multiplyExact(n,16)],normals=new float[Math.multiplyExact(n,9)],locators=new float[Math.multiplyExact(n,3)];
-        boolean[] visible=new boolean[n],descendants=new boolean[n];
-        int[] lights=new int[n],outputColors=new int[n];
-        for(int i=0;i<n;i++) {
-            output.position(i*BONE_STRIDE);
-            for(int j=0;j<16;j++)transforms[i*16+j]=output.getFloat();
-            for(int j=0;j<9;j++)normals[i*9+j]=output.getFloat();
-            for(int j=0;j<3;j++)locators[i*3+j]=output.getFloat();
-            visible[i]=output.getInt()!=0;descendants[i]=output.getInt()!=0;lights[i]=output.getInt();outputColors[i]=output.getInt();
-        }
-        return new BoneMatrices(transforms,normals,visible,descendants,locators,lights,outputColors);
     }
-    private static ByteBuffer buffer(int n,int stride) { return ByteBuffer.allocateDirect(Math.multiplyExact(n,stride)).order(ByteOrder.LITTLE_ENDIAN); }
     private static native long nEvaluate(ByteBuffer parents,ByteBuffer pivots,ByteBuffer channels,ByteBuffer root,ByteBuffer output,int count,int isa,int subtree);
 }

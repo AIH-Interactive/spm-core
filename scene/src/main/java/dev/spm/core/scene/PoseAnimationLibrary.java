@@ -18,7 +18,7 @@ import java.util.TreeMap;
 
 /** Executable bounded Bedrock TRS tracks. Source pixels/degrees are normalized exactly once at sampling. */
 public final class PoseAnimationLibrary {
-    /** The existing Core profile remains the default; the certified historical YSM profile is opt-in. */
+    /** Interpolation only: the historical profile changes curve tangents, not the declared Core scheduler contract. */
     public enum InterpolationProfile { CORE_NON_UNIFORM, HISTORICAL_YSM }
     enum Loop { ONCE, LOOP, HOLD }
     enum Interpolation { LINEAR, STEP, CATMULL_ROM }
@@ -89,8 +89,10 @@ public final class PoseAnimationLibrary {
     }
     record BoneTracks(int index, Track rotation, Track position, Track scale) { }
     record Event(double time, String sound, List<MolangProgram> instructions) { }
-    record Clip(String name, double duration, Loop loop, List<BoneTracks> bones, List<Event> events) {
+    record Clip(String name, double duration, Loop loop, Scalar blendWeight, Scalar startDelay, Scalar loopDelay,
+                boolean overridePrevious, List<BoneTracks> bones, List<Event> events) {
         double localTime(double elapsed) { return loop==Loop.LOOP ? elapsed%duration : Math.min(elapsed,duration); }
+        boolean delayed() { return startDelay!=null || loopDelay!=null; }
     }
     record Sample(BonePose pose, boolean[] driven) { }
     private final Skeleton skeleton;
@@ -117,10 +119,20 @@ public final class PoseAnimationLibrary {
         if (result==null) throw new IllegalArgumentException("Unknown animation: "+name);
         return result;
     }
-    /** Stateless sample: ONCE is un-driven after its exact final key; HOLD keeps it, LOOP wraps it. */
+    /**
+     * Stateless sample: ONCE is un-driven after its exact final key; HOLD keeps it, LOOP wraps it.
+     * Declared delay expressions reconstruct a fresh schedule for this call; timeline commands are never run.
+     * Use a player/controller when delay expressions must retain exactly-once playback state across frames.
+     */
     public BonePose sample(String name,double elapsedSeconds,MolangContext context,BonePose bindPose) {
         if (!Double.isFinite(elapsedSeconds) || elapsedSeconds<0) throw new IllegalArgumentException("Invalid animation time");
         Clip clip=clip(name);
+        if (clip.delayed()) {
+            MolangContext local=context.overlay(Map.of("life_time",elapsedSeconds));
+            PoseClipPlayback playback=new PoseClipPlayback(clip,local);
+            playback.advance(elapsedSeconds,0,local,new ArrayList<>(),false);
+            return sample(clip,playback.localTime(),local.overlay(Map.of("anim_time",playback.localTime())),bindPose,playback.driven(elapsedSeconds)).pose;
+        }
         boolean drive=clip.loop!=Loop.ONCE || elapsedSeconds<=clip.duration;
         MolangContext local=context.overlay(Map.of("anim_time",clip.localTime(elapsedSeconds),"life_time",elapsedSeconds));
         return sample(clip,clip.localTime(elapsedSeconds),local,bindPose,drive).pose;
@@ -131,22 +143,23 @@ public final class PoseAnimationLibrary {
         for (int bone=0;bone<boneCount();bone++) context.budget().step();
         float[] rotations=bindPose.rotations(), positions=bindPose.translations(), scales=bindPose.scales();
         boolean[] driven=new boolean[Math.multiplyExact(boneCount(),3)];
+        double weight=drive && clip!=null && clip.blendWeight!=null ? Math.max(0,clip.blendWeight.value(context)) : 1;
         if (drive && clip!=null) for (BoneTracks bone:clip.bones) {
             context.budget().step();
             int offset=bone.index*3;
             if (bone.rotation!=null) {
                 double[] delta=bone.rotation.value(localTime,context);
-                for (int axis=0;axis<3;axis++) rotations[offset+axis]=representable(rotations[offset+axis]+delta[axis]*(axis==2?1:-1)*Math.PI/180);
+                for (int axis=0;axis<3;axis++) rotations[offset+axis]=representable(rotations[offset+axis]+delta[axis]*weight*(axis==2?1:-1)*Math.PI/180);
                 driven[offset]=true;
             }
             if (bone.position!=null) {
                 double[] delta=bone.position.value(localTime,context);
-                for (int axis=0;axis<3;axis++) positions[offset+axis]=representable(positions[offset+axis]+delta[axis]*(axis==0?-1:1)/16);
+                for (int axis=0;axis<3;axis++) positions[offset+axis]=representable(positions[offset+axis]+delta[axis]*weight*(axis==0?-1:1)/16);
                 driven[offset+1]=true;
             }
             if (bone.scale!=null) {
                 double[] factor=bone.scale.value(localTime,context);
-                for (int axis=0;axis<3;axis++) scales[offset+axis]=representable(scales[offset+axis]*factor[axis]);
+                for (int axis=0;axis<3;axis++) scales[offset+axis]=representable(scales[offset+axis]*(1+(factor[axis]-1)*weight));
                 driven[offset+2]=true;
             }
         }
@@ -205,7 +218,7 @@ public final class PoseAnimationLibrary {
             return new PoseAnimationLibrary(skeleton,result);
         }
         Clip animation(String name,JsonObject value) {
-            fields(value,Set.of("animation_length","loop","bones","sound_effects","timeline"));
+            fields(value,Set.of("animation_length","loop","bones","sound_effects","timeline","blend_weight","start_delay","loop_delay","override_previous_animation"));
             List<BoneTracks> bones=new ArrayList<>();
             double inferred=0;
             JsonValue boneValue=value.values().get("bones");
@@ -257,7 +270,12 @@ public final class PoseAnimationLibrary {
             for (Event event:events) if (event.time>duration) throw invalid("Event after animation duration");
             if (inferred>duration) throw invalid("Bone keyframe after animation duration");
             events.sort(Comparator.comparingDouble(Event::time));
-            return new Clip(name,duration,loop,List.copyOf(bones),List.copyOf(events));
+            Scalar weight=value.values().containsKey("blend_weight")?scalar(value.values().get("blend_weight")):null;
+            Scalar startDelay=value.values().containsKey("start_delay")?scalar(value.values().get("start_delay")):null;
+            Scalar loopDelay=value.values().containsKey("loop_delay")?scalar(value.values().get("loop_delay")):null;
+            JsonValue override=value.values().get("override_previous_animation");
+            if (override!=null && !(override instanceof JsonBoolean)) throw invalid("override_previous_animation must be boolean");
+            return new Clip(name,duration,loop,weight,startDelay,loopDelay,override instanceof JsonBoolean bool && bool.value(),List.copyOf(bones),List.copyOf(events));
         }
         void countEvent() { if (++totalEvents>65536) throw limit("At most 65536 animation events"); }
         Loop loop(JsonValue value) {

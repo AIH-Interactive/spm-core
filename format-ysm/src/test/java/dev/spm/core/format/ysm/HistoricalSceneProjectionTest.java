@@ -9,6 +9,39 @@ import static dev.spm.core.format.ysm.HistoricalValue.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HistoricalSceneProjectionTest {
+    @Test void duplicateCompactKeysKeepWholeVectorsInsteadOfFlatteningTheirComponents() throws Exception {
+        var axes=seq(num(16),num(0),num(0));
+        var rawKey=s("tick",f(20),"easing",u(1),"pre",axes,"post",no());
+        var fields=new LinkedHashMap<>(animation("duplicate").fields());
+        fields.put("bones",seq(s("name",t("root"),"position",seq(rawKey,rawKey),"rotation",seq(),"scale",seq())));
+        JsonObject metadata=project(file(new Struct(fields)),null);
+        var track=at(at(at(at(at(metadata,"animations"),"duplicate"),"bones"),"root"),"position");
+        var duplicates=(JsonArray)track.values().get("1");assertEquals(2,duplicates.values().size());
+        assertEquals(3,((JsonArray)duplicates.values().get(0)).values().size());
+        assertEquals(3,((JsonArray)duplicates.values().get(1)).values().size());
+        assertFalse(((JsonArray)at(metadata,"historical_scene").values().get("limitations")).values().isEmpty());
+    }
+    @Test void linearKeysWithEqualPrePostUseTheEquivalentCompactVectorForm() throws Exception {
+        var axes=seq(num(16),num(0),num(0));
+        var rawKey=s("tick",f(20),"easing",u(1),"pre",axes,"post",yes(axes));
+        var fields=new LinkedHashMap<>(animation("linear").fields());
+        fields.put("bones",seq(s("name",t("root"),"position",seq(rawKey),"rotation",seq(),"scale",seq())));
+        JsonObject metadata=project(file(new Struct(fields)),null);
+        var track=at(at(at(at(metadata,"animations"),"linear"),"bones"),"root");
+        var value=at(track,"position").values().get("1");
+        assertInstanceOf(JsonArray.class,value);assertEquals(16,number(((JsonArray)value).values().get(0)));
+        assertTrue(((Presence)rawKey.field("post")).present(),"the exact archival representation must remain intact");
+    }
+    @Test void repeatedImmutableKeyframesShareTheirScalarVectorAndFrameStorage() throws Exception {
+        JsonObject metadata=project(file(animation("first"),animation("second")),null);
+        JsonObject first=at(at(at(at(at(metadata,"animations"),"first"),"bones"),"root"),"position");
+        JsonObject second=at(at(at(at(at(metadata,"animations"),"second"),"bones"),"root"),"position");
+        var frame=at(first,"1");var repeated=at(second,"1");
+        assertSame(frame,repeated,"identical immutable frames should not be allocated for every animation/bone");
+        var post=(JsonArray)frame.values().get("post");
+        assertSame(post.values().get(1),post.values().get(2));
+        assertThrows(UnsupportedOperationException.class,()->frame.values().clear());
+    }
     static Struct s(Object... pairs) { Map<String,HistoricalValue> fields=new LinkedHashMap<>(); for(int i=0;i<pairs.length;i+=2) fields.put((String)pairs[i],(HistoricalValue)pairs[i+1]); return new Struct(fields); }
     static Text t(String value) { return new Text(value); }
     static Float32 f(float value) { return new Float32(Float.floatToRawIntBits(value)); }

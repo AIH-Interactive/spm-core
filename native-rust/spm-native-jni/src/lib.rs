@@ -8,6 +8,7 @@ use spm_native_abi::{Isa, Status, JNI_ABI_VERSION};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 mod bones;
 mod c_api;
+mod memory;
 mod rigid;
 pub use c_api::spm_transform_positions_v1;
 

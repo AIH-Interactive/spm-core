@@ -113,7 +113,7 @@ public final class BoundedJson {
         public void charge(long bytes) throws IOException {
             cancellation.check();
             if (bytes<0 || bytes>policy.maxExpandedBytes()-expanded) throw new DecodeLimitException(ImportErrorCode.EXPANDED_LIMIT,"JSON expanded allocation limit exceeded");
-            try { reservations.add(budget.reserve(bytes)); } catch (IllegalStateException exception) { throw new IOException("Bedrock working budget exceeded",exception); }
+            try { budget.reserve(bytes,reservations); } catch (IllegalStateException exception) { throw new IOException("JSON working budget exceeded",exception); }
             expanded+=bytes;
         }
         void node() throws IOException {

@@ -54,7 +54,7 @@ public final class YsmHistoricalCodec {
         Reader(byte[] wire, DecodePolicy policy, ResourceBudget budget, CancellationToken token) throws IOException {
             this.policy = policy; this.budget = budget; this.token = token;
             // Snapshot is temporary; node-owned values below are retained independently.
-            reservations.add(YsmArchiveCodec.reserve(budget, wire.length));
+            YsmArchiveCodec.reserve(budget, wire.length,reservations);
             input = ByteBuffer.wrap(wire.clone()).order(ByteOrder.LITTLE_ENDIAN);
         }
         YsmHistoricalModel decode() throws IOException {
@@ -81,7 +81,7 @@ public final class YsmHistoricalCodec {
             if(++nodes>policy.maxObjects())throw new DecodeLimitException(ImportErrorCode.OBJECT_LIMIT,"Historical aggregate node limit");
             long charge = Math.addExact(32L, bytes);
             if(charge>policy.maxExpandedBytes()-retained)throw new DecodeLimitException(ImportErrorCode.EXPANDED_LIMIT,"Historical expanded-byte limit");
-            reservations.add(YsmArchiveCodec.reserve(budget, charge));
+            YsmArchiveCodec.reserve(budget, charge,reservations);
             retained += charge;
         }
         HistoricalValue nested(Read read) throws IOException {

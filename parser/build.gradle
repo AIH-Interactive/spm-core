@@ -7,6 +7,7 @@ dependencies {
     implementation project(':format-v3d')
     testImplementation project(':runtime')
     testImplementation project(':native-jni')
+    testImplementation project(':render-cpu')
 }
 tasks.named('test') {
     def nativeLibrary = providers.gradleProperty('spmNativeLibrary')
@@ -14,6 +15,7 @@ tasks.named('test') {
     def corpus = providers.gradleProperty('spmCorpusDirectory')
     if (corpus.isPresent()) {
         systemProperty 'spm.corpus.directory', corpus.get()
+        systemProperty 'spm.corpus.budgetMiB', providers.gradleProperty('spmCorpusBudgetMiB').orElse('512').get()
         maxHeapSize = '2g'
     }
 }
