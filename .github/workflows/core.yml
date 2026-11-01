@@ -141,7 +141,7 @@ jobs:
           python scripts/platform_matrix.py --output platform-matrix.json "${args[@]}"
       - name: Preserve the platform matrix
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65e6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: core-platform-matrix-${{ github.sha }}-${{ github.run_attempt }}
           path: platform-matrix.json
