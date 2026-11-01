@@ -26,6 +26,27 @@ public final class ModelFrameRenderer {
     public static CpuFrame render(ModelDocument document,BonePose pose,CpuComputeProvider provider,ResourceBudget budget,CancellationToken token){
         return renderInternal(document,pose,provider,budget,token,null);
     }
+
+    /**
+     * Weighted path: meshes listed by {@code rig} are skinned here, every other mesh keeps the
+     * pre-existing rigid provider path and therefore its exact previous output.
+     */
+    public static CpuFrame render(ModelDocument document,BonePose pose,SkinningRig rig,SkinState state,ResourceBudget budget,CancellationToken token){
+        return render(document,pose,rig,state,new JavaComputeProvider(),budget,token);
+    }
+    public static CpuFrame render(ModelDocument document,BonePose pose,SkinningRig rig,SkinState state,CpuComputeProvider provider,ResourceBudget budget,CancellationToken token){
+        Objects.requireNonNull(document);Objects.requireNonNull(rig);Objects.requireNonNull(state);
+        return WeightedFrameRenderer.render(document,pose,rig,state,provider,budget,token,null);
+    }
+    public static CpuFrame render(ModelAsset asset,BonePose pose,SkinningRig rig,SkinState state,ResourceBudget budget,CancellationToken token){
+        return render(asset,pose,rig,state,new JavaComputeProvider(),budget,token);
+    }
+    public static CpuFrame render(ModelAsset asset,BonePose pose,SkinningRig rig,SkinState state,CpuComputeProvider provider,ResourceBudget budget,CancellationToken token){
+        var lease=Objects.requireNonNull(asset).acquire();
+        try{return WeightedFrameRenderer.render(lease.document(),pose,rig,state,provider,budget,token,lease);}
+        catch(RuntimeException|Error failure){lease.close();throw failure;}
+    }
+
     private static CpuFrame renderInternal(ModelDocument document,BonePose pose,CpuComputeProvider provider,ResourceBudget budget,CancellationToken token,ModelAsset.Lease lease){
         Objects.requireNonNull(document);Objects.requireNonNull(pose);Objects.requireNonNull(provider);Objects.requireNonNull(budget);Objects.requireNonNull(token);
         token.check();

@@ -48,4 +48,10 @@ public record LayoutDescriptor(String id, int version, int stride, int alignment
                 new Field("descendantVisible",116,Scalar.U32,1),new Field("glow",120,Scalar.U32,1),
                 new Field("rgba",124,Scalar.U32,1)));
     }
+    /** Packed skin weights: four influence bone indices followed by their four normalized weights. */
+    public static LayoutDescriptor skinWeightsV1() {
+        return new LayoutDescriptor("spm.logical-skin-weights",1,32,4,ByteOrder.LITTLE_ENDIAN,List.of(
+                new Field("bones",0,Scalar.U32,SkinWeights.MAX_INFLUENCES),
+                new Field("weights",16,Scalar.F32,SkinWeights.MAX_INFLUENCES)));
+    }
 }
