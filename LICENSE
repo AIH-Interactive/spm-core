@@ -19,16 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This license applies to the independently written SPM Core sources in this
-repository. It does not apply to third-party material that is redistributed
-here under its own terms.
-
-Notably, the historical wire/envelope fixtures under
-verification/src/test/resources/ysm/ are verbatim copies of upstream
-Apache-2.0 licensed test vectors. They remain Apache-2.0 and are covered by
-the LICENSE file in that directory.
-
-See THIRD_PARTY_NOTICES.md for the complete component-by-component split.
