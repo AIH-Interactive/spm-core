@@ -102,10 +102,48 @@ jobs:
     needs: candidate
     if: ${{ always() }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Require every candidate row to succeed
         shell: bash
         env:
           MATRIX_RESULT: ${{ needs.candidate.result }}
         run: test "$MATRIX_RESULT" = success
+      - name: Check out the same exact SHA to assemble the platform matrix
+        if: ${{ always() }}
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install Python for the platform matrix helper
+        if: ${{ always() }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Download every candidate manifest
+        if: ${{ always() }}
+        # A failed row has no verified manifest, so this can legitimately come back empty. The matrix
+        # then records that platform as NOT_EXECUTED instead of assuming success.
+        continue-on-error: true
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4
+        with:
+          pattern: core-*-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts
+      - name: Assemble the native platform matrix from real manifests
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+          args=()
+          for manifest in artifacts/**/candidate.json; do
+            args+=(--manifest "$manifest")
+          done
+          python scripts/platform_matrix.py --output platform-matrix.json "${args[@]}"
+      - name: Preserve the platform matrix
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65e6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: core-platform-matrix-${{ github.sha }}-${{ github.run_attempt }}
+          path: platform-matrix.json
+          if-no-files-found: error
+          retention-days: 14

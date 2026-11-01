@@ -37,4 +37,8 @@ $python=Get-Command python -ErrorAction Stop
 & $python.Source -m unittest discover -s (Join-Path $coreRoot 'scripts') -p 'test_*.py'
 if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
 & $python.Source (Join-Path $coreRoot 'scripts/audit_core.py') --root $coreRoot --require-jars --output (Join-Path $coreRoot 'build/reports/core-audit.json')
+if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+# The platform matrix must be regenerated from real candidate manifests only; this run has none,
+# so it records the honest all-NOT_EXECUTED baseline rather than asserting coverage we lack.
+& $python.Source (Join-Path $coreRoot 'scripts/platform_matrix.py') --output (Join-Path $coreRoot 'build/reports/platform-matrix.json')
 exit $LASTEXITCODE
