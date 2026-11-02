@@ -96,7 +96,17 @@ public final class BoundedJson {
             case STRING: { String result=reader.nextString(); quota.string(result); return new JsonString(result); }
             case NUMBER: {
                 String number=reader.nextString(); quota.string(number);
-                return new JsonNumber(new BigDecimal(number));
+                // JsonNumber retains a primitive double, so a literal that would not survive the
+                // round trip must be rejected rather than silently rounded: archival metadata is
+                // supposed to be exact, and an author's 0.1000000000000000001 must not become 0.1
+                // without anyone noticing.
+                BigDecimal exact;
+                try { exact=new BigDecimal(number); }
+                catch(NumberFormatException malformed) { throw new IOException("Invalid JSON number: "+number,malformed); }
+                double value=exact.doubleValue();
+                if(!Double.isFinite(value)||BigDecimal.valueOf(value).compareTo(exact)!=0)
+                    throw new IOException("JSON number is not exactly representable: "+number);
+                return new JsonNumber(value);
             }
             case BOOLEAN: return new JsonBoolean(reader.nextBoolean());
             case NULL: reader.nextNull(); return JsonNull.INSTANCE;

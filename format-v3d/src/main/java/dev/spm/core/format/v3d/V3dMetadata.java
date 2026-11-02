@@ -72,8 +72,11 @@ final class V3dMetadata {
         String value=text(owner,name); if (!value.matches("[0-9a-f]{64}")) throw new IOException("Invalid V3D SHA-256"); return value;
     }
     private static long number(JsonObject owner,String name) throws IOException {
-        if (!(owner.values().get(name) instanceof JsonNumber number)) throw new IOException("Expected V3D integer: "+name);
-        try { return number.value().longValueExact(); } catch (ArithmeticException invalid) { throw new IOException("V3D integer outside int64",invalid); }
+        if (!(owner.get(name) instanceof JsonNumber number)) throw new IOException("Expected V3D integer: "+name);
+        double value=number.value();
+        if (value!=Math.rint(value) || value<Long.MIN_VALUE || value>Long.MAX_VALUE)
+            throw new IOException("V3D integer outside int64");
+        return (long) value;
     }
     private static int integer(JsonObject owner,String name) throws IOException {
         long value=number(owner,name); if (value<Integer.MIN_VALUE || value>Integer.MAX_VALUE) throw new IOException("V3D integer outside int32"); return (int) value;
@@ -95,7 +98,7 @@ final class V3dMetadata {
         var fields=new LinkedHashMap<String,JsonValue>();
         for (int i=0;i<pairs.length;i+=2) {
             Object value=pairs[i+1]; JsonValue json=value instanceof JsonValue existing ? existing
-                    : value instanceof String text ? new JsonString(text) : new JsonNumber(BigDecimal.valueOf(((Number)value).longValue()));
+                    : value instanceof String text ? new JsonString(text) : new JsonNumber(((Number)value).doubleValue());
             fields.put((String)pairs[i],json);
         }
         return new JsonObject(fields);
@@ -116,7 +119,7 @@ final class V3dMetadata {
                 else if (c<32) output.append(String.format(Locale.ROOT,"\\u%04x",(int)c)); else output.append(c);
             }
             output.append('"');
-        } else if (value instanceof JsonNumber number) output.append(number.value().toPlainString());
+        } else if (value instanceof JsonNumber number) output.append(number.decimal().stripTrailingZeros().toPlainString());
         else throw new IllegalArgumentException("Unsupported internal V3D JSON value");
     }
 }

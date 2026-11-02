@@ -12,7 +12,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AnimationPoseTest {
-    private static JsonNumber n(double v) { return new JsonNumber(BigDecimal.valueOf(v)); }
+    private static JsonNumber n(double v) { return new JsonNumber(v); }
     private static JsonString s(String v) { return new JsonString(v); }
     private static JsonArray v(JsonValue... values) { return new JsonArray(List.of(values)); }
     private static JsonObject o(Object... pairs) {

@@ -22,7 +22,7 @@ class PoseControllerTest {
         if(value instanceof JsonValue json) return json;
         if(value instanceof String string) return new JsonString(string);
         if(value instanceof Boolean bool) return new JsonBoolean(bool);
-        if(value instanceof Number number) return new JsonNumber(new BigDecimal(number.toString()));
+        if(value instanceof Number number) return new JsonNumber(number.doubleValue());
         if(value instanceof List<?> list) return new JsonArray(list.stream().map(PoseControllerTest::json).toList());
         throw new IllegalArgumentException();
     }

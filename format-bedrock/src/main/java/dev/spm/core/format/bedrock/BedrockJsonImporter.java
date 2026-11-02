@@ -232,16 +232,26 @@ public final class BedrockJsonImporter {
         return object.values().containsKey(field)?number(required(object,field),field):fallback;
     }
     private static float number(JsonValue value,String field) throws IOException {
-        if (value instanceof JsonNumber number) return finite(number.value().doubleValue()); throw new IOException("Expected number: "+field);
+        if (value instanceof JsonNumber number) return finite(number.value()); throw new IOException("Expected number: "+field);
     }
     private static boolean bool(JsonObject object,String field,boolean fallback) throws IOException {
         JsonValue value=object.values().get(field); if (value==null) return fallback;
         if (value instanceof JsonBoolean bool) return bool.value(); throw new IOException("Expected boolean: "+field);
     }
+    /**
+     * Reads a texture dimension, which must be a whole number.
+     *
+     * <p>{@code JsonNumber} now holds a double, so an authored {@code 1.5} no longer fails on its own
+     * the way {@code BigDecimal.intValueExact} used to. The integrality check is therefore explicit:
+     * silently rounding 1.5 to 2 would accept a document the format does not allow.
+     */
     private static int dimension(JsonObject description,String field) throws IOException {
-        JsonValue value=description.values().get(field); if (value==null) return 64;
+        JsonValue value=description.get(field); if (value==null) return 64;
         if (!(value instanceof JsonNumber number)) throw new IOException("Expected integer dimension");
-        int result=number.value().intValueExact(); if (result<1) throw new IOException("Nonpositive texture dimension"); return result;
+        double raw=number.value();
+        if (raw!=Math.rint(raw) || raw<Integer.MIN_VALUE || raw>Integer.MAX_VALUE)
+            throw new IOException("Nonintegral or out-of-range texture dimension");
+        int result=(int)raw; if (result<1) throw new IOException("Nonpositive texture dimension"); return result;
     }
     private static float[] vector(JsonObject object,String field,float[] fallback) throws IOException {
         return object.values().containsKey(field)?vector(required(object,field),fallback.length,field):fallback;

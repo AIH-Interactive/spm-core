@@ -178,7 +178,7 @@ public final class PoseAnimationLibrary {
     }
     private static double number(JsonValue value,String label) {
         if (!(value instanceof JsonNumber result)) throw invalid("Expected number: "+label);
-        double numeric=result.value().doubleValue();
+        double numeric=result.value();
         if (!Double.isFinite(numeric)) throw invalid("Non-finite "+label);
         return numeric;
     }
@@ -329,6 +329,10 @@ public final class PoseAnimationLibrary {
         }
         Vector vector(JsonValue value) {
             budget.step();
+            // A three-number vector is stored inline as JsonVector3, so both forms must be accepted.
+            if (value instanceof JsonVector3 inline) {
+                return new Vector(simple(inline.x()),simple(inline.y()),simple(inline.z()));
+            }
             if (value instanceof JsonArray array) {
                 if (array.values().size()==1) { Scalar scalar=scalar(array.values().get(0)); return new Vector(scalar,scalar,scalar); }
                 if (array.values().size()!=3) throw invalid("Animation vector needs one or three elements");
@@ -336,6 +340,8 @@ public final class PoseAnimationLibrary {
             }
             Scalar scalar=scalar(value); return new Vector(scalar,scalar,scalar);
         }
+        /** A literal number needs no Molang program; the inline vector has already been validated. */
+        Scalar simple(double value) { budget.step(); return new Scalar(value,null); }
         Scalar scalar(JsonValue value) {
             budget.step();
             if (value instanceof JsonNumber) return new Scalar(number(value,"animation scalar"),null);

@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * allowance.
  */
 final class ScriptBudgetConcurrencyTest {
-    private static JsonNumber n(double v) { return new JsonNumber(BigDecimal.valueOf(v)); }
+    private static JsonNumber n(double v) { return new JsonNumber(v); }
     private static JsonString s(String v) { return new JsonString(v); }
     private static JsonObject o(Object... pairs) {
         Map<String, JsonValue> values = new LinkedHashMap<>();

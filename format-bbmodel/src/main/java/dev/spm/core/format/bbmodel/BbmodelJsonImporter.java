@@ -185,7 +185,7 @@ public final class BbmodelJsonImporter {
             if (reference==JsonNull.INSTANCE) return -1;
             if (reference==null || reference instanceof JsonBoolean b&&!b.value()) return defaultTexture&&materials.size()>1?1:0;
             if (reference instanceof JsonNumber number) {
-                int index=number.value().intValueExact();
+                double rawIndex=number.value(); if (rawIndex!=Math.rint(rawIndex) || rawIndex<0 || rawIndex>Integer.MAX_VALUE) throw new IOException("Nonintegral texture index"); int index=(int)rawIndex;
                 if (index<0 || index>=materials.size()-1) throw new IOException("Unknown texture index"); return index+1;
             }
             if (reference instanceof JsonString text) {
@@ -313,16 +313,26 @@ public final class BbmodelJsonImporter {
         JsonValue value=object.values().get(field); if (value==null) return fallback;
         if (value instanceof JsonBoolean bool) return bool.value(); throw new IOException("Expected boolean: "+field);
     }
+    /**
+     * Reads a whole number, rejecting a fractional literal.
+     *
+     * <p>{@code JsonNumber} stores a double, so integrality is checked explicitly rather than relying
+     * on {@code BigDecimal.intValueExact}. Rounding 1.5 to 2 would accept input the format forbids.
+     */
     private static int integer(JsonObject object,String field,int fallback) throws IOException {
-        JsonValue value=object.values().get(field); if (value==null) return fallback;
-        if (value instanceof JsonNumber number) return number.value().intValueExact(); throw new IOException("Expected integer: "+field);
+        JsonValue value=object.get(field); if (value==null) return fallback;
+        if (!(value instanceof JsonNumber number)) throw new IOException("Expected integer: "+field);
+        double raw=number.value();
+        if (raw!=Math.rint(raw) || raw<Integer.MIN_VALUE || raw>Integer.MAX_VALUE)
+            throw new IOException("Nonintegral or out-of-range integer: "+field);
+        return (int)raw;
     }
     private static int dimension(JsonObject object,String field,int fallback) throws IOException {
         int result=integer(object,field,fallback); if (result<1) throw new IOException("Nonpositive texture dimension"); return result;
     }
     private static float number(JsonObject object,String field,float fallback) throws IOException {
         JsonValue value=object.values().get(field); if (value==null) return fallback;
-        if (value instanceof JsonNumber number) return finite(number.value().doubleValue()); throw new IOException("Expected number: "+field);
+        if (value instanceof JsonNumber number) return finite(number.value()); throw new IOException("Expected number: "+field);
     }
     private static float[] vector(JsonObject object,String field,float[] fallback) throws IOException {
         JsonValue value=object.values().get(field); if (value==null) return fallback;
@@ -330,7 +340,7 @@ public final class BbmodelJsonImporter {
         float[] result=new float[fallback.length];
         for (int i=0;i<result.length;i++) {
             if (!(values.get(i) instanceof JsonNumber number)) throw new IOException("Expected vector number");
-            result[i]=finite(number.value().doubleValue());
+            result[i]=finite(number.value());
         }
         return result;
     }

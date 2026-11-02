@@ -52,7 +52,7 @@ public final class PoseControllerDefinition {
             for(JsonValue binding:array(state.values().get("animations"),64)) {
                 budget.step();
                 String clipName; MolangProgram weight;
-                if(binding instanceof JsonString string) { clipName=string.value(); weight=decoder.program(new JsonNumber(java.math.BigDecimal.ONE)); }
+                if(binding instanceof JsonString string) { clipName=string.value(); weight=decoder.program(new JsonNumber(1.0)); }
                 else {
                     JsonObject pair=object(binding);
                     if(pair.values().size()!=1) throw fail(MolangException.Reason.SYNTAX,"Animation binding needs one name/weight pair");
@@ -94,8 +94,13 @@ public final class PoseControllerDefinition {
             return List.copyOf(result);
         }
         MolangProgram program(JsonValue value) {
-            if(value instanceof JsonNumber number && number.value().precision()>65536) throw fail(MolangException.Reason.CAPACITY,"Controller numeric source capacity exceeded");
-            String source=value instanceof JsonNumber number?number.value().toString():value instanceof JsonBoolean bool?(bool.value()?"1":"0"):text(value);
+            // A double carries at most ~17 significant decimal digits, so the old
+            // "precision > 65536" guard can no longer be reached and is replaced by the real
+            // guarantee: the value was already verified exact when the JSON was parsed.
+            String source=value instanceof JsonNumber number?number.value()>=0&&number.value()==Math.rint(number.value())
+                    ? Long.toString((long)number.value())
+                    : java.math.BigDecimal.valueOf(((JsonNumber)value).value()).stripTrailingZeros().toPlainString()
+                    :value instanceof JsonBoolean bool?(bool.value()?"1":"0"):text(value);
             if(source.length()>65536 || characters>4_194_304-source.length()) throw fail(MolangException.Reason.CAPACITY,"Controller expression capacity exceeded");
             characters+=source.length(); for(int i=0;i<source.length();i+=16) budget.step();
             return MolangProgram.compile(source);
@@ -115,7 +120,7 @@ public final class PoseControllerDefinition {
     }
     private static double numeric(JsonValue value) {
         if(!(value instanceof JsonNumber result)) throw fail(MolangException.Reason.UNSUPPORTED,"Only numeric linear blend_transition is supported");
-        return MolangContext.finite(result.value().doubleValue());
+        return MolangContext.finite(result.value());
     }
     private static void fields(JsonObject value,Set<String> allowed) {
         for(String key:value.values().keySet()) if(!allowed.contains(key)) throw fail(MolangException.Reason.UNSUPPORTED,"Unsupported executable controller field: "+key);

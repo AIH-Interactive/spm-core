@@ -7,6 +7,25 @@ import static dev.spm.core.format.ysm.HistoricalValue.*;
 
 /** Allowed-source compiled quads are already render units; pivots alone use model units. */
 final class HistoricalLowering {
+    /**
+     * Retained size of one array, derived from the count that actually gets allocated.
+     *
+     * <p>Charging a guessed per-quad constant is what made this budget wrong before: the previous
+     * code charged 640 bytes per quad where the arrays genuinely total 152, a 4x over-count that
+     * rejected models that would have fit. The figures below are computed from the same counts the
+     * allocation expressions use, so they cannot drift apart again.
+     *
+     * @param count    elements allocated
+     * @param element  bytes per element: 4 for {@code float}/{@code int}, 1 for {@code boolean}
+     */
+    private static long arrayBytes(long count, long element) {
+        // Header plus payload, padded to the 8-byte alignment every HotSpot object honours.
+        return (16L + count * element + 7L) & ~7L;
+    }
+    /** Bytes per retained {@link ModelDocument.Face}: header, three ints, a String ref, a boolean. */
+    private static final long FACE_BYTES = 40L;
+    /** Bytes per bone name: the reference in the name list. */
+    private static final long BONE_NAME_REF = 4L;
     private final YsmHistoricalModel historical;
     private final DecodePolicy policy;
     private final ResourceBudget budget;
@@ -120,7 +139,39 @@ final class HistoricalLowering {
         List<HistoricalValue> bones=sequence(geo.field("bones")).values();int n=bones.size();
         long quads=0;for(HistoricalValue item:bones){Struct b=struct(item);quads+=quads(b).size();}
         if(quads>policy.maxCollectionEntries()||quads>Integer.MAX_VALUE/24)throw new DecodeLimitException(ImportErrorCode.COLLECTION_LIMIT,"YSM projected geometry limit");
-        retain(Math.addExact(Math.multiplyExact(quads,640L),Math.multiplyExact(n,512L)));
+        // Charge what is actually allocated just below, from the same counts. The vertex batch holds
+        // three float arrays and an int array of 4*quads elements (positions, normals, uv, bones),
+        // the index array holds 6*quads ints, and each quad also retains one Face record.
+        long vertexCount=Math.multiplyExact(quads,4L);
+        retain(Math.addExact(
+                Math.addExact(
+                        Math.addExact(arrayBytes(vertexCount,4L),arrayBytes(vertexCount,4L)),  // positions, normals
+                        Math.addExact(arrayBytes(Math.multiplyExact(vertexCount,2L),4L),      // uvs
+                                arrayBytes(vertexCount,4L))),                                 // vertexBones
+                Math.addExact(arrayBytes(Math.multiplyExact(quads,6L),4L),                 // indices
+                        Math.multiplyExact(quads,FACE_BYTES))));                            // faces
+        // Skeleton keeps and clones parents/pivots and derives three int[n] arrays; BonePose keeps and
+        // clones three float[3n], two boolean[n] and two int[n]. Both are sized by the bone count.
+        long components=Math.multiplyExact(n,3L);
+        retain(Math.addExact(
+                Math.addExact(
+                        Math.addExact(
+                                Math.addExact(arrayBytes(n,4L),arrayBytes(n,4L)),        // parents + clone
+                                Math.addExact(arrayBytes(components,4L),arrayBytes(components,4L))), // pivots + clone
+                        Math.addExact(Math.addExact(arrayBytes(n,4L),arrayBytes(n,4L)),arrayBytes(n,4L))), // order/firstChild/next
+                Math.addExact(
+                        Math.addExact(
+                                Math.addExact(arrayBytes(components,4L),arrayBytes(components,4L)),
+                                Math.addExact(arrayBytes(components,4L),arrayBytes(components,4L))),
+                        Math.addExact(
+                                Math.addExact(arrayBytes(components,4L),arrayBytes(components,4L)),
+                                Math.addExact(
+                                        Math.addExact(
+                                                Math.addExact(arrayBytes(n,1L),arrayBytes(n,1L)),
+                                                Math.addExact(arrayBytes(n,1L),arrayBytes(n,1L))),
+                                        Math.addExact(
+                                                Math.addExact(arrayBytes(n,4L),arrayBytes(n,4L)),
+                                                Math.multiplyExact(n,BONE_NAME_REF)))))));
         var names=new ArrayList<String>();var byName=new HashMap<String,Integer>();
         for(int i=0;i<n;i++){String name=text(struct(bones.get(i)).field("name"));if(byName.put(name,i)!=null)throw new IOException("Duplicate historical bone");names.add(name);}
         int[] parents=new int[n],glow=new int[n];float[] pivots=new float[n*3],rotation=new float[n*3],scale=new float[n*3];Arrays.fill(scale,1);Arrays.fill(glow,255);

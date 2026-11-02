@@ -17,8 +17,8 @@ class HistoricalSceneProjectionTest {
         JsonObject metadata=project(file(new Struct(fields)),null);
         var track=at(at(at(at(at(metadata,"animations"),"duplicate"),"bones"),"root"),"position");
         var duplicates=(JsonArray)track.values().get("1");assertEquals(2,duplicates.values().size());
-        assertEquals(3,((JsonArray)duplicates.values().get(0)).values().size());
-        assertEquals(3,((JsonArray)duplicates.values().get(1)).values().size());
+        assertEquals(3,componentCount(duplicates.values().get(0)));
+        assertEquals(3,componentCount(duplicates.values().get(1)));
         assertFalse(((JsonArray)at(metadata,"historical_scene").values().get("limitations")).values().isEmpty());
     }
     @Test void linearKeysWithEqualPrePostUseTheEquivalentCompactVectorForm() throws Exception {
@@ -29,7 +29,9 @@ class HistoricalSceneProjectionTest {
         JsonObject metadata=project(file(new Struct(fields)),null);
         var track=at(at(at(at(metadata,"animations"),"linear"),"bones"),"root");
         var value=at(track,"position").values().get("1");
-        assertInstanceOf(JsonArray.class,value);assertEquals(16,number(((JsonArray)value).values().get(0)));
+        // A three-number vector collapses to the inline form; assert the values, not the old class.
+        assertEquals(3,componentCount(value));assertEquals(16,component(value,0));
+        assertTrue(value instanceof JsonVector3,"a pure three-number vector must use the compact form");
         assertTrue(((Presence)rawKey.field("post")).present(),"the exact archival representation must remain intact");
     }
     @Test void repeatedImmutableKeyframesShareTheirScalarVectorAndFrameStorage() throws Exception {
@@ -38,8 +40,15 @@ class HistoricalSceneProjectionTest {
         JsonObject second=at(at(at(at(at(metadata,"animations"),"second"),"bones"),"root"),"position");
         var frame=at(first,"1");var repeated=at(second,"1");
         assertSame(frame,repeated,"identical immutable frames should not be allocated for every animation/bone");
-        var post=(JsonArray)frame.values().get("post");
-        assertSame(post.values().get(1),post.values().get(2));
+        var post=frame.values().get("post");
+        // Scalar sharing: the compact vector stores its components as primitives, so identical axes
+        // are shared by construction. The array form must still share the identical scalar objects.
+        if (post instanceof JsonVector3 inline) {
+            assertEquals(inline.y(),inline.z(),"identical axes must be the same value");
+        } else {
+            var values=((JsonArray)post).values();
+            assertSame(values.get(1),values.get(2));
+        }
         assertThrows(UnsupportedOperationException.class,()->frame.values().clear());
     }
     static Struct s(Object... pairs) { Map<String,HistoricalValue> fields=new LinkedHashMap<>(); for(int i=0;i<pairs.length;i+=2) fields.put((String)pairs[i],(HistoricalValue)pairs[i+1]); return new Struct(fields); }
@@ -57,9 +66,24 @@ class HistoricalSceneProjectionTest {
             "instructions",seq(s("tick",f(10),"data",seq(t("v.a=1;"),t("v.b=2;")))),"sounds",seq(s("tick",f(20),"data",t("sound.one")))); }
     static Struct file(Struct... animations) { return s("animations",seq(animations)); }
     static JsonObject object(JsonValue value) { return (JsonObject)value; }
+    /**
+     * Components of a vector value.
+     *
+     * <p>A three-number vector may be stored either inline as {@code JsonVector3} (the compact form,
+     * used when all three are numbers) or as a {@code JsonArray} when an element is a Molang
+     * expression. These helpers let the behavioural assertions read both without weakening them.
+     */
+    static List<JsonValue> components(JsonValue value) {
+        if (value instanceof JsonVector3 inline) {
+            return List.of(new JsonNumber(inline.x()),new JsonNumber(inline.y()),new JsonNumber(inline.z()));
+        }
+        return ((JsonArray)value).values();
+    }
+    static int componentCount(JsonValue value) { return components(value).size(); }
+    static double component(JsonValue value,int index) { return number(components(value).get(index)); }
     static JsonObject at(JsonObject value,String field) { return object(value.values().get(field)); }
     static String text(JsonValue value) { return ((JsonString)value).value(); }
-    static double number(JsonValue value) { return ((JsonNumber)value).value().doubleValue(); }
+    static double number(JsonValue value) { return ((JsonNumber)value).value(); }
     static JsonObject project(HistoricalValue animations,HistoricalValue controllers) throws IOException {
         return HistoricalSceneProjection.project(32,"player","main",animations,controllers,DecodePolicy.localModel(),new CancellationToken(),bytes->{});
     }

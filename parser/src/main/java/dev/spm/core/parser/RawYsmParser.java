@@ -197,7 +197,7 @@ final class RawYsmParser {
         }
         JsonObject ysm=obj(Map.of("manifest",manifest,"geometry_path",string(path),"target_type",string(type),
             "animation_sets",animations.sources(),"controller_files",controllers.sources(),"texture_sets",textures,"match",array(matches),
-            "archive_version",new JsonNumber(java.math.BigDecimal.valueOf(archive.outerVersion()))));
+            "archive_version",new JsonNumber(archive.outerVersion())));
         var metadata=new LinkedHashMap<>(base.metadata().values());metadata.put("ysm",ysm);
         metadata.put("animations",animations.definitions());metadata.put("animation_controllers",controllers.definitions());
         ModelDocument document=new ModelDocument(base.identity(),"ysm-raw-v"+archive.outerVersion(),base.skeleton(),meshes,
