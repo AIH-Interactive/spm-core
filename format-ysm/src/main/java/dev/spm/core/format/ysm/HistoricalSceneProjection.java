@@ -369,11 +369,19 @@ final class HistoricalSceneProjection {
         token.check();
         if((long)value.length()*2>policy.maxStringBytes()*2L)throw new IOException("Historical metadata string limit");
         var existing=strings.get(value);if(existing!=null)return existing;
-        // A retained string is its String object plus the compact byte[] payload. Measured corpus
-        // cardinality is ~3,026 distinct strings, comfortably inside the pool bound.
-        boolean cache=value.length()<=512&&strings.size()<INTERN_LIMIT;charge(40L+value.length()*2L);
+        // A retained string is its String object plus the compact byte[] payload. Measured on the
+        // community corpus, a Molang-heavy model reaches 112,210 strings averaging 272 characters with
+        // 12.4 MiB of exact repetition across them, so the pool must cover both long values and a large
+        // cardinality or it stores the same expression dozens of times. The bound exists to keep the
+        // index from growing without limit on hostile input, not to exclude real content.
+        boolean cache=value.length()<=STRING_INTERN_MAX&&strings.size()<STRING_INTERN_LIMIT;
+        charge(40L+value.length()*2L);
         var result=new JsonString(value);if(cache)strings.put(value,result);return result;
     }
+    /** Longest metadata string worth indexing; longer values are stored once each. */
+    private static final int STRING_INTERN_MAX=8192;
+    /** Distinct strings the pool may hold. Measured corpus maximum is 63,511. */
+    private static final int STRING_INTERN_LIMIT=131_072;
     private JsonBoolean bool(boolean value)throws IOException {
         token.check();var existing=value?trueValue:falseValue;if(existing!=null)return existing;
         var result=new JsonBoolean(value);if(value)trueValue=result;else falseValue=result;return result;
