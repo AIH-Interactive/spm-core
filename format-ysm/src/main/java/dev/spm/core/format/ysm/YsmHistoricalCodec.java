@@ -19,15 +19,42 @@ public final class YsmHistoricalCodec {
                                             ResourceBudget budget, CancellationToken token) throws IOException {
         return HistoricalWriter.encode(version, root, policy, budget, token);
     }
+    /**
+     * Decodes the full tree, including every animation clip. Required for byte-exact re-encoding, so
+     * this keeps the multi-gigabyte shape for animation-heavy models.
+     */
     public static YsmHistoricalModel decode(byte[] wire, DecodePolicy policy, ResourceBudget budget,
                                             CancellationToken token) throws IOException {
+        return decode(wire, policy, budget, token, false);
+    }
+    /**
+     * Decodes for import: player animation clips are projected into their final scene JSON as they
+     * are parsed instead of being retained as tree nodes.
+     *
+     * <p>This is what bounds the peak. Animation keyframes are 97.4% of a real model's node mass
+     * (measured: 10.4M of 10.6M nodes for a 5.6 MiB community model), and holding them all before
+     * projecting them is what forced a multi-gigabyte heap. Streaming one clip at a time makes the
+     * peak proportional to the largest single clip instead of the whole file, and the projected
+     * result is identical by construction: {@code HistoricalSceneProjection.collector} receives the
+     * same clips in the same order it would have received them from a completed tree.
+     *
+     * <p>Byte-exact re-encoding is not available on this path, because the clips are no longer in the
+     * tree. Callers that need archival round-tripping use {@link #decode(byte[], DecodePolicy,
+     * ResourceBudget, CancellationToken)}.
+     */
+    public static YsmHistoricalModel decodeForImport(byte[] wire, DecodePolicy policy, ResourceBudget budget,
+                                                     CancellationToken token) throws IOException {
+        return decode(wire, policy, budget, token, true);
+    }
+    private static YsmHistoricalModel decode(byte[] wire, DecodePolicy policy, ResourceBudget budget,
+                                             CancellationToken token, boolean streamAnimations) throws IOException {
         Objects.requireNonNull(wire); Objects.requireNonNull(policy);
         Objects.requireNonNull(budget); Objects.requireNonNull(token);
         token.check();
         if (wire.length < 4 || wire.length > Math.min(256L << 20, Math.min(policy.maxExpandedBytes(), policy.maxInputBytes()))) {
             throw new IOException("Historical wire input limit");
         }
-        var reader = new Reader(wire, policy, budget, token);
+        var reader = new Reader(wire, policy, budget, token, streamAnimations);
         try {
             return reader.decode();
         } catch (BufferUnderflowException | IllegalArgumentException malformed) {
@@ -95,9 +122,23 @@ public final class YsmHistoricalCodec {
         /** Decoded bytes retained by this reader, accumulated against maxExpandedBytes. */
         long retained;
         int version, depth, nodes;
+        /**
+         * Receives animation clips as they are parsed. Animation keyframes are 97.4% of a real
+         * model's node mass (measured: 10.4M of 10.6M nodes for a 5.6 MiB community model), so a clip
+         * is projected into its final scene JSON the moment it is read and the tree nodes are dropped
+         * instead of being accumulated. This is what removes the multi-gigabyte peak.
+         */
+        HistoricalSceneProjection.Collector animationCollector;
+        /** True only on the import path; the archival decode keeps the full tree for byte-exact re-encode. */
+        final boolean streamPlayerAnimations;
 
         Reader(byte[] wire, DecodePolicy policy, ResourceBudget budget, CancellationToken token) throws IOException {
+            this(wire, policy, budget, token, false);
+        }
+        Reader(byte[] wire, DecodePolicy policy, ResourceBudget budget, CancellationToken token,
+               boolean streamPlayerAnimations) throws IOException {
             this.policy = policy; this.budget = budget; this.token = token;
+            this.streamPlayerAnimations = streamPlayerAnimations;
             // Snapshot is temporary; node-owned values below are retained independently.
             YsmArchiveCodec.reserve(budget, wire.length,reservations);
             input = ByteBuffer.wrap(wire.clone()).order(ByteOrder.LITTLE_ENDIAN);
@@ -109,9 +150,12 @@ public final class YsmHistoricalCodec {
             Text identity = (Text) (version < 19 ? root.field("identity") : ((Struct) root.field("info")).field("hash"));
             require(identity.value().matches("[0-9a-fA-F]{32}"), "Invalid historical identity");
             require(!input.hasRemaining(), "Trailing historical wire bytes");
+            // Every charge must reach the budget before the reader hands ownership over.
+            flushPending();
             // The source snapshot is no longer part of the returned tree.
             reservations.remove(0).close();
-            var model = new YsmHistoricalModel(version, root, reservations);
+            var model = new YsmHistoricalModel(version, root, animationCollector, reservations);
+            animationCollector = null;
             reservations.clear();
             return model;
         }
@@ -127,15 +171,62 @@ public final class YsmHistoricalCodec {
             charge(bytes);
         }
         /**
+         * Running total of retention that has been admitted but not yet converted into a reservation
+         * ticket.
+         *
+         * <p>One {@code Reservation} per node is what actually blew the heap: a real model has ~10.6M
+         * nodes, so the ticket objects alone (an object plus a reference in a growing array) cost more
+         * than the charged bytes they represented. Batching means the number of tickets scales with
+         * checkpoints rather than with node count, while the total admitted credit stays identical.
+         */
+        private long pending;
+        /** Credits accumulated inside the current transient unit (one streamed clip). */
+        private long transientBytes;
+        /** True while reading a unit whose tree nodes are dropped as soon as it ends. */
+        private boolean transientScope;
+        /**
+         * Credits are flushed to the shared budget in chunks of at least this size. It bounds how far
+         * {@code used()} can lag the true figure, and keeps the flush itself amortised.
+         */
+        private static final long FLUSH_CHUNK = 1L << 20;
+
+        /**
          * Charges retention without counting a node, for container overhead (map buckets, list
          * shells) that is real heap but is not a {@code HistoricalValue}.
          */
         void charge(long bytes) throws IOException {
             long charge = Math.addExact(32L, bytes);
+            if (transientScope) {
+                // A streamed clip is projected and then dropped, so its tree nodes are live only for
+                // the duration of that one clip. Charging them cumulatively would report the whole
+                // file's node mass as a peak the process never actually holds; the correct bound is
+                // per clip, and the memory is released before the next clip is read.
+                transientBytes = Math.addExact(transientBytes, charge);
+                if (transientBytes > policy.maxExpandedBytes()) {
+                    throw new DecodeLimitException(ImportErrorCode.EXPANDED_LIMIT, "Historical clip expanded-byte limit");
+                }
+                return;
+            }
             if(charge>policy.maxExpandedBytes()-retained)throw new DecodeLimitException(ImportErrorCode.EXPANDED_LIMIT,"Historical expanded-byte limit");
-            YsmArchiveCodec.reserve(budget, charge,reservations);
             retained += charge;
+            pending = Math.addExact(pending, charge);
+            if (pending >= FLUSH_CHUNK) flush();
         }
+        /**
+         * Marks the charges that follow as belonging to one transient unit whose memory is released
+         * when the unit ends. Nested scopes are not needed: clips contain no further clips.
+         */
+        void beginTransient() { transientScope = true; transientBytes = 0; }
+        /** Ends the transient scope, releasing the per-unit accounting. */
+        void endTransient() { transientScope = false; transientBytes = 0; }
+        /** Converts the pending credit into a single reservation ticket. */
+        private void flush() throws IOException {
+            if (pending == 0) return;
+            long amount = pending; pending = 0;
+            YsmArchiveCodec.reserve(budget, amount, reservations);
+        }
+        /** Publishes any credit still pending. Called before ownership transfers. */
+        void flushPending() throws IOException { flush(); }
         HistoricalValue nested(Read read) throws IOException {
             if(++depth>policy.maxDepth())throw new DecodeLimitException(ImportErrorCode.DEPTH_LIMIT,"Historical nesting limit");
             node(0);
@@ -373,10 +464,59 @@ public final class YsmHistoricalCodec {
                     .add("languages", () -> map(this::text, () -> wrap(this::stringMap))));
         }
         Struct player() throws IOException {
-            return struct(r -> r.add("animations", () -> map(this::uint32, () -> wrap(this::animations)))
+            return struct(r -> r.add("animations", this::playerAnimations)
                     .add("controllers", () -> map(this::text, () -> wrap(this::controllers)))
                     .add("textures", () -> map(this::text, this::texture))
                     .add("geos", () -> map(this::uint32, () -> wrap(this::geometry))));
+        }
+        /**
+         * Reads the player animation sets, streaming each clip into the projection as it is parsed.
+         *
+         * <p>On the archival path this is the ordinary map read. On the import path each clip is
+         * projected the moment it has been parsed and its tree is then dropped, so the peak is one
+         * clip rather than every clip in the file. The map keeps its keys and an empty set body, which
+         * is all the tree needs to record: the projected result lives on the model.
+         */
+        Mapping playerAnimations() throws IOException {
+            if (!streamPlayerAnimations) return map(this::uint32, () -> wrap(this::animations));
+            animationCollector = HistoricalSceneProjection.collector(version, policy, token);
+            return (Mapping) nested(() -> {
+                int n = count(1_048_576);
+                charge(Math.addExact(NodeCost.MAPPING_SHELL, Math.multiplyExact((long) n, NodeCost.ENTRY)));
+                var entries = new ArrayList<Entry>();
+                for (int i = 0; i < n; i++) {
+                    Unsigned key = uint32();
+                    entries.add(new Entry(key, streamedAnimationSet(Long.toUnsignedString(key.bits()))));
+                }
+                return new Mapping(entries);
+            });
+        }
+        private Struct streamedAnimationSet(String key) throws IOException {
+            return struct(r -> r.add("hash", this::hash)
+                    .add("value", () -> struct(s -> s.add("animations", () -> streamedClips(key)))));
+        }
+        private Sequence streamedClips(String key) throws IOException {
+            animationCollector.beginSet(key);
+            try {
+                int n = count(1_048_576);
+                charge(NodeCost.SEQUENCE_SHELL + Math.multiplyExact((long) n, 8L));
+                for (int i = 0; i < n; i++) {
+                    // One clip alive at a time: project it, then drop the tree representation. Its
+                    // nodes are transient, so they are charged against a per-clip bound rather than
+                    // cumulatively; charging cumulatively reported the whole file's node mass as a
+                    // peak that the process never actually holds.
+                    beginTransient();
+                    try {
+                        Struct clip = animation();
+                        animationCollector.clip(clip);
+                    } finally {
+                        endTransient();
+                    }
+                }
+            } finally {
+                animationCollector.endSet();
+            }
+            return new Sequence(List.of(), true);
         }
         Struct replacement() throws IOException {
             return struct(r -> {

@@ -32,18 +32,118 @@ final class HistoricalSceneProjection {
                               DecodePolicy policy,CancellationToken token,Retention retention)throws IOException {
         return forVariant(shared(version,animations,controllers,policy,token,retention),type,key,policy,token,retention);
     }
-    /** The result is deep immutable and belongs to the import's shared reservation owner. */
+    /**
+     * Accumulates animation sets one clip at a time.
+     *
+     * <p>The historical tree spends about 97% of its node mass on animation keyframes, and a single
+     * source set can hold tens of thousands of frames. Retaining them all, only to project them in a
+     * second pass, is what made a real 5.6 MiB model need multiple GiB of heap. Feeding clips through
+     * this collector lets the decoder project each one and drop it immediately, so the peak is one
+     * clip rather than the whole file. {@link #feed} drives the same collector from an already
+     * decoded tree, so the streamed and in-memory paths are the same code and cannot diverge.
+     */
+    static final class Collector {
+        private final HistoricalSceneProjection work;
+        private final int version;
+        private final Map<String,JsonObject> animationSets=new LinkedHashMap<>();
+        private String setKey;
+        private Map<String,JsonValue> clips;
+        /**
+         * Credits for the projected JSON this collector accumulates.
+         *
+         * <p>The projection outlives the decoder that produced it: the reader's reservations are
+         * released when decoding finishes, while the projected scene is retained by the import result.
+         * Charging through the reader therefore made the budget report a few megabytes for a set that
+         * actually holds hundreds, so the collector keeps its own running total and the lowering takes
+         * it over. Routing it through the collector rather than the reader is what keeps the charge
+         * attached to the thing that is actually retained.
+         */
+        private long projectedBytes;
+        private Collector(int version,DecodePolicy policy,CancellationToken token){
+            this.version=version;
+            this.work=new HistoricalSceneProjection(policy,token,this::retain);
+        }
+        /** Records retained projection bytes. */
+        private void retain(long bytes)throws IOException {
+            if(bytes<0)throw new IOException("Negative historical projection charge");
+            projectedBytes=Math.addExact(projectedBytes,bytes);
+        }
+        long projectedBytes(){return projectedBytes;}
+        /** Hands the accumulated credit to a new owner and zeroes it, so it is never counted twice. */
+        long takeProjectedBytes(){long taken=projectedBytes;projectedBytes=0;return taken;}
+        void beginSet(String key)throws IOException {
+            if(clips!=null)throw new IllegalStateException("Historical animation set is already open");
+            setKey=key;clips=new LinkedHashMap<>();
+        }
+        void clip(HistoricalValue value)throws IOException {
+            if(clips==null)throw new IllegalStateException("No historical animation set is open");
+            Struct source=struct(value);String name=string(source.field("name"));
+            String path="animation-set["+setKey+"]/"+name;
+            if(clips.putIfAbsent(name,work.animation(source,path))!=null)
+                throw new IOException("Duplicate animation name in historical source set: "+name);
+        }
+        void endSet()throws IOException {
+            if(clips==null)throw new IllegalStateException("No historical animation set is open");
+            if(animationSets.putIfAbsent(setKey,work.object(Map.of("animations",work.object(clips))))!=null)
+                throw new IOException("Duplicate historical scene source-set key");
+            clips=null;setKey=null;
+        }
+        JsonObject finish(HistoricalValue controllers)throws IOException {
+            if(clips!=null)throw new IllegalStateException("Historical animation set was left open");
+            Map<String,JsonObject> controllerSets=work.sets(controllers,false);
+            Map<String,JsonValue> flatAnimations=work.flatten(animationSets,"animations");
+            Map<String,JsonValue> flatControllers=work.flatten(controllerSets,"animation_controllers");
+            var provenance=work.object(Map.of("source_profile",work.text("ysm-historical-inner-"+version),
+                    "animation_sets",work.object(new LinkedHashMap<>(animationSets)),"controller_sets",work.object(new LinkedHashMap<>(controllerSets)),
+                    "limitations",work.array(work.limitations)));
+            return work.object(Map.of("animation_interpolation_profile",work.text("HISTORICAL_YSM"),
+                    "animations",work.object(flatAnimations),"animation_controllers",work.object(flatControllers),"historical_scene",provenance));
+        }
+    }
+    static Collector collector(int version,DecodePolicy policy,CancellationToken token)throws IOException {
+        Objects.requireNonNull(policy);Objects.requireNonNull(token).check();
+        return new Collector(version,policy,token);
+    }
+    /** Drives a collector from an in-memory tree, in the same order the streaming path would. */
+    static void feed(Collector collector,HistoricalValue animations)throws IOException {
+        var work=collector.work;
+        HistoricalValue source=work.unwrap(animations);
+        if(source==null)return;
+        if(source instanceof Mapping mapping) {
+            work.collection(mapping.entries().size());
+            for(Entry entry:mapping.entries()) {
+                work.token.check();HistoricalValue file=work.unwrap(entry.value());if(file==null)continue;
+                String key=entry.key() instanceof Text text?text.value():Long.toUnsignedString(HistoricalSceneProjection.unsigned(entry.key()));
+                work.feedSet(collector,key,HistoricalSceneProjection.struct(file));
+            }
+        } else if(source instanceof Sequence sequence) {
+            work.collection(sequence.values().size());int index=0;
+            for(HistoricalValue value:sequence.values()) {
+                work.token.check();HistoricalValue file=work.unwrap(value);
+                if(file!=null)work.feedSet(collector,Integer.toString(index),HistoricalSceneProjection.struct(file));
+                index++;
+            }
+        } else work.feedSet(collector,"main",HistoricalSceneProjection.struct(source));
+    }
+    private void feedSet(Collector collector,String key,Struct source)throws IOException {
+        collector.beginSet(key);
+        for(HistoricalValue value:sequence(source.field("animations"))){token.check();collector.clip(value);}
+        collector.endSet();
+    }
+    /**
+     * The result is deep immutable. Charges accrue on the collector's own tally and are handed to the
+     * lowering through {@link Collector#takeProjectedBytes()}, because the projection outlives the
+     * decoder whose reservations are released when decoding finishes.
+     */
     static JsonObject shared(int version,HistoricalValue animations,HistoricalValue controllers,
                              DecodePolicy policy,CancellationToken token,Retention retention)throws IOException {
-        Objects.requireNonNull(policy);Objects.requireNonNull(token).check();Objects.requireNonNull(retention);
-        var work=new HistoricalSceneProjection(policy,token,retention);
-        Map<String,JsonObject> animationSets=work.sets(animations,true),controllerSets=work.sets(controllers,false);
-        Map<String,JsonValue> flatAnimations=work.flatten(animationSets,"animations"),flatControllers=work.flatten(controllerSets,"animation_controllers");
-        var provenance=work.object(Map.of("source_profile",work.text("ysm-historical-inner-"+version),
-                "animation_sets",work.object(new LinkedHashMap<>(animationSets)),"controller_sets",work.object(new LinkedHashMap<>(controllerSets)),
-                "limitations",work.array(work.limitations)));
-        return work.object(Map.of("animation_interpolation_profile",work.text("HISTORICAL_YSM"),
-                "animations",work.object(flatAnimations),"animation_controllers",work.object(flatControllers),"historical_scene",provenance));
+        var collector=collector(version,policy,token);
+        feed(collector,animations);
+        var result=collector.finish(controllers);
+        // The caller supplied the retention sink for this non-streamed path.
+        long projected=collector.takeProjectedBytes();
+        if(projected>0)retention.retain(projected);
+        return result;
     }
     /** Shallow variant wrapper; existing scene values are reused without reprojecting or recharging. */
     static JsonObject forVariant(JsonObject shared,String type,String key,DecodePolicy policy,CancellationToken token,Retention retention)throws IOException {

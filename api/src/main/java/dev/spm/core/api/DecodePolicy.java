@@ -24,13 +24,13 @@ public record DecodePolicy(long maxInputBytes, long maxExpandedBytes, int maxEnt
     /**
      * Explicit local-file workload limits; this does not confer trust or replace a remote policy.
      *
-     * <p>{@code maxExpandedBytes} is 3 GiB because the historical YSM tree is charged at its measured
-     * retention cost, not at its wire size: a real 5.6 MiB community model expands to about 10.6
-     * million nodes, 97% of them animation keyframes, and legitimately exceeds 1.4 GiB of credits.
-     * Charging those nodes honestly is what makes the limit meaningful; lowering the charge to fit a
-     * smaller cap would restore the previous behaviour where the budget under-estimated real memory
-     * by a factor of three. Untrusted input must still use {@link #conservative()} or a stricter Host
-     * policy.
+     * <p>{@code maxExpandedBytes} is 1 GiB because the historical YSM decoder streams each animation
+     * clip into its final projected form instead of accumulating the decoded tree, so what is charged
+     * is what is actually retained rather than the whole file's node mass. Measured across 18 real
+     * community models, the largest needs about 365 MB of credits and all pass at this limit; the
+     * earlier 3 GiB value existed only because cumulative per-clip accounting over-reported the peak,
+     * and the earlier 512 MiB value was too small for a 395k-vertex model. Untrusted input must still
+     * use {@link #conservative()} or a stricter Host policy.
      */
-    public static DecodePolicy localModel() { return new DecodePolicy(128L<<20,3L<<30,16384,16<<20,64,16_777_216,1_048_576); }
+    public static DecodePolicy localModel() { return new DecodePolicy(128L<<20,1L<<30,16384,16<<20,64,16_777_216,1_048_576); }
 }

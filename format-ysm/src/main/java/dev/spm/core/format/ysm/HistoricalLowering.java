@@ -16,10 +16,17 @@ final class HistoricalLowering {
     private final List<YsmImportResult.Variant> variants=new ArrayList<>();
     // AST identity, not deep equals/hashCode: all player variants borrow the same immutable files.
     private final IdentityHashMap<HistoricalValue,IdentityHashMap<HistoricalValue,ModelDocument.JsonObject>> sceneMetadata=new IdentityHashMap<>();
+    /**
+     * Set when the decoder streamed animation clips into the projection instead of retaining them.
+     * {@code streamedShared} then holds the one shared projection every variant borrows.
+     */
+    private final HistoricalSceneProjection.Collector streamed;
+    private ModelDocument.JsonObject streamedShared;
     private long retained;
     private int resourceIndex;
     private HistoricalLowering(YsmHistoricalModel historical,DecodePolicy policy,ResourceBudget budget,CancellationToken token){
         this.historical=Objects.requireNonNull(historical);this.policy=Objects.requireNonNull(policy);
+        this.streamed=historical.takeAnimationCollector();
         this.budget=Objects.requireNonNull(budget);this.token=Objects.requireNonNull(token);
     }
     static YsmImportResult lower(YsmHistoricalModel model,DecodePolicy policy,ResourceBudget budget,CancellationToken token)throws IOException {
@@ -147,7 +154,21 @@ final class HistoricalLowering {
         return new ModelDocument(identity,"ysm-v3-inner-"+historical.innerVersion(),skeleton,List.of(mesh),pose,materials,List.of(),metadata);
     }
     private ModelDocument.JsonObject sceneMetadata(String type,String key,HistoricalValue animations,HistoricalValue controllers)throws IOException {
-        token.check();var byController=sceneMetadata.get(animations);
+        token.check();
+        // Streaming path: the clips were projected during decode and are no longer tree nodes, so the
+        // tree's animation field holds keys only. Build the shared scene projection once from the
+        // streamed result and reuse it for every variant, exactly as the in-memory path does.
+        if(streamed!=null&&streamedShared==null){
+            streamedShared=streamed.finish(controllers);
+            // The projected scene is retained by the import, not by the decoder, so its credit is
+            // taken from the collector: the reader's reservations are long gone by now, and charging
+            // through them reported a few megabytes for a set that actually holds hundreds.
+            long projected=streamed.takeProjectedBytes();
+            if(projected>0)retain(projected);
+            retain(96);
+        }
+        if(streamedShared!=null)return HistoricalSceneProjection.forVariant(streamedShared,type,key,policy,token,this::retain);
+        var byController=sceneMetadata.get(animations);
         if(byController==null) {
             retain(256);byController=new IdentityHashMap<>();sceneMetadata.put(animations,byController);
         }
