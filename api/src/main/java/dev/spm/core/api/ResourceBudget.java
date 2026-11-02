@@ -56,7 +56,7 @@ public final class ResourceBudget {
      * corpus model held 704,146 live {@link Reservation}s: 22.5 MB of tickets plus 11.3 MB of their
      * {@code AtomicBoolean}s, for content of only tens of megabytes.
      *
-     * <p>A ledger keeps {@link #used()} exact after every {@link #admit}, so admission and rejection
+     * <p>A ledger keeps {@link #used()} exact after every admission, so admission and rejection
      * behave exactly as with individual reservations, and it consumes no object per charge. The trade is
      * that bytes must be released together, which is what these decoders do anyway: a quota or a
      * lowering keeps its charges for one import and releases them as a unit.
