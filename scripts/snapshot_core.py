@@ -71,6 +71,38 @@ def source_inventory(root: Path) -> list[dict]:
     return rows
 
 
+def current_revision(root: Path) -> str | None:
+    """The exact checkout the inventory describes, or None when this is not a Git tree."""
+    try:
+        return git(root, 'rev-parse', 'HEAD')
+    except (subprocess.CalledProcessError, OSError):
+        return None
+
+
+def stale_baseline(root: Path, evidence: Path) -> list[str]:
+    """A measured baseline must describe this exact revision; otherwise it is a false claim.
+
+    `capture()` used to overwrite `baseline-metrics.json` with `NOT_MEASURED` on every rerun, so a
+    real measurement could never survive a ledger refresh. It now preserves a measurement that still
+    matches HEAD and rejects one that does not, instead of silently keeping a stale number.
+    """
+    path = evidence / 'baseline-metrics.json'
+    if not path.is_file():
+        return ['missing baseline record: baseline-metrics.json']
+    baseline = json.loads(path.read_text(encoding='utf-8'))
+    status = baseline.get('status')
+    if status == 'NOT_MEASURED':
+        return []
+    if status != 'MEASURED':
+        return ['unknown baseline status: ' + str(status)]
+    recorded, actual = baseline.get('source_revision'), current_revision(root)
+    if actual is not None and recorded != actual:
+        return [f'baseline measured at {recorded} but the tree is {actual}']
+    if not baseline.get('measurements'):
+        return ['baseline is marked MEASURED with no measurements']
+    return []
+
+
 def verify_snapshot(root: Path, evidence: Path) -> list[str]:
     with (evidence / 'origin-ledger.csv').open(encoding='utf-8', newline='') as source:
         rows = list(csv.DictReader(source))
@@ -90,6 +122,7 @@ def verify_snapshot(root: Path, evidence: Path) -> list[str]:
     for fixture in fixtures['fixtures']:
         if actual.get(fixture['path']) != fixture['sha256']:
             errors.append('fixture digest mismatch: ' + fixture['path'])
+    errors.extend(stale_baseline(root, evidence))
     return errors
 
 
@@ -196,11 +229,30 @@ def capture(root: Path, output: Path, workspace: Path):
                 ('worker script budgets', 'ScriptBudgetConcurrencyTest'), ('logical layout', 'LayoutDescriptorTest'),
                 ('Shader/OpenGL/Vulkan/GUI/Cloud/P2P', '')]
     write_csv(output, 'host-behavior-matrix.csv', [dict(behavior=b, core_tests=t, host_execution='NOT_VERIFIED') for b, t in behavior])
-    write_json(output, 'baseline-metrics.json', dict(schema=1, status='NOT_MEASURED', environment=dict(
-        platform=platform.platform(), machine=platform.machine(), processor=platform.processor()),
-        measurements=[], required_metrics=['cold/hot load', 'p50/p95/p99', 'throughput', 'memory/GC', 'JNI/copy/upload/queue'],
-        excluded_evidence='Existing baseline.json is a source audit, not a timing or stability benchmark.',
-        policy='Never sample the excluded implementation as a behavior oracle.'))
+    # A real measurement is authoritative. Only write the NOT_MEASURED placeholder when this
+    # evidence set has never been measured, otherwise refresh the ledger and destroy the numbers.
+    baseline_path = output / 'baseline-metrics.json'
+    if baseline_path.is_file():
+        existing = json.loads(baseline_path.read_text(encoding='utf-8'))
+        if existing.get('status') == 'MEASURED' and existing.get('source_revision') == current_revision(root):
+            pass  # keep the numbers that were measured for exactly this revision
+        elif existing.get('status') == 'MEASURED':
+            write_json(output, 'baseline-metrics.json', dict(
+                schema=1, status='NOT_MEASURED', superseded=existing,
+                environment=dict(platform=platform.platform(), machine=platform.machine(),
+                                 processor=platform.processor()),
+                measurements=[], required_metrics=['cold/hot load', 'p50/p95/p99', 'throughput', 'memory/GC',
+                                                   'JNI/copy/upload/queue'],
+                excluded_evidence='The superseded measurement was taken at a different revision.',
+                policy='Never sample the excluded implementation as a behavior oracle.'))
+        else:
+            pass
+    else:
+        write_json(output, 'baseline-metrics.json', dict(schema=1, status='NOT_MEASURED', environment=dict(
+            platform=platform.platform(), machine=platform.machine(), processor=platform.processor()),
+            measurements=[], required_metrics=['cold/hot load', 'p50/p95/p99', 'throughput', 'memory/GC', 'JNI/copy/upload/queue'],
+            excluded_evidence='Existing baseline.json is a source audit, not a timing or stability benchmark.',
+            policy='Never sample the excluded implementation as a behavior oracle.'))
     suites = []
     for path in sorted(root.glob('*/build/test-results/test/TEST-*.xml')):
         suite = ET.parse(path).getroot()

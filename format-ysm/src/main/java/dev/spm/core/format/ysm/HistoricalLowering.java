@@ -18,7 +18,7 @@ final class HistoricalLowering {
      * @param count    elements allocated
      * @param element  bytes per element: 4 for {@code float}/{@code int}, 1 for {@code boolean}
      */
-    private static long arrayBytes(long count, long element) {
+    static long arrayBytes(long count, long element) {
         // Header plus payload, padded to the 8-byte alignment every HotSpot object honours.
         return (16L + count * element + 7L) & ~7L;
     }

@@ -107,11 +107,90 @@ final class RawYsmParser {
     private Library animationSets(JsonObject paths)throws IOException {
         var sources=new LinkedHashMap<String,JsonValue>();var definitions=new LinkedHashMap<String,JsonValue>();
         for(var entry:paths.values().entrySet()){
-            String path=path(entry.getValue(),"animation", "json");JsonObject data=json(path);
+            String path=path(entry.getValue(),"animation", "json");JsonObject data=folded(json(path));
             merge(definitions,requiredObject(data,"animations"),"animation");
             sources.put(entry.getKey(),obj(Map.of("path",string(path),"document",data)));
         }
         return new Library(obj(sources),obj(definitions));
+    }
+    /**
+     * Folds exactly-three-number arrays in an animation file into {@link JsonVector3}.
+     *
+     * <p>The shared reader cannot do this: it also feeds the bbmodel and bedrock importers, which
+     * require a literal {@link JsonArray} and fail with {@code Expected array: origin} otherwise.
+     * Folding is therefore confined to the raw archive animation trees, where a triple really is a
+     * coordinate vector, and where {@code PoseAnimationLibrary} already accepts either shape. Both
+     * the archival document and the executable definitions read the returned tree, so a fold is
+     * retained once rather than per consumer.
+     *
+     * <p>A component is folded only when it survives {@code double -> float -> double} exactly.
+     * Unlike the historical projection, whose values originate as wire {@code float32}, these values
+     * are decimal literals read straight from JSON: on the measured corpus most triples (79,915 of
+     * 100,615) are <em>not</em> float-exact, and those keep the array form, which carries arbitrary
+     * precision. The check compares raw bits rather than values, so it states exactly what the
+     * narrowing guarantees: the same real number <em>and</em> the same sign of zero. A
+     * {@link JsonNumber} already rejects a non-finite component, and {@link #exact} rejects a
+     * narrowing that would overflow to infinity anyway.
+     *
+     * <p>The fold is free in charge terms, and deliberately so. The reader already charged 128 bytes
+     * for the array node and 128 for each of its three numbers; the vector that replaces all four
+     * retains 40. Charging the vector on top would raise the reported figure while the actual figure
+     * falls, which is the failure mode that makes a budget reject a model that would have fitted.
+     * Leaving the parse charge untouched keeps it a true upper bound and lets folding only ever lower
+     * what is really retained. Nothing is charged for rebuilt containers either: each holds exactly
+     * the fields of the one it replaces, and the superseded copies are unreachable from the moment
+     * their parent is rebuilt, so the transient is bounded by the depth limit, not by tree size.
+     */
+    private JsonObject folded(JsonObject value)throws IOException {
+        JsonValue replaced=folded((JsonValue)value);
+        // The root of an animation file is an object; folding never changes that shape.
+        return (JsonObject)replaced;
+    }
+    private JsonValue folded(JsonValue value)throws IOException {
+        if(value instanceof JsonObject object){
+            LinkedHashMap<String,JsonValue> copy=null;
+            for(int i=0;i<object.size();i++){
+                JsonValue child=object.value(i),replacement=folded(child);
+                if(replacement==child)continue;
+                if(copy==null)copy=new LinkedHashMap<>(object.values());
+                copy.put(object.key(i),replacement);
+            }
+            // Not charged: the object holds the same fields as the one it replaces, which was already
+            // charged. Charging the rebuild would invent retention for a container of equal size.
+            return copy==null?value:new JsonObject(copy);
+        }
+        if(value instanceof JsonArray array){
+            List<JsonValue> values=array.values();
+            JsonVector3 vector=vector(values);
+            if(vector!=null)return vector;
+            JsonValue[] replacements=null;
+            for(int i=0;i<values.size();i++){
+                JsonValue replacement=folded(values.get(i));
+                if(replacement==values.get(i))continue;
+                if(replacements==null)replacements=values.toArray(new JsonValue[0]);
+                replacements[i]=replacement;
+            }
+            return replacements==null?value:new JsonArray(List.of(replacements));
+        }
+        return value;
+    }
+    /**
+     * The inline vector for a foldable triple, or {@code null} when the array form must stay.
+     *
+     * <p>Package-private so the fold predicate can be exercised directly: JSON cannot carry a
+     * non-finite number at all, so the "never fold an unrepresentable component" arms have no
+     * textual fixture.
+     */
+    static JsonVector3 vector(List<JsonValue> values){
+        if(values.size()!=3||!(values.get(0) instanceof JsonNumber x)
+                ||!(values.get(1) instanceof JsonNumber y)||!(values.get(2) instanceof JsonNumber z))return null;
+        float fx=(float)x.value(),fy=(float)y.value(),fz=(float)z.value();
+        if(!exact(fx,x.value())||!exact(fy,y.value())||!exact(fz,z.value()))return null;
+        return new JsonVector3(fx,fy,fz);
+    }
+    /** True when narrowing to {@code float} and widening back reproduces the same bits. */
+    private static boolean exact(float narrowed,double original){
+        return Float.isFinite(narrowed)&&Double.doubleToLongBits(narrowed)==Double.doubleToLongBits(original);
     }
     private Library controllerFiles(List<JsonValue> paths)throws IOException {
         var sources=new LinkedHashMap<String,JsonValue>();var definitions=new LinkedHashMap<String,JsonValue>();

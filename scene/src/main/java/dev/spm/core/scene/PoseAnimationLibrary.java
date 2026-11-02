@@ -290,6 +290,11 @@ public final class PoseAnimationLibrary {
         }
         Track track(JsonValue value) {
             if (value==null) return null;
+            // The columnar form must be recognised before the shorthand branch below, which treats any
+            // non-object as one keyframed constant at t=0. Letting a timeline reach it would produce a
+            // plausible but wrong animation with no error anywhere, so the order of these branches is
+            // load-bearing; ColumnarTimelineSamplingTest pins that a timeline never decodes as one key.
+            if (value instanceof JsonTimeline timeline) return timeline(timeline);
             List<Key> keys=new ArrayList<>();
             if (!(value instanceof JsonObject timestamps)) keys.add(key(0,value));
             else {
@@ -302,6 +307,56 @@ public final class PoseAnimationLibrary {
                 keys.addAll(sorted.values());
             }
             return new Track(List.copyOf(keys),profile);
+        }
+        /**
+         * Decodes the columnar form through the same per-key routine the object form uses.
+         *
+         * <p>Each key is rebuilt as the {@link JsonVector3} the object form would have held and handed
+         * to {@link #key(double,JsonValue)}, so the key cap, the budget steps, the interpolation
+         * mapping and the vector decoding are the same code and cannot drift from the object path.
+         * The rebuilt vectors are transient: only the compressed node is retained.
+         *
+         * <p>Ticks are wired in {@code float32}, and the object form prints the same tick divided by
+         * twenty as decimal text. Dividing the float here reproduces that double exactly, because
+         * {@code BigDecimal.valueOf(double)} round-trips through {@code toString()} losslessly.
+         */
+        Track timeline(JsonTimeline timeline) {
+            int count=timeline.keyCount();
+            TreeMap<Double,Key> sorted=new TreeMap<>();
+            // The node records which keys differ from plain linearity; everything else is the compact
+            // shorthand, whose post equals its pre and whose mode is linear. Reading the sparse table
+            // by cursor keeps this linear rather than a lookup per key.
+            int entry=0;
+            for (int index=0;index<count;index++) {
+                boolean sparse=entry<timeline.sparseCount() && timeline.sparseKey(entry)==index;
+                budget.step();
+                double time=(double)timeline.tick(index)/20.0;
+                // The object form spends one step parsing its decimal timestamp text; spend the same
+                // one here so the same music track costs the same allowance in either shape.
+                budget.step();
+                if (!Double.isFinite(time) || time<0 || time>1_000_000) throw invalid("Invalid animation timestamp");
+                JsonValue raw;
+                if (!sparse) raw=new JsonVector3(timeline.pre(index,0),timeline.pre(index,1),timeline.pre(index,2));
+                else {
+                    var object=new LinkedHashMap<String,JsonValue>();
+                    object.put("pre",new JsonVector3(timeline.pre(index,0),timeline.pre(index,1),timeline.pre(index,2)));
+                    object.put("post",new JsonVector3(timeline.sparsePost(entry,0),timeline.sparsePost(entry,1),timeline.sparsePost(entry,2)));
+                    object.put("lerp_mode",new JsonString(interpolation(timeline.sparseMode(entry))));
+                    raw=new JsonObject(object);
+                }
+                if (sorted.putIfAbsent(time,key(time,raw))!=null) throw invalid("Duplicate numeric keyframe time");
+                if (sparse) entry++;
+            }
+            return new Track(List.copyOf(sorted.values()),profile);
+        }
+        /** The {@code lerp_mode} text the object form carries for each columnar interpolation code. */
+        private static String interpolation(byte mode) {
+            return switch(mode) {
+                case JsonTimeline.LINEAR -> "linear";
+                case JsonTimeline.STEP -> "step";
+                case JsonTimeline.CATMULL_ROM -> "catmullrom";
+                default -> throw invalid("Unsupported columnar interpolation code");
+            };
         }
         Key key(double time,JsonValue value) {
             budget.step(); if (++totalKeys>65536) throw limit("At most 65536 animation keys");

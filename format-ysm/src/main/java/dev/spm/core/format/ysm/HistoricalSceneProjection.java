@@ -24,6 +24,17 @@ final class HistoricalSceneProjection {
     private static final long JSON_OBJECT_BASE=40L;
     /** Retained cost of one object field: a value-array slot plus its share of the keys array. */
     private static final long JSON_OBJECT_FIELD=8L;
+    /**
+     * Retained cost of one {@link JsonTimeline}: a 32-byte record header plus its five array
+     * references. Every array it owns is charged separately from the count that is allocated.
+     */
+    private static final long TIMELINE_BYTES=32L;
+    /** Bytes per {@code float}; the element size of both base columns and of a sparse post vector. */
+    private static final long FLOAT_BYTES=4L;
+    /** Bytes per {@code int}; the element size of a sparse key index. */
+    private static final long INT_BYTES=4L;
+    /** Bytes per {@code byte}; the element size of a sparse interpolation code. */
+    private static final long MODE_BYTES=1L;
     private final Map<Long,JsonNumber> numbers=new HashMap<>();
     private final Map<String,JsonString> strings=new HashMap<>();
     private record VectorKey(JsonValue x,JsonValue y,JsonValue z){}
@@ -253,7 +264,125 @@ final class HistoricalSceneProjection {
         }
         return object(result);
     }
-    private JsonObject track(List<HistoricalValue> frames,String path)throws IOException {
+    /**
+     * Projects one bone channel's keyframes.
+     *
+     * <p>Emits a {@link JsonTimeline} when every key is numerically expressible, and otherwise falls
+     * back to the object form for the <em>whole</em> track. The fallback is deliberately whole-track
+     * and not per key: a track that mixes the two shapes cannot be read back, and translating the
+     * numeric keys of a track whose other keys are Molang expressions would drop semantics that the
+     * object form keeps explicit.
+     */
+    private JsonValue track(List<HistoricalValue> frames,String path)throws IOException {
+        JsonTimeline columnar=timeline(frames);
+        return columnar!=null?columnar:objectTrack(frames,path);
+    }
+    /**
+     * Builds the columnar shape, or returns {@code null} when the track is not losslessly expressible.
+     *
+     * <p>The scan reads the frames in exactly the order {@link #objectTrack} does and uses the same
+     * accessors, so a malformed frame raises the same exception with the same message. It charges
+     * nothing and records no limitation, which keeps the fallback path byte-identical to the previous
+     * implementation: every reason this method declines is a reason the object path reports or
+     * tolerates in its own way.
+     *
+     * <p>Declining happens for a non-finite or negative tick, an easing enum outside the two
+     * {@code linear} codes and {@code catmullrom}, a Molang expression in place of a numeric
+     * component, a non-finite component, and a repeated timestamp. In the first of those cases the
+     * object form records a limitation the executable decoder then refuses; in the last it retains
+     * both keyframes as an explicit array.
+     */
+    private JsonTimeline timeline(List<HistoricalValue> frames)throws IOException {
+        int count=frames.size();
+        // A single key is left to the object form: it already compacts to one JsonVector3, so the
+        // columnar node would add its own header and sparse arrays for no saving at all.
+        if(count<2)return null;
+        float[] ticks=new float[count];
+        float[] pre=new float[3*count];
+        // The sparse table is written compactly, one entry per exception, because the node addresses
+        // entries by position and not by key index; storing them at their key index would leave holes
+        // that the retained arrays still pay for.
+        var sparseKeys=new int[count];
+        var sparsePost=new float[3*count];
+        var sparseModes=new byte[count];
+        // Distinctness is checked on the exact double the timestamp helper would print, because that
+        // is the value the object form's map deduplicates and the decoder refuses to merge.
+        long[] times=new long[count];
+        int sparse=0;
+        for(int index=0;index<count;index++) {
+            token.check();Struct frame=struct(frames.get(index));
+            Float32 tick=floating(frame.field("tick"));
+            if(!Float.isFinite(tick.value())||tick.value()<0)return null;
+            long easing=unsigned(frame.field("easing"));
+            byte mode;
+            if(easing==0||easing==1)mode=JsonTimeline.LINEAR;
+            else if(easing==2)mode=JsonTimeline.CATMULL_ROM;
+            else return null;
+            if(!components(sequence(frame.field("pre")),pre,3*index))return null;
+            HistoricalValue post=unwrap(frame.field("post"));
+            boolean hasPost=post!=null;
+            var authored=new float[3];
+            boolean samePost=true;
+            if(hasPost) {
+                if(!components(sequence(post),authored,0))return null;
+                samePost=pre[3*index]==authored[0]&&pre[3*index+1]==authored[1]&&pre[3*index+2]==authored[2];
+            }
+            // The tick is normalised the same way the object form's timestamp text is, so a negative
+            // zero and a positive zero cannot become two distinct keys here and one key there.
+            float value=tick.value()==0?0:tick.value();
+            ticks[index]=value;
+            times[index]=Double.doubleToLongBits(value/20.0);
+            if(mode!=JsonTimeline.LINEAR||!samePost) {
+                sparseKeys[sparse]=index;sparseModes[sparse]=mode;
+                // A key with no authored post is linear-or-curved entirely by its own mode, so its post
+                // is its pre; copying it keeps the reader free of a second special case.
+                for(int axis=0;axis<3;axis++) sparsePost[3*sparse+axis]=hasPost?authored[axis]:pre[3*index+axis];
+                sparse++;
+            }
+        }
+        // The node keeps the wire order, which is the order the object form's map preserves; the
+        // decoder sorts both shapes by time before sampling. Only distinctness has to be proven here.
+        Arrays.sort(times);
+        for(int index=1;index<count;index++)if(times[index]==times[index-1])return null;
+        charge(columnarBytes(count,sparse),count+1);
+        return new JsonTimeline(ticks,pre,
+                Arrays.copyOf(sparseKeys,sparse),Arrays.copyOf(sparsePost,3*sparse),Arrays.copyOf(sparseModes,sparse));
+    }
+    /**
+     * Retained size of a {@link JsonTimeline}, from the counts the allocation expressions use.
+     *
+     * <p>Every term mirrors {@link HistoricalLowering#arrayBytes}: a header plus the element payload,
+     * aligned. Nothing here is a guessed per-key constant, so the budget cannot drift from the arrays
+     * that are actually allocated.
+     */
+    private static long columnarBytes(int keys,int sparse) {
+        return TIMELINE_BYTES
+                +HistoricalLowering.arrayBytes(keys,FLOAT_BYTES)
+                +HistoricalLowering.arrayBytes(Math.multiplyExact(3L,keys),FLOAT_BYTES)
+                +HistoricalLowering.arrayBytes(sparse,INT_BYTES)
+                +HistoricalLowering.arrayBytes(Math.multiplyExact(3L,sparse),FLOAT_BYTES)
+                +HistoricalLowering.arrayBytes(sparse,MODE_BYTES);
+    }
+    /**
+     * Reads three numeric components into {@code target}, or returns false when they are not
+     * expressible as float32 numbers without loss.
+     *
+     * <p>{@code false} is the only signal: the caller then hands the whole track to the object form,
+     * which is where a Molang expression or a non-finite component is retained explicitly.
+     */
+    private static boolean components(List<HistoricalValue> values,float[] target,int offset) {
+        if(values.size()!=3)return false;
+        for(int axis=0;axis<3;axis++) {
+            if(!(values.get(axis) instanceof Struct axisStruct))return false;
+            HistoricalValue type=axisStruct.fields().get("type"),number=axisStruct.fields().get("number");
+            if(!(type instanceof Unsigned declaredType)||declaredType.bits()!=1)return false;
+            if(!(number instanceof Float32 value)||!Float.isFinite(value.value()))return false;
+            target[offset+axis]=value.value();
+        }
+        return true;
+    }
+    /** The object-form projection, unchanged; used whenever the columnar shape cannot hold the track. */
+    private JsonObject objectTrack(List<HistoricalValue> frames,String path)throws IOException {
         var result=new LinkedHashMap<String,JsonValue>();
         var duplicateTimes=new HashSet<String>();
         for(HistoricalValue value:frames) {
@@ -449,7 +578,18 @@ final class HistoricalSceneProjection {
         var result=new JsonArray(new ArrayList<>(values));if(cache)vectors.put(vector,result);return result;
     }
     private void limitation(String message)throws IOException {collection(limitations.size()+1);limitations.add(text(message));}
-    private void charge(long bytes)throws IOException {token.check();if(++nodes>policy.maxObjects())throw new IOException("Historical scene metadata node limit");retention.retain(bytes);}
+    private void charge(long bytes)throws IOException {charge(bytes,1);}
+    /**
+     * Charges retained bytes and a node count.
+     *
+     * <p>The count exists for the columnar track, which replaces one node per keyframe plus the
+     * track object with a single node. Charging it as one node would relax {@code maxObjects} by
+     * three orders of magnitude on the largest measured model, so the replaced shapes are counted.
+     */
+    private void charge(long bytes,int count)throws IOException {
+        token.check();if(count>0&&nodes+count>policy.maxObjects())throw new IOException("Historical scene metadata node limit");
+        nodes+=count;retention.retain(bytes);
+    }
     private void collection(int count)throws IOException {token.check();if(count>policy.maxCollectionEntries())throw new IOException("Historical scene metadata collection limit");}
     private HistoricalValue unwrap(HistoricalValue value)throws IOException {
         for(int depth=0;;depth++) {

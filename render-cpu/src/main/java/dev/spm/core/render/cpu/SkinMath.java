@@ -38,10 +38,15 @@ final class SkinMath {
             for (int column = 0; column < 3; column++)
                 result[column * 4 + row] = finite(inverse[row * 3 + column] / determinant);
         float tx = m[12], ty = m[13], tz = m[14];
+        // The inverse translation is -R⁻¹·t, so this sum must run over the *translation* axis and index
+        // R⁻¹ by that axis. Selecting t by `row` instead would compute -t[row]·(row sum of R⁻¹), which
+        // coincidentally equals the correct answer on a pure-translation bind (all row sums are 1) and
+        // silently disagrees as soon as the bind is rotated. SkinningMathTest pins the rotated case by
+        // asserting the defining property M·M⁻¹ = I rather than a transcribed triple.
         for (int row = 0; row < 3; row++) {
             double value = 0;
             for (int axis = 0; axis < 3; axis++) {
-                double component = row == 0 ? tx : row == 1 ? ty : tz;
+                double component = axis == 0 ? tx : axis == 1 ? ty : tz;
                 value -= (double) result[axis * 4 + row] * component;
             }
             result[12 + row] = finite(value);

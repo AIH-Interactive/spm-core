@@ -13,3 +13,13 @@ dependencies {
     testImplementation project(':format-common')
     testImplementation project(':parser')
 }
+// Opt-in private corpus run, mirroring parser/build.gradle: nothing here activates unless the
+// caller passes -PspmCorpusDirectory, so the default unit-test task is unchanged.
+tasks.named('test') {
+    def corpus = providers.gradleProperty('spmCorpusDirectory')
+    if (corpus.isPresent()) {
+        systemProperty 'spm.corpus.directory', corpus.get()
+        systemProperty 'spm.corpus.budgetMiB', providers.gradleProperty('spmCorpusBudgetMiB').orElse('512').get()
+        maxHeapSize = providers.gradleProperty('spmCorpusHeap').orElse('4g').get()
+    }
+}

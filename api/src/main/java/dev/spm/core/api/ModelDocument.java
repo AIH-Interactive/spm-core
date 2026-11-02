@@ -1,6 +1,7 @@
 package dev.spm.core.api;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -102,7 +103,7 @@ public record ModelDocument(String identity, String sourceFormat, Skeleton skele
      * Pooling three-number vectors by value was tried and rejected: it cost 12 MiB more than it saved,
      * because 496,419 distinct values needed a hash node each to dedupe only 193,144 instances.
      */
-    public sealed interface JsonValue permits JsonObject,JsonArray,JsonVector3,JsonString,JsonNumber,JsonBoolean,JsonNull {}
+    public sealed interface JsonValue permits JsonObject,JsonArray,JsonVector3,JsonTimeline,JsonString,JsonNumber,JsonBoolean,JsonNull {}
     /**
      * Ordered JSON object backed by parallel arrays.
      *
@@ -187,6 +188,116 @@ public record ModelDocument(String identity, String sourceFormat, Skeleton skele
         public double xd() { return x; }
         public double yd() { return y; }
         public double zd() { return z; }
+    }
+    /**
+     * A whole animation track as parallel primitive arrays, plus a sparse per-key exception table.
+     *
+     * <p>This replaces the object-per-keyframe shape that dominates the corpus. Retained, one
+     * object-form key costs a 24-byte {@link JsonVector3} plus a 4-byte slot in the enclosing value
+     * array, and a full key costs a further frame object. Here a key costs 4 bytes of tick plus 12
+     * bytes of vector, and only the keys that genuinely differ from plain linearity pay for an
+     * exception entry.
+     *
+     * <p>The two base arrays hold every key: {@link #ticks()} the tick, {@link #pre()} the vector.
+     * A key needs an entry in the exception table when its interpolation is not linear or its
+     * {@code post} vector differs from its {@code pre}, because those are the only two per-key facts
+     * the base columns cannot carry. Keys absent from the table are linear with {@code post} equal to
+     * {@code pre}, which is exactly what the object form decodes to for the compact shorthand. The
+     * table is sparse, so one catmull_rom key in a 700-key track costs one entry rather than forcing
+     * the whole track back to objects.
+     *
+     * <p>{@link #ticks()} holds the tick the wire authored, <em>not</em> seconds. The tick is a
+     * {@code float32} in the source, so this is the exact authored value, and dividing by 20 at read
+     * time reproduces the same {@code double} the object form derives from its decimal timestamp text.
+     * Storing seconds directly would round twice and change sampling.
+     *
+     * <p>Ticks stay in the order the wire authored them, because that is the order the object form's
+     * map preserves and the decoder sorts both shapes by time before sampling. The projection emits
+     * pairwise distinct ticks, and a reader still rejects a repeat rather than merging two keyframes,
+     * so a hand-built node cannot lose a key silently.
+     *
+     * <p>A track still falls back to the object form as a whole when <em>any</em> key cannot be
+     * expressed numerically: a Molang expression in place of a number, a non-finite tick or
+     * component, or a repeated timestamp whose two keyframes a single tick slot cannot hold. Those
+     * shapes keep today's exact object path and its recorded limitations, because a partial
+     * translation there would silently drop authored semantics.
+     *
+     * <p>Arrays are copied in and cloned out. {@link #equals(Object)} compares by content, unlike a
+     * plain record holding arrays, because the projection pools and compares values; {@link #toString()}
+     * deliberately summarises instead of expanding, because a track may hold 65,536 keys.
+     */
+    public record JsonTimeline(float[] ticks,float[] pre,int[] sparseKeys,float[] sparsePost,byte[] sparseModes)
+            implements JsonValue {
+        /** Interpolation code for a linear key, matching {@code lerp_mode} "linear". */
+        public static final byte LINEAR=0;
+        /** Interpolation code for a step key, matching {@code lerp_mode} "step". */
+        public static final byte STEP=1;
+        /** Interpolation code for a Catmull-Rom key, matching {@code lerp_mode} "catmullrom". */
+        public static final byte CATMULL_ROM=2;
+        public JsonTimeline {
+            Objects.requireNonNull(ticks); Objects.requireNonNull(pre);
+            Objects.requireNonNull(sparseKeys); Objects.requireNonNull(sparsePost); Objects.requireNonNull(sparseModes);
+            if (ticks.length==0) throw new IllegalArgumentException("Timeline needs at least one key");
+            if (pre.length!=Math.multiplyExact(ticks.length,3))
+                throw new IllegalArgumentException("Timeline needs three pre components per key");
+            if (sparseKeys.length!=sparseModes.length)
+                throw new IllegalArgumentException("Timeline needs one mode per sparse key");
+            if (sparsePost.length!=Math.multiplyExact(sparseKeys.length,3))
+                throw new IllegalArgumentException("Timeline needs three post components per sparse key");
+            ticks=ticks.clone(); pre=pre.clone();
+            sparseKeys=sparseKeys.clone(); sparsePost=sparsePost.clone(); sparseModes=sparseModes.clone();
+            finite(ticks); finite(pre); finite(sparsePost);
+            float[] ordered=ticks.clone();
+            Arrays.sort(ordered);
+            for (int i=1;i<ordered.length;i++) {
+                if (ordered[i]==ordered[i-1])
+                    throw new IllegalArgumentException("Timeline ticks must be pairwise distinct");
+            }
+            for (int i=0;i<sparseKeys.length;i++) {
+                if (sparseKeys[i]<0 || sparseKeys[i]>=ticks.length)
+                    throw new IllegalArgumentException("Timeline sparse key index out of range");
+                if (i>0 && sparseKeys[i]<=sparseKeys[i-1])
+                    throw new IllegalArgumentException("Timeline sparse key indices must strictly increase");
+                if (sparseModes[i]!=LINEAR && sparseModes[i]!=STEP && sparseModes[i]!=CATMULL_ROM)
+                    throw new IllegalArgumentException("Timeline interpolation code out of range");
+            }
+        }
+        /** Number of keyframes. */
+        public int keyCount() { return ticks.length; }
+        /** The authored float32 tick of one key, before conversion to seconds. */
+        public float tick(int key) { return ticks[key]; }
+        /** One component of one key's {@code pre} vector, ordered x,y,z. */
+        public float pre(int key,int axis) { return pre[key*3+axis]; }
+        /** Number of keys that are not plain linear with {@code post} equal to {@code pre}. */
+        public int sparseCount() { return sparseKeys.length; }
+        /** The key index of one sparse entry, strictly increasing across entries. */
+        public int sparseKey(int entry) { return sparseKeys[entry]; }
+        /** One component of a sparse entry's {@code post} vector, ordered x,y,z. */
+        public float sparsePost(int entry,int axis) { return sparsePost[entry*3+axis]; }
+        /** The interpolation code of a sparse entry: {@link #LINEAR}, {@link #STEP} or {@link #CATMULL_ROM}. */
+        public byte sparseMode(int entry) { return sparseModes[entry]; }
+        /** Ticks as authored; the caller owns the returned copy. */
+        @Override public float[] ticks() { return ticks.clone(); }
+        /** {@code pre} vectors in key-major x,y,z order; the caller owns the returned copy. */
+        @Override public float[] pre() { return pre.clone(); }
+        /** Sparse key indices; the caller owns the returned copy. */
+        @Override public int[] sparseKeys() { return sparseKeys.clone(); }
+        /** Sparse {@code post} vectors in entry-major x,y,z order; the caller owns the returned copy. */
+        @Override public float[] sparsePost() { return sparsePost.clone(); }
+        /** Sparse interpolation codes; the caller owns the returned copy. */
+        @Override public byte[] sparseModes() { return sparseModes.clone(); }
+        @Override public boolean equals(Object other) {
+            return other instanceof JsonTimeline timeline && Arrays.equals(ticks,timeline.ticks)
+                    &&Arrays.equals(pre,timeline.pre) &&Arrays.equals(sparseKeys,timeline.sparseKeys)
+                    &&Arrays.equals(sparsePost,timeline.sparsePost) &&Arrays.equals(sparseModes,timeline.sparseModes);
+        }
+        @Override public int hashCode() {
+            return ((Arrays.hashCode(ticks)*31+Arrays.hashCode(pre))*31+Arrays.hashCode(sparseKeys))*31
+                    +Arrays.hashCode(sparsePost)*31+Arrays.hashCode(sparseModes);
+        }
+        @Override public String toString() {
+            return "JsonTimeline["+ticks.length+" keys, "+sparseKeys.length+" sparse]";
+        }
     }
     public record JsonString(String value) implements JsonValue {
         public JsonString { Objects.requireNonNull(value); }

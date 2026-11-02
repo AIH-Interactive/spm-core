@@ -285,6 +285,92 @@ class SkinningMathTest {
         assertEquals(-10f, inverse[12], EPS);
     }
 
+    /**
+     * The inverse of an affine transform must be a genuine two-sided inverse, including when the
+     * bind has both a non-identity rotation and three distinct translation components.
+     *
+     * <p>This closes a gap the earlier bind test could not see. {@link #skinTransformIsPoseTimesInverseBindSoANonIdentityBindIsHonoured}
+     * uses a pure-translation bind, so its rotation block is the identity and every row sum of the
+     * inverse's linear part is exactly {@code 1}. An implementation that builds the inverse
+     * translation out of {@code t[row] · (row sum)} — instead of {@code Σ_axis R⁻¹[row][axis]·t[axis]} —
+     * therefore agrees with the correct answer on such a bind times the identity: same matrix,
+     * nothing to catch. A rotated bind breaks the coincidence, so the assertions below are derived
+     * from the defining property {@code M · M⁻¹ = I} rather than from any transcribed triple; the
+     * explicit expectation exists only to make a failure legible and is cross-checked by that
+     * property in the same test.</p>
+     *
+     * <p>Bind here is {@code Rz(90°)} with translation {@code (5,7,11)}: all three translations are
+     * distinct and the rotation has two non-unit row sums, so a row/column mix-up cannot cancel.</p>
+     */
+    @Test void inverseOfARotatedBindIsTheTrueInverseNotARowSumApproximation() {
+        var skeleton = new Skeleton(List.of("a"), new int[] {-1}, new float[3]);
+        var bindPose = new BonePose(new float[] {0, 0, HALF_PI}, new float[] {5, 7, 11},
+                new float[] {1, 1, 1}, new boolean[1], new boolean[1], BonePose.identity(1).glow());
+        var bind = BoneEvaluator.evaluate(skeleton, bindPose);
+        // Guard the fixture itself, so the test can never silently degenerate into the old gap:
+        // a non-identity rotation block and three distinct translations are both required.
+        assertEquals(0f, bind.matrix(0, 0), EPS);
+        assertEquals(1f, bind.matrix(0, 1), EPS);
+        assertEquals(-1f, bind.matrix(0, 4), EPS);
+        assertEquals(5f, bind.matrix(0, 12), EPS);
+        assertEquals(7f, bind.matrix(0, 13), EPS);
+        assertEquals(11f, bind.matrix(0, 14), EPS);
+
+        var inverse = BindMatrices.inverse(bind, 0);
+        assertNotNull(inverse, "a rigid bind transform is invertible");
+
+        // The property that actually defines an inverse: bind · inverse is the identity.
+        assertArrayEquals(IDENTITY_4X4, multiplyColumnMajor(bind, inverse), EPS,
+                "bind · inverse must be the identity");
+        // Both orders, so a transposed product cannot pass by symmetry of the fixture.
+        assertArrayEquals(IDENTITY_4X4, multiplyColumnMajor(inverse, bind), EPS,
+                "inverse · bind must be the identity");
+
+        // Rz(90°)⁻¹ = Rz(-90°) = [0 1 0; -1 0 0; 0 0 1], and t⁻¹ = -R⁻¹·t = (-7, 5, -11).
+        // The row sums of R⁻¹ are (1, -1, 1), so the row-sum form would give (-5, 7, -11).
+        assertArrayEquals(new float[] {0, -1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, -7, 5, -11, 1},
+                inverse, EPS, "inverse of Rz(90°) with translation (5,7,11)");
+
+        // And the same property observed through the public skinning path: skinning a vertex with a
+        // pose equal to the bind pose must leave it exactly where the model authored it.
+        var posed = BoneEvaluator.evaluate(skeleton, bindPose);
+        var batch = new VertexBatch(new float[] {3, 4, 5}, new float[] {0, 0, 1}, new int[] {0});
+        var output = SkinningRenderer.transform(batch, skin(SkinWeights.rigid(1, new int[] {0}),
+                SkinningMethod.BDEF), posed, bind, MorphWeights.none(0));
+        assertArrayEquals(new float[] {3, 4, 5}, output.positions(), EPS,
+                "pose == bind must be the identity skinning transform");
+        assertArrayEquals(new float[] {0, 0, 1}, output.normals(), EPS);
+    }
+
+    private static final float[] IDENTITY_4X4 = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+
+    /**
+     * Independent column-major 4x4 product: deliberately a local reimplementation rather than the
+     * production {@code SkinMath.multiply}, so a defect shared with the code under test cannot hide
+     * behind its own helper.
+     */
+    private static float[] multiplyColumnMajor(BoneMatrices left, float[] right) {
+        return multiplyColumnMajor(left.transforms(), right);
+    }
+
+    /** Same product with the bind matrix on the right, so both orders are expressible. */
+    private static float[] multiplyColumnMajor(float[] left, BoneMatrices right) {
+        return multiplyColumnMajor(left, right.transforms());
+    }
+
+    /** Same product from a bare column-major matrix, so a {@code float[]} operand needs no wrapper. */
+    private static float[] multiplyColumnMajor(float[] left, float[] right) {
+        float[] result = new float[16];
+        for (int column = 0; column < 4; column++) {
+            for (int row = 0; row < 4; row++) {
+                double value = 0;
+                for (int k = 0; k < 4; k++) value += (double) left[k * 4 + row] * right[column * 4 + k];
+                result[column * 4 + row] = (float) value;
+            }
+        }
+        return result;
+    }
+
     private static BoneMatrices withVisibility(BoneMatrices matrices, boolean[] visible) {
         return new BoneMatrices(matrices.transforms(), matrices.normals(), visible,
                 matrices.descendantVisible(), matrices.locatorPositions(), matrices.glow(), matrices.colorsRgba());
