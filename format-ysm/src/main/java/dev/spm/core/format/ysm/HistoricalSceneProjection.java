@@ -16,6 +16,14 @@ final class HistoricalSceneProjection {
     private final List<JsonValue> limitations=new ArrayList<>();
     // Small, per-import intern tables. Parent arrays/maps still account for every reference.
     private static final int INTERN_LIMIT=4096;
+    /**
+     * Retained cost of one {@link JsonObject}: the 32-byte record plus its value array header.
+     * Each field adds one reference in the value array, and its key reference is amortised because
+     * the keys array is shared by every object of the same shape.
+     */
+    private static final long JSON_OBJECT_BASE=40L;
+    /** Retained cost of one object field: a value-array slot plus its share of the keys array. */
+    private static final long JSON_OBJECT_FIELD=8L;
     private final Map<Long,JsonNumber> numbers=new HashMap<>();
     private final Map<String,JsonString> strings=new HashMap<>();
     private record VectorKey(JsonValue x,JsonValue y,JsonValue z){}
@@ -377,10 +385,13 @@ final class HistoricalSceneProjection {
             frame=new FrameKey(List.copyOf(values.keySet()),values.get("pre"),values.get("post"),values.get("lerp_mode"));
             var existing=frames.get(frame);if(existing!=null)return existing;
         }
-        collection(values.size());long bytes=160L+values.size()*96L;
-        boolean cache=frame!=null&&frames.size()<INTERN_LIMIT;charge(cache?Math.addExact(bytes,128):bytes);
-        // JsonObject already takes its own defensive map copy. Keys are borrowed immutable strings
-        // (source strings, literals, or charged timestamp entries), rather than fresh key copies.
+        collection(values.size());
+        // A retained object is one 32-byte record plus one shared keys array and one value slot per
+        // field. Measured for the real corpus, objects and their slots are the second largest item
+        // after inline vectors, at roughly 106 bytes each for the dominant three-field shape; the
+        // previous 160 + 96/field was modelled on the LinkedHashMap the class no longer uses.
+        boolean cache=frame!=null&&frames.size()<INTERN_LIMIT;
+        charge(cache?Math.addExact(JSON_OBJECT_BASE,Math.multiplyExact((long)values.size(),JSON_OBJECT_FIELD))+128:Math.addExact(JSON_OBJECT_BASE,Math.multiplyExact((long)values.size(),JSON_OBJECT_FIELD)));
         var result=new JsonObject(values);if(cache)frames.put(frame,result);return result;
     }
     /**
