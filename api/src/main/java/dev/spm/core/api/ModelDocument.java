@@ -110,9 +110,10 @@ public record ModelDocument(String identity, String sourceFormat, Skeleton skele
      * demand and is therefore transient rather than retained. Prefer {@link #size()},
      * {@link #key(int)} and {@link #value(int)} when iterating.
      *
-     * <p>Objects of the same shape can share one key array through {@link #keys(String...)}. Measured on
-     * an animation-heavy corpus model, 55,342 objects had only 2,115 distinct shapes, so one array per
-     * object wasted 53,000 arrays — about 4 MiB — reproducing a shape that already existed.
+     * <p>Objects of the same shape can share one key array through
+     * {@link #keys(String[], JsonValue[])}. Measured on an animation-heavy corpus model, 55,342 objects
+     * had only 2,115 distinct shapes, so one array per object wasted 53,000 arrays — about 4 MiB —
+     * reproducing a shape that already existed.
      */
     public static final class JsonObject implements JsonValue {
         private final String[] keys;
