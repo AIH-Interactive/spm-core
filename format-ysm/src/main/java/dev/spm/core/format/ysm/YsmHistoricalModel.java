@@ -15,13 +15,20 @@ public final class YsmHistoricalModel implements AutoCloseable {
     private final int version;
     private HistoricalValue.Struct root;
     private HistoricalSceneProjection.Collector animationCollector;
+    private Map<Long,HistoricalMeshCollector> meshCollectors;
     private final List<ResourceBudget.Reservation> reservations;
     YsmHistoricalModel(int version, HistoricalValue.Struct root, List<ResourceBudget.Reservation> reservations) {
         this(version, root, null, reservations);
     }
     YsmHistoricalModel(int version, HistoricalValue.Struct root, HistoricalSceneProjection.Collector animationCollector,
                        List<ResourceBudget.Reservation> reservations) {
+        this(version, root, animationCollector, null, reservations);
+    }
+    YsmHistoricalModel(int version, HistoricalValue.Struct root, HistoricalSceneProjection.Collector animationCollector,
+                       Map<Long,HistoricalMeshCollector> meshCollectors,
+                       List<ResourceBudget.Reservation> reservations) {
         this.version = version; this.root = root; this.animationCollector = animationCollector;
+        this.meshCollectors = meshCollectors;
         this.reservations = new ArrayList<>(reservations);
     }
     public int innerVersion() { return version; }
@@ -39,8 +46,18 @@ public final class YsmHistoricalModel implements AutoCloseable {
         if (root == null) throw new IllegalStateException("Historical model is closed");
         var taken = animationCollector; animationCollector = null; return taken;
     }
+    /**
+     * Collected geometry per source slot, or null when the source was decoded with its tree intact.
+     *
+     * <p>Taking the map transfers responsibility: the lowering turns each collector into a mesh, and the
+     * tree only ever held key-only stand-ins for them.
+     */
+    synchronized Map<Long,HistoricalMeshCollector> takeMeshCollectors() {
+        if (root == null) throw new IllegalStateException("Historical model is closed");
+        var taken = meshCollectors; meshCollectors = null; return taken;
+    }
     @Override public synchronized void close() {
-        root = null; animationCollector = null;
+        root = null; animationCollector = null; meshCollectors = null;
         reservations.forEach(ResourceBudget.Reservation::close); reservations.clear();
     }
 }

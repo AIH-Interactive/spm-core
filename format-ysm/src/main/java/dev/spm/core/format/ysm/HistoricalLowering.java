@@ -41,11 +41,20 @@ final class HistoricalLowering {
      */
     private final HistoricalSceneProjection.Collector streamed;
     private ModelDocument.JsonObject streamedShared;
+    /**
+     * Geometry the decoder collected per source slot, or null when it kept the tree instead.
+     *
+     * <p>When present, the tree's {@code geos} entries are key-only stand-ins and the meshes come from
+     * here. That is what bounds the peak: measured, geometry is two thirds of a large model's nodes and
+     * none of them survive the lowering.
+     */
+    private final Map<Long,HistoricalMeshCollector> collectedMeshes;
     private long retained;
     private int resourceIndex;
     private HistoricalLowering(YsmHistoricalModel historical,DecodePolicy policy,ResourceBudget budget,CancellationToken token){
         this.historical=Objects.requireNonNull(historical);this.policy=Objects.requireNonNull(policy);
         this.streamed=historical.takeAnimationCollector();
+        this.collectedMeshes=historical.takeMeshCollectors();
         this.budget=Objects.requireNonNull(budget);this.token=Objects.requireNonNull(token);
     }
     static YsmImportResult lower(YsmHistoricalModel model,DecodePolicy policy,ResourceBudget budget,CancellationToken token)throws IOException {
@@ -70,7 +79,11 @@ final class HistoricalLowering {
                 Struct p=struct(player);List<ModelDocument.Material> materials=textures(p.field("textures"),false);
                 for(Entry entry:mapping(p.field("geos")).entries()){
                     long kind=uint(entry.key());String key=kind==1?"main":kind==2?"arm":"geo-"+kind;
-                    variant("player",key,identity,struct(unwrap(entry.value())),materials,p.field("animations"),p.field("controllers"));
+                    HistoricalMeshCollector collected=collectedMeshes==null?null:collectedMeshes.get(kind);
+                    if(collected!=null)
+                        variantCollected("player",key,identity,collected,materials,p.field("animations"),p.field("controllers"));
+                    else
+                        variant("player",key,identity,struct(unwrap(entry.value())),materials,p.field("animations"),p.field("controllers"));
                 }
             }
             for(String field:List.of("vehicles","projectiles")){
@@ -118,6 +131,38 @@ final class HistoricalLowering {
         String extension=switch((int)encoding){case 1->"rgba";case 2->"png";case 3->"jpg";case 4->"webp";case 5->"avif";default->throw new IOException("Unknown image encoding");};
         ResourceKey key=new ResourceKey("historical/images/"+(resourceIndex++)+"."+extension);
         resources.put(key,binary.value());return key;
+    }
+    /**
+     * Builds a variant whose geometry was already collected by the decoder.
+     *
+     * <p>The collector holds the mesh, skeleton and bind pose; nothing here walks a geometry tree, which
+     * is what keeps the peak at one bone instead of the whole file.
+     */
+    private void variantCollected(String type,String key,String identity,HistoricalMeshCollector collected,
+                                  List<ModelDocument.Material> materials,HistoricalValue animations,
+                                  HistoricalValue controllers)throws IOException {
+        token.check();
+        if(variants.size()>=policy.maxEntries())throw new IOException("YSM variant limit");
+        // Charge the arrays the collector will trim to, from the counts it actually allocated.
+        long vertexCount=collected.quadCount()*4L, quadCount=collected.quadCount();
+        retain(Math.addExact(
+                Math.addExact(
+                        Math.addExact(arrayBytes(vertexCount*3L,4L),arrayBytes(vertexCount*3L,4L)),
+                        Math.addExact(arrayBytes(vertexCount*2L,4L),arrayBytes(vertexCount,4L))),
+                Math.addExact(arrayBytes(quadCount*6L,4L),Math.multiplyExact(quadCount,FACE_BYTES))));
+        String limitation=collected.authoredBoneFlags()
+                ?"Historical authored bone flags retained; runtime mapping requires allowed-source semantic evidence"
+                :"";
+        if(materials.isEmpty())limitation="Geometry retained without a texture material; Host material selection required";
+        var built=collected.finish(key);
+        if(!limitation.isEmpty()){
+            variants.add(new YsmImportResult.Variant(type,key,Optional.empty(),limitation));
+            return;
+        }
+        var metadata=sceneMetadata(type,key,animations,controllers);
+        var document=new ModelDocument(identity,"ysm-v3-inner-"+historical.innerVersion(),built.skeleton(),
+                List.of(built.mesh()),built.pose(),materials,List.of(),metadata);
+        variants.add(new YsmImportResult.Variant(type,key,Optional.of(document),limitation));
     }
     private void variant(String type,String key,String identity,Struct geo,List<ModelDocument.Material> materials,HistoricalValue animations,HistoricalValue controllers)throws IOException {
         token.check();

@@ -129,6 +129,15 @@ public final class YsmHistoricalCodec {
          * instead of being accumulated. This is what removes the multi-gigabyte peak.
          */
         HistoricalSceneProjection.Collector animationCollector;
+        /**
+         * Geometry collected during an import, keyed by the geometry slot it belongs to.
+         *
+         * <p>Geometry is 65.4% of a large model's tree (measured: 3,876,325 of 5,931,597 nodes) and each
+         * node is read once and then discarded, so on the import path the decoder builds the mesh arrays
+         * as it parses and keeps no tree at all. Null on the archival path, which must keep everything
+         * for byte-exact re-encoding.
+         */
+        final Map<Long,HistoricalMeshCollector> meshCollectors;
         /** True only on the import path; the archival decode keeps the full tree for byte-exact re-encode. */
         final boolean streamPlayerAnimations;
 
@@ -139,6 +148,7 @@ public final class YsmHistoricalCodec {
                boolean streamPlayerAnimations) throws IOException {
             this.policy = policy; this.budget = budget; this.token = token;
             this.streamPlayerAnimations = streamPlayerAnimations;
+            this.meshCollectors = streamPlayerAnimations ? new LinkedHashMap<>() : null;
             // Snapshot is temporary; node-owned values below are retained independently.
             YsmArchiveCodec.reserve(budget, wire.length,reservations);
             input = ByteBuffer.wrap(wire.clone()).order(ByteOrder.LITTLE_ENDIAN);
@@ -154,7 +164,7 @@ public final class YsmHistoricalCodec {
             flushPending();
             // The source snapshot is no longer part of the returned tree.
             reservations.remove(0).close();
-            var model = new YsmHistoricalModel(version, root, animationCollector, reservations);
+            var model = new YsmHistoricalModel(version, root, animationCollector, meshCollectors, reservations);
             animationCollector = null;
             reservations.clear();
             return model;
@@ -467,7 +477,131 @@ public final class YsmHistoricalCodec {
             return struct(r -> r.add("animations", this::playerAnimations)
                     .add("controllers", () -> map(this::text, () -> wrap(this::controllers)))
                     .add("textures", () -> map(this::text, this::texture))
-                    .add("geos", () -> map(this::uint32, () -> wrap(this::geometry))));
+                    .add("geos", this::playerGeometry));
+        }
+        /**
+         * Reads the player geometry map, collecting meshes instead of a tree on the import path.
+         *
+         * <p>Geometry is 65.4% of a large model's tree and every node of it is read once and then
+         * discarded, so the import path parses each geometry bone by bone and hands the primitives to a
+         * {@link HistoricalMeshCollector}. The map still keeps its keys, with an empty body, because the
+         * mesh lives in {@link #meshCollectors} rather than in the tree.
+         */
+        Mapping playerGeometry() throws IOException {
+            if (!streamPlayerAnimations) return map(this::uint32, () -> wrap(this::geometry));
+            return (Mapping) nested(() -> {
+                int n = count(1_048_576);
+                charge(Math.addExact(NodeCost.MAPPING_SHELL, Math.multiplyExact((long) n, NodeCost.ENTRY)));
+                var entries = new ArrayList<Entry>();
+                for (int i = 0; i < n; i++) {
+                    Unsigned key = uint32();
+                    entries.add(new Entry(key, geometryCollected(key.bits())));
+                }
+                return new Mapping(entries);
+            });
+        }
+        /**
+         * Parses one geometry into a collector and returns a key-only stand-in for the tree.
+         *
+         * <p>The stand-in keeps {@code hash} and an empty {@code value}, so the surviving tree holds one
+         * small node per geometry instead of millions.
+         */
+        private Struct geometryCollected(long slot) throws IOException {
+            var collector = new HistoricalMeshCollector();
+            meshCollectors.put(slot, collector);
+            return struct(r -> r.add("hash", this::hash)
+                    .add("value", () -> struct(g -> {
+                        g.add("bones", () -> bonesCollected(collector));
+                        g.add("properties", () -> struct(p -> p.add("identifier", this::text)
+                                .add("height", this::number).add("width", this::number)
+                                .add("visible_bounds_height", this::number)
+                                .add("visible_bounds_width", this::number)
+                                .add("visible_bounds_offset", () -> list(this::number))
+                                .add("height_scale", this::number).add("width_scale", this::number)
+                                .add("extra_info", () -> optional(this::extra)).add("variables", this::stringMap)
+                                .add("initialize", this::strings).add("pre_animation", this::strings)));
+                        if (version == 5) g.add("global_cube_count", this::uint32);
+                    })));
+        }
+        /** Reads bones one at a time; each bone's quads go straight into the collector, then are dropped. */
+        private Sequence bonesCollected(HistoricalMeshCollector collector) throws IOException {
+            return (Sequence) nested(() -> {
+                int n = count(65536);
+                charge(NodeCost.SEQUENCE_SHELL + Math.multiplyExact((long) n, 8L));
+                var bones = new ArrayList<HistoricalValue>();
+                for (int i = 0; i < n; i++) {
+                    // A bone's own nodes are transient: they are converted to primitives and released
+                    // before the next bone is read, so they are bounded per bone rather than cumulatively.
+                    beginTransient();
+                    try { boneCollected(collector); }
+                    finally { endTransient(); }
+                }
+                // The caller re-reads bone metadata from the collector, so the tree keeps no bone list.
+                return new Sequence(bones, true);
+            });
+        }
+        /**
+         * Reads one bone and appends its quads to the collector.
+         *
+         * <p>Wire order is {@code parent, cubes/quads, name, five flags, pivot, rotation}, but a quad must
+         * be attributed to a bone index that only exists once the name is known. A single bone's quads are
+         * therefore buffered as primitives — bounded by one bone, which is what the peak is measured
+         * against — and replayed once the bone is registered.
+         */
+        private void boneCollected(HistoricalMeshCollector collector) throws IOException {
+            String parent = text().value();
+            var buffered = new ArrayList<float[]>();
+            if (version == 5) {
+                int quads = count(1_048_576);
+                charge(NodeCost.SEQUENCE_SHELL + Math.multiplyExact((long) quads, 24L));
+                for (int i = 0; i < quads; i++) buffered.add(quadPrimitives());
+            } else {
+                int cubes = count(65_536);
+                charge(NodeCost.SEQUENCE_SHELL + Math.multiplyExact((long) cubes, 24L));
+                for (int i = 0; i < cubes; i++) {
+                    int quads = count(6);
+                    for (int q = 0; q < quads; q++) buffered.add(quadPrimitives());
+                    for (int flag = 0; flag < 3; flag++) bool();
+                }
+            }
+            String name = text().value();
+            boolean flags = false;
+            for (int flag = 0; flag < 5; flag++) if (bool().value()) flags = true;
+            float[] pivot = rawVector();
+            float[] rotation = rawVector();
+            int boneIndex = collector.bone(name, parent, pivot, rotation, flags);
+            for (float[] quad : buffered)
+                collector.quad(boneIndex, quad[0], quad[1], quad[2], slice(quad, 3, 12), slice(quad, 15, 8));
+        }
+        /** Reads a fixed three-number vector as primitives, without building tree nodes. */
+        private float[] rawVector() throws IOException {
+            // The wire form is a fixed three-element sequence with no length prefix.
+            return new float[] { number().value(), number().value(), number().value() };
+        }
+        /**
+         * Reads one quad as 23 primitives: the normal, then four corners of position and UV.
+         *
+         * <p>Layout: {@code [nx,ny,nz, px,py,pz,u,v] x 4}, i.e. 3 + 4*5 values.
+         */
+        private float[] quadPrimitives() throws IOException {
+            float[] normal = rawVector();
+            var quad = new float[23];
+            quad[0] = normal[0]; quad[1] = normal[1]; quad[2] = normal[2];
+            int offset = 3;
+            for (int corner = 0; corner < 4; corner++) {
+                float[] position = rawVector();
+                quad[offset] = position[0]; quad[offset + 1] = position[1]; quad[offset + 2] = position[2];
+                offset += 3;
+                // Each corner's UV is a fixed two-number sequence with no length prefix.
+                quad[offset] = number().value(); quad[offset + 1] = number().value();
+                offset += 2;
+            }
+            return quad;
+        }
+        private static float[] slice(float[] source, int from, int length) {
+            var result = new float[length];
+            System.arraycopy(source, from, result, 0, length);
+            return result;
         }
         /**
          * Reads the player animation sets, streaming each clip into the projection as it is parsed.
