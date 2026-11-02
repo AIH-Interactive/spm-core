@@ -47,14 +47,18 @@ final class BoundedJsonTest {
             assertThrows(IllegalStateException.class, () -> budget.reserve(1));
             assertThrows(IllegalStateException.class, quota::transfer);
             assertThrows(UnsupportedOperationException.class, reservations::clear);
+            // The quota's two charges transfer as one ticket for the whole amount, so that a retained
+            // import holds one accounting object rather than one per parsed node.
+            assertEquals(1, reservations.size(), "a quota transfers a single consolidated ticket");
+            assertEquals(320, reservations.get(0).bytes());
             reservations.get(0).close();
             reservations.get(0).close();
-            assertEquals(192, budget.used());
+            assertEquals(0, budget.used());
             try (var replacement = budget.reserve(128)) {
-                assertEquals(320, budget.used());
+                assertEquals(128, budget.used());
                 assertEquals(128, replacement.bytes());
             }
-            assertEquals(192, budget.used());
+            assertEquals(0, budget.used());
         } finally {
             reservations.forEach(ResourceBudget.Reservation::close);
             quota.close();

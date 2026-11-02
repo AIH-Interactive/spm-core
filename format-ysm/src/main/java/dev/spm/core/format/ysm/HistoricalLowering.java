@@ -98,6 +98,9 @@ final class HistoricalLowering {
         // reservations it holds on the caller's shared budget, so an open import owns only what it
         // can actually hand out instead of carrying a multi-hundred-megabyte generic tree that no
         // caller can reach.
+        // Every charge must reach the budget before anything is retired, because a budget failure here
+        // is recoverable: the caller still owns the historical model and may retry with a larger budget.
+        flushPending();
         historical.close();
         var result=new YsmImportResult(variants,resources,reservations);reservations.clear();return result;
     }
@@ -106,10 +109,37 @@ final class HistoricalLowering {
         List<ModelDocument.Material> materials=List.of(material(key,texture,false));
         variant(type,key,identity,struct(unwrap(source.field("geo"))),materials,source.fields().get("animation"),source.fields().get("controller"));
     }
+    /**
+     * Charge retained bytes, batching the reservation tickets.
+     *
+     * <p>One {@code ResourceBudget.Reservation} per charge is what blew up on some models: the
+     * projection calls this once per metadata value, and a histogram of one corpus model showed 704,146
+     * live reservations — 22.5 MB of ticket objects plus 11.3 MB of their {@code AtomicBoolean}s,
+     * more than the 62 MiB of actual content they were supposed to account for. Batching keeps the
+     * admitted total identical while making the ticket count scale with the flush threshold instead of
+     * with the number of values.
+     */
     private void retain(long bytes)throws IOException {
-        token.check();if(bytes<0||bytes>policy.maxExpandedBytes()-retained)throw new DecodeLimitException(ImportErrorCode.EXPANDED_LIMIT,"YSM projection expanded-byte limit");
-        YsmArchiveCodec.reserve(budget,bytes,reservations);retained+=bytes;
+        token.check();
+        if(bytes<0||bytes>policy.maxExpandedBytes()-retained)throw new DecodeLimitException(ImportErrorCode.EXPANDED_LIMIT,"YSM projection expanded-byte limit");
+        retained+=bytes;
+        pending=Math.addExact(pending,bytes);
+        if(pending>=RESERVATION_CHUNK)flush();
     }
+    /** Publishes any credits still pending, so ownership transfer never drops a charge. */
+    private void flushPending()throws IOException {flush();}
+    private void flush()throws IOException {
+        if(pending==0)return;
+        long amount=pending;pending=0;
+        YsmArchiveCodec.reserve(budget,amount,reservations);
+    }
+    /**
+     * Credits accumulate until they reach this many bytes before a ticket is taken. A megabyte bounds
+     * how far the reported figure can lag reality while keeping tickets proportional to the model, not
+     * to its value count.
+     */
+    private static final long RESERVATION_CHUNK=1L<<20;
+    private long pending;
     private List<ModelDocument.Material> textures(HistoricalValue source,boolean legacy)throws IOException {
         var result=new ArrayList<ModelDocument.Material>();
         for(Entry entry:mapping(source).entries()){
