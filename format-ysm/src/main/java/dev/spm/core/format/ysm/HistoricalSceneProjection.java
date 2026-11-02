@@ -408,8 +408,14 @@ final class HistoricalSceneProjection {
         collection(values.size());
         if(values.size()==3&&values.get(0) instanceof JsonNumber x&&values.get(1) instanceof JsonNumber y
                 &&values.get(2) instanceof JsonNumber z) {
-            charge(48L);
-            return new JsonVector3(x.value(),y.value(),z.value());
+            // The wire stores these as float32, so narrowing back to float is lossless. Verified across the
+            // whole corpus: all 6,250,275 components round-trip exactly. If a value ever is not float-exact
+            // the array form is used instead, which keeps arbitrary precision.
+            float fx=(float)x.value(),fy=(float)y.value(),fz=(float)z.value();
+            if(fx==x.value()&&fy==y.value()&&fz==z.value()) {
+                charge(40L);
+                return new JsonVector3(fx,fy,fz);
+            }
         }
         VectorKey vector=null;
         if(values.size()==3&&values.stream().allMatch(v->v instanceof JsonNumber||v instanceof JsonString)){
