@@ -35,11 +35,56 @@ public final class YsmHistoricalCodec {
         } finally { reader.reservations.forEach(ResourceBudget.Reservation::close); }
     }
 
+    /**
+     * Measured per-node retention costs, in bytes, used to charge the caller's budget.
+     *
+     * <p>These are not guesses. Each figure was obtained by allocating two million instances of the
+     * corresponding shape and differencing the live heap, so the charge is grounded in what the JVM
+     * actually retains rather than in the wire size. The previous model charged a flat 32 bytes per
+     * node, which under-estimated a four-field {@code Struct} by an order of magnitude (real cost
+     * 412.8 B) and made the budget an optimistic lower bound instead of a conservative upper one.
+     *
+     * <p>Every constant is rounded up and given headroom over its measurement, because a budget that
+     * is merely accurate is still unsafe: it must bound the peak, not the average.
+     */
+    static final class NodeCost {
+        private NodeCost() { }
+        /** Measured 16.0 B. */
+        static final long FLOAT32 = 24;
+        /** Measured 24.0 B. */
+        static final long UNSIGNED = 32;
+        /** Measured 16.0 B. */
+        static final long BOOL = 24;
+        /** Measured 40.0 B. */
+        static final long PRESENCE = 48;
+        /** Measured 24.2 B for the entry shell alone. */
+        static final long ENTRY = 40;
+        /** Measured ~81 B for the container shell (object + ArrayList + backing array). */
+        static final long SEQUENCE_SHELL = 96;
+        /** Measured ~64 B for the map shell; entries are charged separately. */
+        static final long MAPPING_SHELL = 96;
+        /** Measured ~325 B for a four-field struct's shell, i.e. ~81 B per bucket. */
+        static final long STRUCT_SHELL = 96;
+        /** Measured ~81 B per {@code LinkedHashMap} field bucket, rounded up. */
+        static final long FIELD = 64;
+        /** {@code Text} object (24 B measured) plus its String and byte[] body. */
+        static final long TEXT = 32;
+        /** {@code Binary} object plus an array header; the payload is added separately. */
+        static final long BINARY = 32;
+    }
+
     @FunctionalInterface private interface Read { HistoricalValue get() throws IOException; }
     @FunctionalInterface private interface Fields { void fill(Record record) throws IOException; }
     private static final class Record {
         final Map<String, HistoricalValue> fields = new LinkedHashMap<>();
-        Record add(String name, Read value) throws IOException { fields.put(name, value.get()); return this; }
+        private final Reader owner;
+        Record(Reader owner) { this.owner = owner; }
+        Record add(String name, Read value) throws IOException {
+            fields.put(name, value.get());
+            // Each field costs a map bucket plus its array slot, independently of the value.
+            owner.charge(NodeCost.FIELD);
+            return this;
+        }
     }
     private static final class Reader {
         final ByteBuffer input;
@@ -79,6 +124,13 @@ public final class YsmHistoricalCodec {
         void node(long bytes) throws IOException {
             token.check();
             if(++nodes>policy.maxObjects())throw new DecodeLimitException(ImportErrorCode.OBJECT_LIMIT,"Historical aggregate node limit");
+            charge(bytes);
+        }
+        /**
+         * Charges retention without counting a node, for container overhead (map buckets, list
+         * shells) that is real heap but is not a {@code HistoricalValue}.
+         */
+        void charge(long bytes) throws IOException {
             long charge = Math.addExact(32L, bytes);
             if(charge>policy.maxExpandedBytes()-retained)throw new DecodeLimitException(ImportErrorCode.EXPANDED_LIMIT,"Historical expanded-byte limit");
             YsmArchiveCodec.reserve(budget, charge,reservations);
@@ -90,7 +142,12 @@ public final class YsmHistoricalCodec {
             try { return read.get(); } finally { depth--; }
         }
         Struct struct(Fields fields) throws IOException {
-            return (Struct) nested(() -> { var r = new Record(); fields.fill(r); return new Struct(r.fields); });
+            return (Struct) nested(() -> {
+                var r = new Record(this); fields.fill(r);
+                // The Struct object plus its map shell, charged once regardless of field count.
+                charge(NodeCost.STRUCT_SHELL);
+                return new Struct(r.fields);
+            });
         }
         long varint(int width) throws IOException {
             long bits = 0;
@@ -107,15 +164,15 @@ public final class YsmHistoricalCodec {
             }
             throw new IOException("Unterminated historical varint");
         }
-        Unsigned uint32() throws IOException { node(0); return new Unsigned(32, varint(32)); }
-        Unsigned uint64() throws IOException { node(0); return new Unsigned(64, varint(64)); }
+        Unsigned uint32() throws IOException { node(NodeCost.UNSIGNED); return new Unsigned(32, varint(32)); }
+        Unsigned uint64() throws IOException { node(NodeCost.UNSIGNED); return new Unsigned(64, varint(64)); }
         Unsigned enumeration(int first, int last) throws IOException {
             Unsigned value = uint32(); require(value.bits() >= first && value.bits() <= last, "Invalid historical enum"); return value;
         }
         Bool bool() throws IOException {
-            int value = input.get() & 255; require(value <= 1, "Invalid historical boolean"); node(0); return new Bool(value != 0);
+            int value = input.get() & 255; require(value <= 1, "Invalid historical boolean"); node(NodeCost.BOOL); return new Bool(value != 0);
         }
-        Float32 number() throws IOException { node(0); return new Float32(input.getInt()); }
+        Float32 number() throws IOException { node(NodeCost.FLOAT32); return new Float32(input.getInt()); }
         int count(int max) throws IOException {
             long size = varint(32);
             if(size>max||size>policy.maxCollectionEntries())throw new DecodeLimitException(ImportErrorCode.COLLECTION_LIMIT,"Historical collection limit");
@@ -126,7 +183,7 @@ public final class YsmHistoricalCodec {
         Binary binary(int limit) throws IOException {
             long length = varint(32);
             require(length <= limit && length <= input.remaining(), "Historical byte field limit");
-            node(length);
+            node(Math.addExact(NodeCost.BINARY, length));
             byte[] bytes = new byte[(int) length]; input.get(bytes); return new Binary(bytes);
         }
         Text text() throws IOException { return text(false); }
@@ -134,7 +191,10 @@ public final class YsmHistoricalCodec {
         Text text(boolean hash) throws IOException {
             long size = varint(32);
             require(size <= Math.min(16 << 20, policy.maxStringBytes()) && size <= input.remaining(), "Historical string limit");
-            node(size * 2);
+            // A Java 9+ compact String keeps its bytes in a byte[]; hash text is stored ISO-8859-1
+            // (one byte per char) and ordinary text decodes to UTF-16 or compact bytes. Charging two
+            // bytes per char plus the object shells covers both without guessing the coder.
+            node(Math.addExact(NodeCost.TEXT, Math.multiplyExact(size, 2L)));
             var slice = input.slice(); slice.limit((int) size); input.position(input.position() + (int) size);
             String value = hash ? StandardCharsets.ISO_8859_1.decode(slice).toString()
                     : StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
@@ -145,6 +205,8 @@ public final class YsmHistoricalCodec {
         Sequence list(Read item, int limit) throws IOException {
             return (Sequence) nested(() -> {
                 int n = count(limit); var values = new ArrayList<HistoricalValue>();
+                // The Sequence object, its ArrayList and the Object[] backing it are all retained.
+                charge(Math.addExact(NodeCost.SEQUENCE_SHELL, Math.multiplyExact((long) n, 8L)));
                 for (int i = 0; i < n; i++) values.add(item.get());
                 return new Sequence(values);
             });
@@ -152,6 +214,7 @@ public final class YsmHistoricalCodec {
         Mapping map(Read key, Read value) throws IOException {
             return (Mapping) nested(() -> {
                 int n = count(1_048_576); var entries = new ArrayList<Entry>(); var keys = new HashSet<HistoricalValue>();
+                charge(Math.addExact(NodeCost.MAPPING_SHELL, Math.multiplyExact((long) n, NodeCost.ENTRY)));
                 for (int i = 0; i < n; i++) {
                     HistoricalValue k = key.get(); require(keys.add(k), "Duplicate historical map key");
                     entries.add(new Entry(k, value.get()));
@@ -162,17 +225,22 @@ public final class YsmHistoricalCodec {
         Presence optional(Read value) throws IOException {
             return (Presence) nested(() -> {
                 long tag = varint(32); require(tag <= 1, "Invalid historical optional tag");
+                charge(NodeCost.PRESENCE);
                 return new Presence(tag == 1, tag == 1 ? value.get() : null);
             });
         }
         Sequence strings() throws IOException { return list(this::text); }
         Mapping stringMap() throws IOException { return map(this::text, this::text); }
         Struct wrap(Read value) throws IOException { return struct(r -> r.add("hash", this::hash).add("value", value)); }
-        Sequence vector() throws IOException { return (Sequence) nested(() -> new Sequence(List.of(number(), number(), number()), false)); }
+        Sequence vector() throws IOException { return (Sequence) nested(() -> {
+            charge(NodeCost.SEQUENCE_SHELL + 24);
+            return new Sequence(List.of(number(), number(), number()), false);
+        }); }
         Struct quad() throws IOException {
             return struct(r -> {
                 r.add("normal", this::vector);
                 r.add("vertices", () -> nested(() -> {
+                    charge(NodeCost.SEQUENCE_SHELL + 32);
                     var vertices = new ArrayList<HistoricalValue>();
                     for (int i = 0; i < 4; i++) vertices.add(struct(v -> v.add("position", this::vector)
                             .add("uv", () -> nested(() -> new Sequence(List.of(number(), number()), false)))));

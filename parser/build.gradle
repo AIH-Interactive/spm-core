@@ -16,6 +16,9 @@ tasks.named('test') {
     if (corpus.isPresent()) {
         systemProperty 'spm.corpus.directory', corpus.get()
         systemProperty 'spm.corpus.budgetMiB', providers.gradleProperty('spmCorpusBudgetMiB').orElse('512').get()
-        maxHeapSize = '2g'
+        // The historical tree is charged at its measured retention cost, so a real community model
+        // needs multiple GiB of heap while it is being lowered. This headroom applies to the private
+        // corpus run only; the normal unit-test task keeps the default heap.
+        maxHeapSize = providers.gradleProperty('spmCorpusHeap').orElse('4g').get()
     }
 }

@@ -29,7 +29,13 @@ final class YsmModelImporterTest {
                 assertEquals(1, main.materials().size());
                 ResourceKey texture = main.materials().get(0).resources().get(0);
                 assertArrayEquals(new byte[] {16,32,48,(byte) 255}, imported.read(texture));
-                assertSame(historical.root(), imported.archivalRoot());
+                // The historical tree is deliberately NOT retained. Lowered documents are Core values
+                // that never alias a HistoricalValue (ModelDocument.JsonValue is a sealed interface
+                // over JSON scalars), so keeping the generic tree alive would retain roughly five
+                // times the heap of the data the caller can actually reach. This assertion keeps a
+                // future change from quietly reintroducing that retention.
+                assertThrows(IllegalStateException.class, historical::root,
+                        "lowering must retire the tree it no longer needs");
                 if (fixture.equals("v5-face")) {
                     ModelDocument.Mesh mesh = main.meshes().get(0);
                     assertEquals(4, mesh.vertices().vertexCount());

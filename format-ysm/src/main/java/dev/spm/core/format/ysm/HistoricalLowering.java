@@ -54,7 +54,13 @@ final class HistoricalLowering {
             }
         }
         token.check();
-        var result=new YsmImportResult(historical,variants,resources,reservations);reservations.clear();return result;
+        // Every variant is lowered by now, and a ModelDocument never aliases a HistoricalValue: its
+        // JsonValue is a sealed interface over JSON scalars. Retiring the tree here releases the
+        // reservations it holds on the caller's shared budget, so an open import owns only what it
+        // can actually hand out instead of carrying a multi-hundred-megabyte generic tree that no
+        // caller can reach.
+        historical.close();
+        var result=new YsmImportResult(variants,resources,reservations);reservations.clear();return result;
     }
     private void replacement(String type,String key,String identity,Struct source)throws IOException {
         Struct texture=struct(source.field("texture"));
@@ -99,7 +105,9 @@ final class HistoricalLowering {
         }
         if(materials.isEmpty())limitation="Geometry retained without a texture material; Host material selection required";
         Optional<ModelDocument> document=limitation.isEmpty()?Optional.of(document(identity,type,key,geo,materials,animations,controllers)):Optional.empty();
-        variants.add(new YsmImportResult.Variant(type,key,document,limitation,geo,animations,controllers));
+        // Only the lowered result is retained. The geo/animations/controllers subtrees stay reachable
+        // through the tree until run() retires it, and no caller could ever observe them.
+        variants.add(new YsmImportResult.Variant(type,key,document,limitation));
     }
     private ModelDocument document(String identity,String type,String key,Struct geo,List<ModelDocument.Material> materials,HistoricalValue animations,HistoricalValue controllers)throws IOException {
         List<HistoricalValue> bones=sequence(geo.field("bones")).values();int n=bones.size();
