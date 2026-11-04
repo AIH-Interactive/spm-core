@@ -82,6 +82,8 @@ class RealCorpusSkinningTest {
         assertEquals(run.meshes, run.weightedMeshes, "Every mesh must be weighted, not left rigid");
         assertEquals(run.variants, run.renderedVariants, "Every variant must render through the weighted path");
         assertTrue(run.totalVertices > 0, "No vertices were skinned");
+        assertTrue(run.posedFromOwnClip >= 17,
+                "Historical YSM clip binding coverage regressed below the measured corpus floor");
         // The strong claim, scoped to exactly the variants where it is true.
         assertEquals(run.identityBindVariants, run.bitIdenticalVariants,
                 "Every variant with an identity bind pose must match the rigid path bit for bit");

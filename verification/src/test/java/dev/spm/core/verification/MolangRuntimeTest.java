@@ -130,4 +130,15 @@ class MolangRuntimeTest {
         assertEquals(-170, MolangProgram.compile("math.min_angle(190)").evaluate(c));
         assertEquals(180, MolangProgram.compile("math.lerprotate(170,-170,0.5)").evaluate(c));
     }
+    @Test void ysmNamespaceReadsOnlyTheHostSuppliedNumericSnapshot() {
+        var c=new MolangContext(Map.of("ysm.head_pitch",30.0),Map.of(),Map.of(),budget(1000));
+        assertEquals(31,MolangProgram.compile("ysm.head_pitch + ysm.missing + 1").evaluate(c));
+        assertThrows(MolangException.class,()->MolangProgram.compile("minecraft.head_pitch"));
+    }
+    @Test void nestedVariablePathsRemainOwnerConfinedNumericState() {
+        var c=new MolangContext(Map.of(),new HashMap<>(Map.of("physics.x",1.0)),Map.of(),budget(1000));
+        assertEquals(3,MolangProgram.compile("v.roaming.fly=2; return v.roaming.fly+v.physics.x;").evaluate(c));
+        assertEquals(2,c.variables().get("roaming.fly"));
+        assertEquals(1,c.variables().get("physics.x"));
+    }
 }

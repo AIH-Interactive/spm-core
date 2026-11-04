@@ -8,7 +8,8 @@ import java.util.Objects;
  *
  * <p>Core never reads the game, the entity, the client tick or any Loader type. A Host that wants a
  * query called {@code query.foo} supplies {@code "foo"} here; the {@code query}/{@code q} namespace
- * is applied by the expression layer, not by this record.
+ * is applied by the expression layer, not by this record. YSM-authored numeric bindings remain
+ * host-neutral in the same way: {@code ysm.head_pitch} reads the key {@code "ysm.head_pitch"}.
  *
  * <p>Only finite values are accepted. A non-finite query is a Host bug, and silently admitting NaN
  * would poison every downstream evaluation with no diagnostic.

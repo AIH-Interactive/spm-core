@@ -6,9 +6,11 @@ import dev.spm.core.render.cpu.BoneEvaluator;
 import dev.spm.core.scene.*;
 import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AnimationPoseTest {
@@ -121,6 +123,102 @@ class AnimationPoseTest {
         assertThrows(MolangException.class,()->PoseAnimationLibrary.decode(o("animations",o("bad",o("particle_effects",o()))),skeleton(),budget()));
         CancellationToken token=new CancellationToken(); token.cancel();
         assertThrows(java.util.concurrent.CancellationException.class,()->PoseAnimationLibrary.decode(o("animations",o()),skeleton(),new ScriptBudget(100,128,token)));
+    }
+    @Test void ysmModelBindingSkipsTracksOwnedByAnotherGeometrySkeleton() {
+        var animations=o("animations",o("a",o("animation_length",n(1),"bones",o(
+                "other",o("position",v(n(160),n(0),n(0))),
+                "root",o("position",v(n(16),n(0),n(0)))))));
+        var model=new ModelDocument("demo","ysm-raw-v3",skeleton(),List.of(),BonePose.identity(1),
+                List.of(),List.of(),animations);
+        var library=PoseAnimationLibrary.fromModel(model,budget());
+        assertEquals(-1,library.sample("a",0.5,context(),BonePose.identity(1)).translations()[0]);
+    }
+    @Test void ysmModelBindingAcceptsHistoricalInfiniteAnimationLength() {
+        var animations=o("animations",o("a",o("animation_length",s("Infinity"),"bones",o(
+                "root",o("position",v(n(16),n(0),n(0)))))));
+        var model=new ModelDocument("demo","ysm-v3-inner-32",skeleton(),List.of(),BonePose.identity(1),
+                List.of(),List.of(),animations);
+        var library=PoseAnimationLibrary.fromModel(model,budget());
+        assertEquals(-1,library.sample("a",10,context(),BonePose.identity(1)).translations()[0]);
+    }
+    @Test void ysmModelBindingKeepsAuthoredDurationWhenLaterKeysAreUnreachable() {
+        var track=o("0",v(n(0),n(0),n(0)),"1",v(n(16),n(0),n(0)));
+        var animations=o("animations",o("a",o("animation_length",n(0.5),"bones",o(
+                "root",o("position",track)))));
+        var model=new ModelDocument("demo","ysm-raw-v3",skeleton(),List.of(),BonePose.identity(1),
+                List.of(),List.of(),animations);
+        var library=PoseAnimationLibrary.fromModel(model,budget());
+        assertEquals(-0.5,library.sample("a",0.5,context(),BonePose.identity(1)).translations()[0]);
+    }
+    @Test void genericDecodeRejectsKeysAfterAuthoredDuration() {
+        var track=o("0",v(n(0),n(0),n(0)),"1",v(n(16),n(0),n(0)));
+        assertThrows(MolangException.class,()->PoseAnimationLibrary.decode(o("animations",o("a",o(
+                "animation_length",n(0.5),"bones",o("root",o("position",track))))),skeleton(),budget()));
+    }
+    @Test void ysmModelBindingAllowsMeasuredLargeTimelineWithinItsBound() {
+        var instructions=new ArrayList<JsonValue>();
+        for(int index=0;index<2404;index++) instructions.add(s("v.x=1"));
+        var animations=o("animations",o("a",o("animation_length",n(1),"timeline",o(
+                "0",new JsonArray(instructions)))));
+        var model=new ModelDocument("demo","ysm-raw-v3",skeleton(),List.of(),BonePose.identity(1),
+                List.of(),List.of(),animations);
+        assertEquals(Set.of("a"),PoseAnimationLibrary.fromModel(model,budget()).names());
+    }
+    @Test void ysmModelBindingRejectsTimelineLargerThanFourThousandNinetySixInstructions() {
+        var instructions=new ArrayList<JsonValue>();
+        for(int index=0;index<4097;index++) instructions.add(s("v.x=1"));
+        var animations=o("animations",o("a",o("animation_length",n(1),"timeline",o(
+                "0",new JsonArray(instructions)))));
+        var model=new ModelDocument("demo","ysm-raw-v3",skeleton(),List.of(),BonePose.identity(1),
+                List.of(),List.of(),animations);
+        assertThrows(MolangException.class,()->PoseAnimationLibrary.fromModel(model,budget()));
+    }
+    @Test void ysmModelBindingAllowsMeasuredKeyCountWithinItsBound() {
+        var keys=new LinkedHashMap<String,JsonValue>();
+        for(int index=0;index<65537;index++) keys.put(Integer.toString(index),n(0));
+        var animations=o("animations",o("a",o("animation_length",n(65536),"bones",o(
+                "root",o("position",new JsonObject(keys))))));
+        assertThrows(MolangException.class,()->PoseAnimationLibrary.decode(animations,skeleton(),
+                new ScriptBudget(2_000_000,128,new CancellationToken())));
+        var model=new ModelDocument("demo","ysm-raw-v3",skeleton(),List.of(),BonePose.identity(1),
+                List.of(),List.of(),animations);
+        assertEquals(Set.of("a"),PoseAnimationLibrary.fromModel(model,
+                new ScriptBudget(2_000_000,128,new CancellationToken())).names());
+    }
+    @Test void ysmModelBindingAllowsMeasuredLongSingleExpressionWithinItsBound() {
+        String expression="0"+" ".repeat(81_489);
+        var animations=o("animations",o("a",o("animation_length",n(1),"blend_weight",s(expression))));
+        assertThrows(MolangException.class,()->PoseAnimationLibrary.decode(animations,skeleton(),budget()));
+        var model=new ModelDocument("demo","ysm-raw-v3",skeleton(),List.of(),BonePose.identity(1),
+                List.of(),List.of(),animations);
+        assertEquals(Set.of("a"),PoseAnimationLibrary.fromModel(model,budget()).names());
+    }
+    @Test void ysmModelBindingKeepsHardBoundsAboveMeasuredKeyAndExpressionSizes() {
+        var keys=new LinkedHashMap<String,JsonValue>();
+        for(int index=0;index<131073;index++) keys.put(Integer.toString(index),n(0));
+        var keyed=o("animations",o("a",o("animation_length",n(131072),"bones",o(
+                "root",o("position",new JsonObject(keys))))));
+        var keyedModel=new ModelDocument("demo","ysm-raw-v3",skeleton(),List.of(),BonePose.identity(1),
+                List.of(),List.of(),keyed);
+        assertThrows(MolangException.class,()->PoseAnimationLibrary.fromModel(keyedModel,
+                new ScriptBudget(4_000_000,128,new CancellationToken())));
+
+        var expression=o("animations",o("a",o("animation_length",n(1),"blend_weight",
+                s("0"+" ".repeat(131_072)))));
+        var expressionModel=new ModelDocument("demo","ysm-raw-v3",skeleton(),List.of(),BonePose.identity(1),
+                List.of(),List.of(),expression);
+        assertThrows(MolangException.class,()->PoseAnimationLibrary.fromModel(expressionModel,budget()));
+    }
+    @Test void ysmModelBindingRetainsTheSkeletonSizeBound() {
+        var names=new ArrayList<String>();
+        for(int index=0;index<65537;index++) names.add("bone"+index);
+        var parents=new int[65537];
+        java.util.Arrays.fill(parents,-1);
+        var oversized=new Skeleton(names,parents,new float[65537*3]);
+        var model=new ModelDocument("demo","ysm-raw-v3",oversized,List.of(),BonePose.identity(65537),
+                List.of(),List.of(),o("animations",o()));
+        assertThrows(MolangException.class,()->PoseAnimationLibrary.fromModel(model,
+                new ScriptBudget(500_000,128,new CancellationToken())));
     }
     @Test void decimalLoopBoundariesAreDeliveredOnceAndStaleFramesCannotReplay() {
         var definition=o("loop",new JsonBoolean(true),"animation_length",n(0.1),

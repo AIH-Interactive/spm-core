@@ -26,9 +26,13 @@ public final class MolangProgram {
 
     private MolangProgram(Node root) { this.root = root; }
     public static MolangProgram compile(String source) {
+        return compile(source,MAX_SOURCE,MAX_TOKENS);
+    }
+    static MolangProgram compile(String source,int sourceLimit,int tokenLimit) {
         Objects.requireNonNull(source);
-        if (source.length() > MAX_SOURCE) throw syntax("Source exceeds 65536 characters", 0);
-        return new MolangProgram(new Parser(source).parse());
+        if (sourceLimit<1 || tokenLimit<1) throw new IllegalArgumentException("Molang limits must be positive");
+        if (source.length()>sourceLimit) throw syntax("Source exceeds "+sourceLimit+" characters",0);
+        return new MolangProgram(new Parser(source,tokenLimit).parse());
     }
     public double evaluate(MolangContext context) {
         Objects.requireNonNull(context);
@@ -110,8 +114,9 @@ public final class MolangProgram {
         int tokens;
         int nesting;
         int loops;
+        final int tokenLimit;
         String token;
-        Parser(String source) { this.source = source; next(); }
+        Parser(String source,int tokenLimit) { this.source=source; this.tokenLimit=tokenLimit; next(); }
         Node parse() {
             Node root = sequence("");
             require("");
@@ -265,13 +270,17 @@ public final class MolangProgram {
             if (name.equals("math.pi")) return node(e -> Math.PI);
             if (name.equals("math.e")) return node(e -> Math.E);
             int dot = name.indexOf('.');
-            if (dot <= 0 || dot == name.length() - 1 || name.indexOf('.', dot + 1) >= 0) {
+            if (dot <= 0 || dot == name.length() - 1) {
                 throw unsupported("Unsupported name: " + name, start);
             }
             String namespace = name.substring(0, dot);
             String field = name.substring(dot + 1);
+            if (field.indexOf('.') >= 0 && !namespace.equals("variable") && !namespace.equals("v")) {
+                throw unsupported("Unsupported name: " + name, start);
+            }
             return switch (namespace) {
                 case "query", "q" -> node(e -> e.context.query(field));
+                case "ysm" -> node(e -> e.context.query("ysm." + field));
                 case "context", "c" -> node(e -> e.context.parameter(field));
                 case "variable", "v" -> new Node(1, e -> e.context.variable(field), "v." + field);
                 case "temp", "t" -> new Node(1, e -> e.temporary.getOrDefault(field, 0.0), "t." + field);
@@ -298,7 +307,7 @@ public final class MolangProgram {
                 } else break;
             }
             position = cursor;
-            if (++tokens > MAX_TOKENS) throw syntax("Token count exceeds 8192", cursor);
+            if (++tokens>tokenLimit) throw syntax("Token count exceeds "+tokenLimit,cursor);
             if (cursor == source.length()) { token = ""; return; }
             char c = source.charAt(cursor++);
             if (Character.isDigit(c) || (c == '.' && cursor < source.length() && Character.isDigit(source.charAt(cursor)))) {
