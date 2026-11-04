@@ -15,9 +15,13 @@ import xml.etree.ElementTree as ET
 
 IGNORED = {'.git', '.gradle', 'build', 'target', '.idea', '__pycache__'}
 OHMY = 'd2536542747a1aa5c02594827f579171c525843c'
-BRANCHES = [('Fa1.21.1', 'main'), ('Fa26.1.2', 'fa26.1.2'), ('Fa26.2', 'fa26.2'),
-            ('Fa26.3', 'fa26.3'), ('Neo1.21.1', 'neo1.21.1'), ('Neo26.1.2', 'neo26.1.2'),
-            ('Neo26.2', 'neo26.2'), ('Neo26.3', 'neo26.3')]
+# 2026-11-04: the per-loader repositories were merged into one repository per
+# Minecraft version (Fabric + NeoForge physically deduplicated, single Gradle
+# build). The eight Fa*/Neo* directories no longer exist, so the branch map now
+# lists the four merged repositories and their actual branches.
+# Reference: docs/2026-11-04/SPM_LOADER_MERGE_EXECUTION_2026-11-04.md
+BRANCHES = [('1.21.1', '1.21.1'), ('26.1.2', '26.1.2'),
+            ('26.2', 'main'), ('26.3', '26.3')]
 
 
 def sha(data: bytes) -> str:
