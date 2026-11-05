@@ -17,15 +17,21 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class ScriptBudget {
     private final AtomicLong remaining;
     private final int maximumDepth;
+    private final int maximumCallDepth;
     private final CancellationToken cancellation;
-    private final ThreadLocal<int[]> depth = ThreadLocal.withInitial(() -> new int[1]);
+    private final ThreadLocal<int[]> depth = ThreadLocal.withInitial(() -> new int[67]);
 
     public ScriptBudget(long maximumSteps, int maximumDepth, CancellationToken cancellation) {
+        this(maximumSteps,maximumDepth,Math.min(64,maximumDepth),cancellation);
+    }
+    ScriptBudget(long maximumSteps,int maximumDepth,int maximumCallDepth,CancellationToken cancellation) {
         if (maximumSteps < 0 || maximumDepth < 1 || maximumDepth > 256) {
             throw new IllegalArgumentException("Steps must be nonnegative; depth must be 1..256");
         }
         this.remaining = new AtomicLong(maximumSteps);
         this.maximumDepth = maximumDepth;
+        if(maximumCallDepth<1 || maximumCallDepth>64) throw new IllegalArgumentException("Call depth must be 1..64");
+        this.maximumCallDepth=maximumCallDepth;
         this.cancellation = Objects.requireNonNull(cancellation);
     }
 
@@ -42,11 +48,17 @@ public final class ScriptBudget {
     void enter() {
         step();
         int[] current = depth.get();
-        if (current[0] >= maximumDepth) throw new MolangException(MolangException.Reason.DEPTH, "Script depth budget exhausted");
-        current[0]++;
+        if (current[0] >= maximumDepth || current[2]>=512) throw new MolangException(MolangException.Reason.DEPTH, "Script AST depth budget exhausted");
+        current[0]++; current[2]++;
     }
 
-    void leave() { depth.get()[0]--; }
+    void leave() { int[] current=depth.get(); current[0]--; current[2]--; }
+    void enterFunction() {
+        step(); int[] current=depth.get();
+        if(current[1]>=maximumCallDepth) throw new MolangException(MolangException.Reason.DEPTH,"Script function depth budget exhausted");
+        current[3+current[1]]=current[0]; current[1]++; current[0]=0;
+    }
+    void leaveFunction() { int[] current=depth.get(); current[1]--; current[0]=current[3+current[1]]; }
 
     public long remainingSteps() { return remaining.get(); }
 

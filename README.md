@@ -99,6 +99,23 @@ equivalence to historical native behavior that was unavailable in the allowed so
 
 ## Current boundaries
 
+`MolangProgram.evaluateValue` retains bounded number, boolean, text, structure and missing values;
+`evaluate` remains the numeric entry point. Owners expose immutable `typedVariables()` snapshots.
+`SceneInputs` can carry `MolangBindings`: immutable Host-sampled values and exact call results,
+without game objects or executable callbacks. Unsampled calls fail explicitly. Sound and particle
+results require a Host snapshot; enqueueing a request does not establish that a Host executed it.
+
+Script effects join timeline effects in tick order and commit with the successful frame. Hosts can
+suppress emission while simulation continues. Owner `reset()` advances the generation and clears
+variables, physics and playback state. Dispatchers should use `EffectCursor.claim(frame,
+owner.generation())` and verify current ownership again when committing external work.
+
+`PeerScriptPolicy` provides separate source/token/tree, function-call and aggregate frame budgets.
+The Host must share one policy across every model and worker of a Peer frame. Function calls share
+steps, preserve their caller's AST depth and have a separate call limit; a total active AST ceiling
+of 512 additionally bounds the interpreter stack. These contracts require a real Host adapter;
+Core unit tests alone do not certify game-side Peer counting or compatibility-mod behavior.
+
 This is an implementation candidate, not a declaration of complete SPM migration or upstream feature parity. Current executable geometry is rigid per-bone geometry. Weighted BDEF/SDEF/QDEF, glTF/VRM/MMD, Figura Lua, complete typed Molang and every Host extension are not implemented by the existing rigid API. JSON metadata preservation does not imply animation/script execution.
 
 Bedrock imports currently require one supported geometry per request. BBModel mesh/plugin element types are rejected when unsupported. Historical bone flags without an established allowed-source runtime mapping retain their exact archival values and return an explicit variant limitation instead of guessed rendered behavior. Full V3D filesystem cache management and online cache wire integration are separate work.

@@ -133,13 +133,13 @@ public final class PoseAnimationLibrary {
         if (!Double.isFinite(elapsedSeconds) || elapsedSeconds<0) throw new IllegalArgumentException("Invalid animation time");
         Clip clip=clip(name);
         if (clip.delayed()) {
-            MolangContext local=context.overlay(Map.of("life_time",elapsedSeconds));
+            MolangContext local=context.sampling(Map.of("life_time",elapsedSeconds));
             PoseClipPlayback playback=new PoseClipPlayback(clip,local);
             playback.advance(elapsedSeconds,0,local,new ArrayList<>(),false);
             return sample(clip,playback.localTime(),local.overlay(Map.of("anim_time",playback.localTime())),bindPose,playback.driven(elapsedSeconds)).pose;
         }
         boolean drive=clip.loop!=Loop.ONCE || elapsedSeconds<=clip.duration;
-        MolangContext local=context.overlay(Map.of("anim_time",clip.localTime(elapsedSeconds),"life_time",elapsedSeconds));
+        MolangContext local=context.sampling(Map.of("anim_time",clip.localTime(elapsedSeconds),"life_time",elapsedSeconds));
         return sample(clip,clip.localTime(elapsedSeconds),local,bindPose,drive).pose;
     }
     Sample sample(Clip clip,double localTime,MolangContext context,BonePose bindPose,boolean drive) {

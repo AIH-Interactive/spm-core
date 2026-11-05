@@ -146,9 +146,11 @@ final class HostEffectExactlyOnceTest {
         assertTrue(cursor.claim(olderShell).isEmpty(), "an older frame must not be replayed");
 
         // A later generation is accepted and advances the cursor.
+        var newerEffects=frame.effects().stream().map(effect -> new EffectCommand(effect.instanceId(),frame.generation()+5,
+                effect.sequence(),effect.step(),effect.kind(),effect.resource(),effect.parameters(),effect.arguments())).toList();
         var newer = new FrameEvaluation(frame.instanceId(), frame.generation() + 5, 1, frame.step(),
                 frame.timeSeconds(), frame.interpolation(), frame.droppedSteps(),
-                frame.channels(), frame.variables(), frame.effects());
+                frame.channels(), frame.variables(), newerEffects);
         assertEquals(1, cursor.claim(newer).size(), "a newer generation is delivered");
 
         // Now the original (lower) generation is retired and must not be served again.

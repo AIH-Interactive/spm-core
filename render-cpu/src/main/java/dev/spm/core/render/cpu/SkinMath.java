@@ -55,18 +55,21 @@ final class SkinMath {
         return result;
     }
 
-    /** Row-major 3x3 inverse transpose, matching {@code BoneMatrices.normal} packing. */
+    /** Inverse transpose, or surviving area cofactors for a collapsed pose, in normal packing. */
     static float[] normalOf(float[] m) {
         double a = m[0], b = m[4], c = m[8];
         double d = m[1], e = m[5], f = m[9];
         double g = m[2], h = m[6], i = m[10];
         double determinant = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
-        if (determinant == 0) throw new IllegalArgumentException("Singular bind matrix");
         double[] cofactor = {e * i - f * h, c * h - b * i, b * f - c * e,
                 f * g - d * i, a * i - c * g, c * d - a * f,
                 d * h - e * g, b * g - a * h, a * e - b * d};
         float[] result = new float[9];
-        for (int k = 0; k < 9; k++) result[k] = finite(cofactor[k] / determinant);
+        // A posed scale can collapse an axis even though its bind was invertible. The cofactors
+        // represent transformed tangent areas: rank two retains the surviving plane normal,
+        // while rank one or zero has no surviving area. No inverse exists in those cases.
+        double divisor = determinant == 0 ? 1 : determinant;
+        for (int k = 0; k < 9; k++) result[k] = finite(cofactor[k] / divisor);
         return result;
     }
 

@@ -82,7 +82,7 @@ class RealCorpusSkinningTest {
         assertEquals(run.meshes, run.weightedMeshes, "Every mesh must be weighted, not left rigid");
         assertEquals(run.variants, run.renderedVariants, "Every variant must render through the weighted path");
         assertTrue(run.totalVertices > 0, "No vertices were skinned");
-        assertTrue(run.posedFromOwnClip >= 17,
+        assertTrue(run.posedFromOwnClip >= 35,
                 "Historical YSM clip binding coverage regressed below the measured corpus floor");
         // The strong claim, scoped to exactly the variants where it is true.
         assertEquals(run.identityBindVariants, run.bitIdenticalVariants,
@@ -195,7 +195,7 @@ class RealCorpusSkinningTest {
 
                     // A posed frame: asserted to complete with finite output and a released budget,
                     // not to reproduce the rigid path — see the class javadoc for why.
-                    Posed posedFrame = posedFrame(document);
+                    Posed posedFrame = posedFrame(document, label);
                     if (posedFrame.fromClip()) run.posedFromOwnClip++;
                     BonePose pose = posedFrame.pose();
                     assertEquals(document.skeleton().boneCount(), pose.boneCount(), label + " pose size");
@@ -290,7 +290,7 @@ class RealCorpusSkinningTest {
     private record Posed(BonePose pose, boolean fromClip) { }
 
     /** A posed frame: the document's own first clip when it decodes, otherwise a deterministic tilt. */
-    private static Posed posedFrame(ModelDocument document) {
+    private static Posed posedFrame(ModelDocument document, String label) {
         var budget = new ScriptBudget(50_000_000L, 64, new CancellationToken());
         try {
             var library = PoseAnimationLibrary.fromModel(document, budget);
@@ -302,6 +302,7 @@ class RealCorpusSkinningTest {
                     return new Posed(sampled, true);
             }
         } catch (RuntimeException undecodableClips) {
+            System.out.println("REAL_CLIP_FAILURE " + label + " :: " + undecodableClips.getMessage());
             // A model whose clips cannot be decoded still needs a posed frame; fall through.
         }
         return new Posed(tilted(document.bindPose()), false);

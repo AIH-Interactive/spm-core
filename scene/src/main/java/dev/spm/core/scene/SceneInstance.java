@@ -15,8 +15,15 @@ public final class SceneInstance {
     private Map<String, Double> variables = Map.of();
     private FrameEvaluation lastFrame;
     private long effectSequence;
+    private long generation;
+    private int maximumCatchUp;
+    private long initialSeed;
+    public synchronized long generation() { return generation; }
+    private MolangState scriptState=new MolangState();
+    public synchronized Map<String,MolangValue> typedVariables() { return scriptState.variables; }
     private long randomState;
     private ControllerRuntime<Map<String,Double>> controller;
+    private ControllerRuntime<Map<String,Double>> initialController;
 
     public SceneInstance(SceneDefinition definition, int maximumCatchUpSteps) {
         this(definition, null, maximumCatchUpSteps, 0);
@@ -29,8 +36,10 @@ public final class SceneInstance {
     }
     public SceneInstance(SceneDefinition definition, ControllerDefinition controller, int maximumCatchUpSteps, long randomSeed) {
         this.definition = Objects.requireNonNull(definition);
+        maximumCatchUp=maximumCatchUpSteps; initialSeed=randomSeed;
         clock = new FixedStepClock(maximumCatchUpSteps);
         this.controller = controller == null ? null : new ControllerRuntime<>(controller,ControllerRuntime.scalarExecution());
+        initialController=this.controller==null?null:this.controller.copy();
         randomState = randomSeed;
     }
     public synchronized ControllerSnapshot controllerSnapshot() {
@@ -47,7 +56,7 @@ public final class SceneInstance {
         FixedStepClock candidateClock = clock.copy();
         FixedStepClock.Advance advance = candidateClock.advance(nowNanos);
         long firstStep = advance.totalSteps() - advance.executedSteps();
-        MolangContext context = new MolangContext(inputs.queries(), variables, definition.functions(), budget, randomState);
+        MolangContext context = new MolangContext(inputs,scriptState,definition.functions(),budget,randomState);
         ControllerRuntime<Map<String,Double>> candidateController = controller == null ? null : controller.copy();
         List<EffectTimeline.Pending> pending = new ArrayList<>();
         if (lastFrame == null) {
@@ -82,20 +91,28 @@ public final class SceneInstance {
         for (EffectTimeline.Pending effect : pending) {
             budget.step();
             AnimationClip.Cue cue = effect.cue();
-            effects.add(new EffectCommand(instanceId, 0, Math.addExact(effectSequence, effects.size()),
+            effects.add(new EffectCommand(instanceId, generation, Math.addExact(effectSequence, effects.size()),
                     effect.step(), cue.kind(), cue.resource(), cue.parameters()));
         }
+        context.appendEffects(effects,instanceId,generation,effectSequence);
+        if(!inputs.effectsAllowed()) effects.clear();
         budget.checkCancelled();
-        FrameEvaluation candidate = new FrameEvaluation(instanceId, 0, frameId, advance.totalSteps(), time,
+        FrameEvaluation candidate = new FrameEvaluation(instanceId, generation, frameId, advance.totalSteps(), time,
                 advance.interpolation(), advance.droppedSteps(), channels, context.variables(), effects);
         long candidateSequence = Math.addExact(effectSequence, effects.size());
         clock = candidateClock;
         variables = candidate.variables();
+        scriptState=context.snapshot();
         effectSequence = candidateSequence;
         controller = candidateController;
         randomState = context.randomState();
         lastFrame = candidate;
         return candidate;
+    }
+    public synchronized void reset() {
+        generation=Math.incrementExact(generation); clock=new FixedStepClock(maximumCatchUp);
+        scriptState=new MolangState(); variables=Map.of(); randomState=initialSeed;
+        effectSequence=0; lastFrame=null; controller=initialController==null?null:initialController.copy();
     }
     private MolangContext sceneContext(MolangContext context, long step) {
         Map<String, Double> builtins = new HashMap<>();

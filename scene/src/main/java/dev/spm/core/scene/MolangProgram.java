@@ -7,7 +7,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-/** Immutable, bounded numeric Molang subset. No reflection, Java callbacks or host objects. */
+/** Immutable, bounded numeric Molang subset with absence/coalescing. No reflection or host objects. */
 public final class MolangProgram {
     private static final int MAX_SOURCE = 65_536;
     private static final int MAX_TOKENS = 8_192;
@@ -29,36 +29,65 @@ public final class MolangProgram {
         return compile(source,MAX_SOURCE,MAX_TOKENS);
     }
     static MolangProgram compile(String source,int sourceLimit,int tokenLimit) {
+        return compile(source,sourceLimit,tokenLimit,MAX_TREE_DEPTH);
+    }
+    static MolangProgram compile(String source,int sourceLimit,int tokenLimit,int depthLimit) {
         Objects.requireNonNull(source);
         if (sourceLimit<1 || tokenLimit<1) throw new IllegalArgumentException("Molang limits must be positive");
         if (source.length()>sourceLimit) throw syntax("Source exceeds "+sourceLimit+" characters",0);
-        return new MolangProgram(new Parser(source,tokenLimit).parse());
+        if(depthLimit<1 || depthLimit>MAX_TREE_DEPTH) throw new IllegalArgumentException("Invalid parser depth limit");
+        Node root=new Parser(source,tokenLimit,depthLimit).parse();
+        if(root.height>depthLimit) throw syntax("Expression tree exceeds depth "+depthLimit,0);
+        return new MolangProgram(root);
     }
     public double evaluate(MolangContext context) {
         Objects.requireNonNull(context);
         return root.run(new Evaluation(context));
     }
+    public MolangValue evaluateValue(MolangContext context) {
+        Objects.requireNonNull(context);
+        return root.runNullable(new Evaluation(context));
+    }
     private enum Flow { NONE, RETURN, BREAK, CONTINUE }
     private static final class Evaluation {
         final MolangContext context;
-        final Map<String, Double> temporary = new HashMap<>();
+        final Map<String, MolangValue> temporary = new HashMap<>();
         Flow flow = Flow.NONE;
         Evaluation(MolangContext context) { this.context = context; }
     }
     @FunctionalInterface private interface Operation { double run(Evaluation evaluation); }
-    private record Node(int height, Operation operation, String writable) {
+    @FunctionalInterface private interface NullableOperation { MolangValue run(Evaluation evaluation); }
+    private record Node(int height, Operation operation, NullableOperation nullable, String writable) {
         double run(Evaluation evaluation) {
+            if (nullable != null) {
+                MolangValue value = runNullable(evaluation);
+                return value.number();
+            }
             ScriptBudget budget = evaluation.context.budget();
             budget.enter();
             try { return MolangContext.finite(operation.run(evaluation)); }
             finally { budget.leave(); }
         }
+        MolangValue runNullable(Evaluation evaluation) {
+            if (nullable == null) return MolangValue.number(run(evaluation));
+            ScriptBudget budget = evaluation.context.budget();
+            budget.enter();
+            try {
+                return Objects.requireNonNull(nullable.run(evaluation));
+            } finally { budget.leave(); }
+        }
     }
     private static Node node(Operation operation, Node... children) {
+        return new Node(height(children), operation, null, null);
+    }
+    private static Node nullableNode(NullableOperation operation, Node... children) {
+        return new Node(height(children), null, operation, null);
+    }
+    private static int height(Node... children) {
         int depth = 1;
         for (Node child : children) depth = Math.max(depth, child.height + 1);
         if (depth > MAX_TREE_DEPTH) throw syntax("Expression tree exceeds depth 128", 0);
-        return new Node(depth, operation, null);
+        return depth;
     }
     private static MolangException syntax(String message, int position) {
         return new MolangException(MolangException.Reason.SYNTAX, message + " at character " + position);
@@ -115,8 +144,9 @@ public final class MolangProgram {
         int nesting;
         int loops;
         final int tokenLimit;
+        final int depthLimit;
         String token;
-        Parser(String source,int tokenLimit) { this.source=source; this.tokenLimit=tokenLimit; next(); }
+        Parser(String source,int tokenLimit,int depthLimit) { this.source=source; this.tokenLimit=tokenLimit; this.depthLimit=depthLimit; next(); }
         Node parse() {
             Node root = sequence("");
             require("");
@@ -132,26 +162,34 @@ public final class MolangProgram {
                 if (!accept(";") && !token.equals(end)) throw syntax("Expected semicolon", position);
             }
             Node[] children = statements.toArray(Node[]::new);
-            return node(e -> {
-                double result = 0;
+            return nullableNode(e -> {
+                MolangValue result = MolangValue.number(0);
                 for (Node statement : children) {
-                    result = statement.run(e);
+                    result = statement.runNullable(e);
                     if (e.flow != Flow.NONE) break;
                 }
                 return result;
             }, children);
         }
         Node expression(int minimum) {
-            if (++nesting > MAX_TREE_DEPTH) throw syntax("Parser nesting exceeds 128", position);
+            if (++nesting > depthLimit) throw syntax("Parser nesting exceeds "+depthLimit, position);
             try {
                 Node left = primary();
                 while (true) {
-                    if (token.equals("?") && minimum <= 2) {
+                    if(token.equals(".")) {
+                        next();
+                        String field=token;
+                        if(!field.matches("[a-z_][a-z0-9_.]*")) throw syntax("Expected property name",position);
+                        next(); Node owner=left;
+                        left=nullableNode(e -> owner.runNullable(e).field(field),owner);
+                        continue;
+                    }
+                    if (token.equals("?") && minimum <= 3) {
                         next();
                         Node condition = left;
                         Node yes = expression(0);
-                        Node no = accept(":") ? expression(2) : node(e -> 0);
-                        left = node(e -> truth(condition.run(e)) ? yes.run(e) : no.run(e), condition, yes, no);
+                        Node no = accept(":") ? expression(3) : nullableNode(e -> MolangValue.missing());
+                        left = nullableNode(e -> truth(condition.run(e)) ? yes.runNullable(e) : no.runNullable(e), condition, yes, no);
                         continue;
                     }
                     int precedence = precedence(token);
@@ -163,12 +201,19 @@ public final class MolangProgram {
                     if (op.equals("=")) {
                         String target = first.writable;
                         if (target == null) throw syntax("Assignment requires variable or temp", position);
-                        left = node(e -> {
-                            double value = right.run(e);
+                        left = nullableNode(e -> {
+                            MolangValue value = right.runNullable(e);
                             if (target.startsWith("v.")) e.context.variable(target.substring(2), value);
-                            else e.temporary.put(target.substring(2), value);
+                            else e.context.temporary(e.temporary,target.substring(2),value);
                             return value;
                         }, right);
+                    } else if (op.equals("??")) {
+                        left = nullableNode(e -> {
+                            MolangValue value = first.runNullable(e);
+                            return value == MolangValue.missing() ? right.runNullable(e) : value;
+                        }, first, right);
+                    } else if(List.of("==","!=","<","<=",">",">=","&&","||").contains(op)) {
+                        left=nullableNode(e -> MolangValue.bool(compare(op,first,right,e)),first,right);
                     } else {
                         left = node(e -> binary(op, first, right, e), first, right);
                     }
@@ -190,7 +235,8 @@ public final class MolangProgram {
             if (token.equals("-") || token.equals("+") || token.equals("!")) {
                 String op = token;
                 next();
-                Node value = expression(9);
+                Node value = expression(10);
+                if(op.equals("!")) return nullableNode(e -> MolangValue.bool(!value.runNullable(e).truth()),value);
                 return node(e -> {
                     double number = value.run(e);
                     return op.equals("-") ? -number : op.equals("!") ? bool(!truth(number)) : number;
@@ -198,7 +244,7 @@ public final class MolangProgram {
             }
             if (accept("return")) {
                 Node value = token.equals(";") || token.equals("}") || token.isEmpty() ? node(e -> 0) : expression(0);
-                return node(e -> { double result = value.run(e); e.flow = Flow.RETURN; return result; }, value);
+                return nullableNode(e -> { MolangValue result = value.runNullable(e); e.flow = Flow.RETURN; return result; }, value);
             }
             if (token.equals("break") || token.equals("continue")) {
                 if (loops == 0) throw syntax("Loop control outside loop", position);
@@ -208,8 +254,17 @@ public final class MolangProgram {
             }
             if (token.isEmpty()) throw syntax("Expected expression", position);
             String name = token;
+            if(name.charAt(0)=='\'' || name.charAt(0)=='"') {
+                String text=name.substring(1,name.length()-1);
+                next();
+                return nullableNode(e -> MolangValue.text(text));
+            }
             int start = position;
             next();
+            if(name.equals("args")) {
+                require("["); Node index=expression(0); require("]");
+                return nullableNode(e -> e.context.parameter("arg"+Math.max(0,(int)index.run(e))),index);
+            }
             if (Character.isDigit(name.charAt(0)) || name.charAt(0) == '.') {
                 try {
                     double number = Double.parseDouble(name);
@@ -225,12 +280,12 @@ public final class MolangProgram {
                     Node body;
                     try { body = expression(0); } finally { loops--; }
                     require(")");
-                    return node(e -> {
+                    return nullableNode(e -> {
                         long times = (long) Math.max(0, Math.floor(count.run(e)));
-                        double result = 0;
+                        MolangValue result = MolangValue.number(0);
                         for (long iteration = 0; iteration < times; iteration++) {
                             e.context.budget().step();
-                            result = body.run(e);
+                            result = body.runNullable(e);
                             if (e.flow == Flow.RETURN) return result;
                             if (e.flow == Flow.BREAK) { e.flow = Flow.NONE; break; }
                             e.flow = Flow.NONE;
@@ -254,15 +309,36 @@ public final class MolangProgram {
                     if (arity != args.length) throw new MolangException(MolangException.Reason.ARITY, "Wrong arity: " + name);
                     return node(e -> math(function, arguments(args, e), e), args);
                 }
-                if (!name.startsWith("function.") && !name.startsWith("f.")) {
+                if (name.startsWith("query.") || name.startsWith("q.") || name.startsWith("ysm.") || name.startsWith("ctrl.") || name.startsWith("tlm.")) {
+                    String binding=name.startsWith("q.")?"query."+name.substring(2):name;
+                    MolangContext.checkArity(binding,args.length);
+                    return nullableNode(e -> {
+                        MolangValue suppressed=e.context.suppressedEffect(binding);
+                        if(suppressed!=null) return suppressed;
+                        List<MolangValue> values=new ArrayList<>();
+                        int used=args.length;
+                        if(binding.equals("ysm.first_order") || binding.equals("ysm.second_order")) {
+                            if(args.length<2) throw new MolangException(MolangException.Reason.ARITY,"Expected key and input");
+                            MolangValue key=args[0].runNullable(e);
+                            if(!(key instanceof MolangValue.TextValue text) || text.value().isEmpty()) return MolangValue.number(0);
+                            values.add(key); used=Math.min(used,binding.equals("ysm.first_order")?3:5);
+                        }
+                        for(int index=values.size();index<used;index++) values.add(args[index].runNullable(e));
+                        return e.context.call(binding,values);
+                    },args);
+                }
+                if (!name.startsWith("function.") && !name.startsWith("f.") && !name.startsWith("fn.")) {
                     throw unsupported("Unsupported function: " + name, start);
                 }
                 String function = name.substring(name.indexOf('.') + 1);
-                return node(e -> {
-                    double[] values = arguments(args, e);
-                    Map<String, Double> parameters = new HashMap<>();
-                    for (int i = 0; i < values.length; i++) parameters.put("arg" + i, values[i]);
-                    return e.context.function(function).evaluate(e.context.invocation(parameters));
+                return nullableNode(e -> {
+                    Map<String, MolangValue> parameters = new HashMap<>();
+                    for (int i = 0; i < args.length; i++) parameters.put("arg" + i, args[i].runNullable(e));
+                    MolangProgram program=name.startsWith("fn.")?e.context.findFunction(function):e.context.function(function);
+                    if(program==null) return MolangValue.missing();
+                    e.context.budget().enterFunction();
+                    try { return program.evaluateValue(e.context.invocation(parameters)); }
+                    finally { e.context.budget().leaveFunction(); }
                 }, args);
             }
             if (name.equals("true")) return node(e -> 1);
@@ -275,15 +351,12 @@ public final class MolangProgram {
             }
             String namespace = name.substring(0, dot);
             String field = name.substring(dot + 1);
-            if (field.indexOf('.') >= 0 && !namespace.equals("variable") && !namespace.equals("v")) {
-                throw unsupported("Unsupported name: " + name, start);
-            }
             return switch (namespace) {
-                case "query", "q" -> node(e -> e.context.query(field));
-                case "ysm" -> node(e -> e.context.query("ysm." + field));
-                case "context", "c" -> node(e -> e.context.parameter(field));
-                case "variable", "v" -> new Node(1, e -> e.context.variable(field), "v." + field);
-                case "temp", "t" -> new Node(1, e -> e.temporary.getOrDefault(field, 0.0), "t." + field);
+                case "query", "q" -> nullableNode(e -> e.context.query(field));
+                case "ysm", "ctrl", "tlm" -> nullableNode(e -> e.context.boundValue(namespace+"."+field));
+                case "context", "c" -> nullableNode(e -> e.context.parameter(field));
+                case "variable", "v" -> new Node(1, null, e -> e.context.variable(field), "v." + field);
+                case "temp", "t" -> new Node(1, null, e -> MolangContext.lookup(e.temporary,field), "t." + field);
                 default -> throw unsupported("Unsupported namespace: " + namespace, start);
             };
         }
@@ -310,6 +383,13 @@ public final class MolangProgram {
             if (++tokens>tokenLimit) throw syntax("Token count exceeds "+tokenLimit,cursor);
             if (cursor == source.length()) { token = ""; return; }
             char c = source.charAt(cursor++);
+            if(c=='\'' || c=='"') {
+                while(cursor<source.length() && source.charAt(cursor)!=c) cursor++;
+                if(cursor==source.length()) throw syntax("Unterminated string",position);
+                cursor++;
+                token=source.substring(position,cursor); return;
+            }
+            if(c=='.' && cursor<source.length() && (Character.isLetter(source.charAt(cursor)) || source.charAt(cursor)=='_')) { token="."; return; }
             if (Character.isDigit(c) || (c == '.' && cursor < source.length() && Character.isDigit(source.charAt(cursor)))) {
                 while (cursor < source.length() && (Character.isDigit(source.charAt(cursor)) || source.charAt(cursor) == '.')) cursor++;
                 if (cursor < source.length() && (source.charAt(cursor) == 'e' || source.charAt(cursor) == 'E')) {
@@ -323,11 +403,11 @@ public final class MolangProgram {
                     if (!Character.isLetterOrDigit(n) && n != '_' && n != '.') break;
                     cursor++;
                 }
-            } else if ("+-*/%<>=!&|?:;,(){}".indexOf(c) >= 0) {
+            } else if ("+-*/%<>=!&|?:;,(){}[]".indexOf(c) >= 0) {
                 if (cursor < source.length()) {
                     String pair = source.substring(position, cursor + 1);
-                    if (List.of("==", "!=", "<=", ">=", "&&", "||").contains(pair)) cursor++;
-                    if (pair.equals("->") || pair.equals("??")) throw unsupported("Unsupported operator: " + pair, position);
+                    if (List.of("==", "!=", "<=", ">=", "&&", "||", "??").contains(pair)) cursor++;
+                    if (pair.equals("->")) throw unsupported("Unsupported operator: " + pair, position);
                 }
             } else throw unsupported("Unsupported character: " + c, position);
             token = source.substring(position, cursor).toLowerCase(Locale.ROOT);
@@ -341,13 +421,27 @@ public final class MolangProgram {
     private static int precedence(String operator) {
         return switch (operator) {
             case "=" -> 1;
-            case "||" -> 3;
-            case "&&" -> 4;
-            case "==", "!=" -> 5;
-            case "<", "<=", ">", ">=" -> 6;
-            case "+", "-" -> 7;
-            case "*", "/", "%" -> 8;
+            case "??" -> 2;
+            case "||" -> 4;
+            case "&&" -> 5;
+            case "==", "!=" -> 6;
+            case "<", "<=", ">", ">=" -> 7;
+            case "+", "-" -> 8;
+            case "*", "/", "%" -> 9;
             default -> -1;
+        };
+    }
+    private static boolean compare(String op,Node left,Node right,Evaluation e) {
+        MolangValue a=left.runNullable(e);
+        if(op.equals("&&")) return a.truth() && right.runNullable(e).truth();
+        if(op.equals("||")) return a.truth() || right.runNullable(e).truth();
+        MolangValue b=right.runNullable(e);
+        boolean equal=a instanceof MolangValue.NumberValue || b instanceof MolangValue.NumberValue?a.number()==b.number():a.equals(b);
+        return switch(op) {
+            case "==" -> equal; case "!=" -> !equal;
+            case "<" -> a.number()<b.number(); case "<=" -> a.number()<=b.number();
+            case ">" -> a.number()>b.number(); case ">=" -> a.number()>=b.number();
+            default -> throw new AssertionError(op);
         };
     }
     private static double binary(String op, Node left, Node right, Evaluation e) {
