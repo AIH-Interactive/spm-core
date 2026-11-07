@@ -1,0 +1,2112 @@
+{
+  "cargo_lock_packages": [
+    {
+      "checksum": "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04",
+      "name": "bytes",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.12.1"
+    },
+    {
+      "checksum": "6d43a04d8753f35258c91f8ec639f792891f748a1edbd759cf1dcea3382ad83c",
+      "name": "cesu8",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.1.0"
+    },
+    {
+      "checksum": "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600",
+      "name": "cfg-if",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.0.5"
+    },
+    {
+      "checksum": "4356eba6976435498d05a311ee9fc486da3bc81c200d3f0d7dd9703b41913f92",
+      "dependencies": [
+        "bytes",
+        "memchr"
+      ],
+      "name": "combine",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "4.6.9"
+    },
+    {
+      "checksum": "1a87aa2bb7d2af34197c04845522473242e1aa17c12f4935d5856491a7fb8c97",
+      "dependencies": [
+        "cesu8",
+        "cfg-if",
+        "combine",
+        "jni-sys 0.3.1",
+        "log",
+        "thiserror",
+        "walkdir",
+        "windows-sys 0.45.0"
+      ],
+      "name": "jni",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.21.1"
+    },
+    {
+      "checksum": "41a652e1f9b6e0275df1f15b32661cf0d4b78d4d87ddec5e0c3c20f097433258",
+      "dependencies": [
+        "jni-sys 0.4.1"
+      ],
+      "name": "jni-sys",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.3.1"
+    },
+    {
+      "checksum": "c6377a88cb3910bee9b0fa88d4f42e1d2da8e79915598f65fb0c7ee14c878af2",
+      "dependencies": [
+        "jni-sys-macros"
+      ],
+      "name": "jni-sys",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.4.1"
+    },
+    {
+      "checksum": "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264",
+      "dependencies": [
+        "quote",
+        "syn"
+      ],
+      "name": "jni-sys-macros",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.4.1"
+    },
+    {
+      "checksum": "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c",
+      "name": "log",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.4.35"
+    },
+    {
+      "checksum": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98",
+      "name": "memchr",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "2.8.3"
+    },
+    {
+      "checksum": "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9",
+      "dependencies": [
+        "unicode-ident"
+      ],
+      "name": "proc-macro2",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.0.107"
+    },
+    {
+      "checksum": "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001",
+      "dependencies": [
+        "proc-macro2"
+      ],
+      "name": "quote",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.0.47"
+    },
+    {
+      "checksum": "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502",
+      "dependencies": [
+        "winapi-util"
+      ],
+      "name": "same-file",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.0.6"
+    },
+    {
+      "name": "spm-native-abi",
+      "version": "0.1.0"
+    },
+    {
+      "dependencies": [
+        "jni",
+        "spm-native-abi",
+        "spm-render-simd"
+      ],
+      "name": "spm-native-jni",
+      "version": "0.1.0"
+    },
+    {
+      "name": "spm-render-scalar",
+      "version": "0.1.0"
+    },
+    {
+      "dependencies": [
+        "spm-native-abi",
+        "spm-render-scalar"
+      ],
+      "name": "spm-render-simd",
+      "version": "0.1.0"
+    },
+    {
+      "checksum": "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297",
+      "dependencies": [
+        "proc-macro2",
+        "quote",
+        "unicode-ident"
+      ],
+      "name": "syn",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "2.0.119"
+    },
+    {
+      "checksum": "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52",
+      "dependencies": [
+        "thiserror-impl"
+      ],
+      "name": "thiserror",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.0.69"
+    },
+    {
+      "checksum": "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1",
+      "dependencies": [
+        "proc-macro2",
+        "quote",
+        "syn"
+      ],
+      "name": "thiserror-impl",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.0.69"
+    },
+    {
+      "checksum": "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563",
+      "name": "unicode-ident",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.0.27"
+    },
+    {
+      "checksum": "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b",
+      "dependencies": [
+        "same-file",
+        "winapi-util"
+      ],
+      "name": "walkdir",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "2.5.0"
+    },
+    {
+      "checksum": "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22",
+      "dependencies": [
+        "windows-sys 0.61.2"
+      ],
+      "name": "winapi-util",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.1.11"
+    },
+    {
+      "checksum": "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5",
+      "name": "windows-link",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.2.1"
+    },
+    {
+      "checksum": "75283be5efb2831d37ea142365f009c02ec203cd29a3ebecbc093d52315b66d0",
+      "dependencies": [
+        "windows-targets"
+      ],
+      "name": "windows-sys",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.45.0"
+    },
+    {
+      "checksum": "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc",
+      "dependencies": [
+        "windows-link"
+      ],
+      "name": "windows-sys",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.61.2"
+    },
+    {
+      "checksum": "8e5180c00cd44c9b1c88adb3693291f1cd93605ded80c250a75d472756b4d071",
+      "dependencies": [
+        "windows_aarch64_gnullvm",
+        "windows_aarch64_msvc",
+        "windows_i686_gnu",
+        "windows_i686_msvc",
+        "windows_x86_64_gnu",
+        "windows_x86_64_gnullvm",
+        "windows_x86_64_msvc"
+      ],
+      "name": "windows-targets",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.42.2"
+    },
+    {
+      "checksum": "597a5118570b68bc08d8d59125332c54f1ba9d9adeedeef5b99b02ba2b0698f8",
+      "name": "windows_aarch64_gnullvm",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.42.2"
+    },
+    {
+      "checksum": "e08e8864a60f06ef0d0ff4ba04124db8b0fb3be5776a5cd47641e942e58c4d43",
+      "name": "windows_aarch64_msvc",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.42.2"
+    },
+    {
+      "checksum": "c61d927d8da41da96a81f029489353e68739737d3beca43145c8afec9a31a84f",
+      "name": "windows_i686_gnu",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.42.2"
+    },
+    {
+      "checksum": "44d840b6ec649f480a41c8d80f9c65108b92d89345dd94027bfe06ac444d1060",
+      "name": "windows_i686_msvc",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.42.2"
+    },
+    {
+      "checksum": "8de912b8b8feb55c064867cf047dda097f92d51efad5b491dfb98f6bbb70cb36",
+      "name": "windows_x86_64_gnu",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.42.2"
+    },
+    {
+      "checksum": "26d41b46a36d453748aedef1486d5c7a85db22e56aff34643984ea85514e94a3",
+      "name": "windows_x86_64_gnullvm",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.42.2"
+    },
+    {
+      "checksum": "9aec5da331524158c6d1a4ac0ab1541149c0b9505fde06423b02f5ef0106b9f0",
+      "name": "windows_x86_64_msvc",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.42.2"
+    }
+  ],
+  "format": "Project-specific inventory, not a validated SPDX or CycloneDX document",
+  "gradle": [
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        }
+      ],
+      "project": "acceleration-api"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        }
+      ],
+      "project": "api"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        }
+      ],
+      "project": "codec"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "runtimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        },
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "testRuntimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        }
+      ],
+      "project": "format-bbmodel"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "runtimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        },
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "testRuntimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        }
+      ],
+      "project": "format-bedrock"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "runtimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "testRuntimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        },
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        }
+      ],
+      "project": "format-common"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "aircompressor-0.27.jar",
+          "group": "io.airlift",
+          "name": "aircompressor",
+          "scope": "runtimeClasspath",
+          "sha256": "fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4",
+          "version": "0.27"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "runtimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        },
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        },
+        {
+          "file": "aircompressor-0.27.jar",
+          "group": "io.airlift",
+          "name": "aircompressor",
+          "scope": "testRuntimeClasspath",
+          "sha256": "fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4",
+          "version": "0.27"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "testRuntimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        }
+      ],
+      "project": "format-v3d"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "aircompressor-0.27.jar",
+          "group": "io.airlift",
+          "name": "aircompressor",
+          "scope": "runtimeClasspath",
+          "sha256": "fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4",
+          "version": "0.27"
+        },
+        {
+          "file": "aircompressor-0.27.jar",
+          "group": "io.airlift",
+          "name": "aircompressor",
+          "scope": "testRuntimeClasspath",
+          "sha256": "fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4",
+          "version": "0.27"
+        },
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        }
+      ],
+      "project": "format-ysm"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        },
+        {
+          "file": "aircompressor-0.27.jar",
+          "group": "io.airlift",
+          "name": "aircompressor",
+          "scope": "testRuntimeClasspath",
+          "sha256": "fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4",
+          "version": "0.27"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "testRuntimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        }
+      ],
+      "project": "integration-tests"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        }
+      ],
+      "project": "native-jni"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "aircompressor-0.27.jar",
+          "group": "io.airlift",
+          "name": "aircompressor",
+          "scope": "runtimeClasspath",
+          "sha256": "fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4",
+          "version": "0.27"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "runtimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        },
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        },
+        {
+          "file": "aircompressor-0.27.jar",
+          "group": "io.airlift",
+          "name": "aircompressor",
+          "scope": "testRuntimeClasspath",
+          "sha256": "fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4",
+          "version": "0.27"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "testRuntimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        }
+      ],
+      "project": "parser"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        }
+      ],
+      "project": "render-cpu"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "aircompressor-0.27.jar",
+          "group": "io.airlift",
+          "name": "aircompressor",
+          "scope": "runtimeClasspath",
+          "sha256": "fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4",
+          "version": "0.27"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "runtimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        },
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        },
+        {
+          "file": "aircompressor-0.27.jar",
+          "group": "io.airlift",
+          "name": "aircompressor",
+          "scope": "testRuntimeClasspath",
+          "sha256": "fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4",
+          "version": "0.27"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "testRuntimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        }
+      ],
+      "project": "runtime"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        }
+      ],
+      "project": "scene"
+    },
+    {
+      "buildInputs": {
+        "acceleration-api/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "acceleration-api/gradle.lockfile": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6",
+        "api/build.gradle": "d3ab9c92354d281605079da73ff1f18068e914f369ea1396d145cd9eb6dfafad",
+        "api/gradle.lockfile": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d",
+        "build.gradle": "566cdeccde2d23943063acce927084add433d47c3432b4891147dee2d073bffa",
+        "codec/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "codec/gradle.lockfile": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf",
+        "format-bbmodel/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bbmodel/gradle.lockfile": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c",
+        "format-bedrock/build.gradle": "8c3c7d2cc24462521d86b455249b7b0fdb15b25a4adeebd9897bb3d2f248e04f",
+        "format-bedrock/gradle.lockfile": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142",
+        "format-common/build.gradle": "94a2ac3b91a2f7a57606afb32285a0770c121c5eccb8c86d785ef4a5e3120607",
+        "format-common/gradle.lockfile": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d",
+        "format-v3d/build.gradle": "b3ce88b2bdbbf963ce46c0092d9c22bbf76ed9b4a13939bbada02328a4cad773",
+        "format-v3d/gradle.lockfile": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9",
+        "format-ysm/build.gradle": "b7e83a88aaf652a3b6d527a72ebfe2761ebcb230f4e53942b31daeafa9bb2f4b",
+        "format-ysm/gradle.lockfile": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b",
+        "gradle.properties": "b5a433ea7288a48609a72a6e8fed14c05e343fe15f3789bdf75ee6aaf55e4b62",
+        "gradle/verification-metadata.xml": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975",
+        "gradle/wrapper/gradle-wrapper.jar": "497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7",
+        "gradle/wrapper/gradle-wrapper.properties": "c29bbeaa254b322dc4190c735c5a70b98462cc6b6d110c3299742c808519bff4",
+        "gradlew": "a5a5c199ba02189ae8c46a334223371a20599d9c298ef65e7540ede4a3f72d59",
+        "gradlew.bat": "d539676c48b596afda64c963ec8f7ee56c7b3fe7e3b81d1dbe2d1a1e3dd9e9f8",
+        "integration-tests/build.gradle": "9a022ab923664bd6907835daca45f1fee135ca587a0d0d7555701eab0c03247d",
+        "integration-tests/gradle.lockfile": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf",
+        "native-jni/build.gradle": "60c318dcad4d64f6d04009210df9d79d9979e0444e7fb65f6b89b7ea1fae721e",
+        "native-jni/gradle.lockfile": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d",
+        "parser/build.gradle": "c74406b8e71fb7d0bc929fd32ca1b59e23059843c89e15fc6e58c7b070056192",
+        "parser/gradle.lockfile": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4",
+        "render-cpu/build.gradle": "ef26afceed23351951814203251ce1b01f76646e75c36353fdabc3dfcb3fc6fb",
+        "render-cpu/gradle.lockfile": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47",
+        "runtime/build.gradle": "bdec10aa9f190cb2157bb55e6bd800d04fcc9ed5c79ca64bb31eaeb57c81ecdd",
+        "runtime/gradle.lockfile": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61",
+        "scene/build.gradle": "8b5f0c8f2038b2ec69d175321ae9937835ecd0a804af77c5822f6ae8ba02c2d7",
+        "scene/gradle.lockfile": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19",
+        "settings.gradle": "236de6f1a4ef8d2f3927f71fca59dd38c0bf14894e790f2b927c0b691786a410",
+        "verification/build.gradle": "e80b5a54fa0cd156ad6aaa5a479468eddc66f6918cb97c672c11402163cc6f8e",
+        "verification/gradle.lockfile": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+      },
+      "dependencies": [
+        {
+          "file": "junit-jupiter-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter",
+          "scope": "testRuntimeClasspath",
+          "sha256": "228a94c9ee743d55bfea09b57630681ea7b20a661a477447f5c1f60dc12d9e3a",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-launcher-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-launcher",
+          "scope": "testRuntimeClasspath",
+          "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-jupiter-params-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-params",
+          "scope": "testRuntimeClasspath",
+          "sha256": "5951706999e35951d4df0eca6e091d3619f659a9c10858f2f5a3ce191cb57673",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-engine-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-jupiter-api-5.12.1.jar",
+          "group": "org.junit.jupiter",
+          "name": "junit-jupiter-api",
+          "scope": "testRuntimeClasspath",
+          "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+          "version": "5.12.1"
+        },
+        {
+          "file": "junit-platform-engine-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-engine",
+          "scope": "testRuntimeClasspath",
+          "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+          "version": "1.12.1"
+        },
+        {
+          "file": "junit-platform-commons-1.12.1.jar",
+          "group": "org.junit.platform",
+          "name": "junit-platform-commons",
+          "scope": "testRuntimeClasspath",
+          "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+          "version": "1.12.1"
+        },
+        {
+          "file": "opentest4j-1.3.0.jar",
+          "group": "org.opentest4j",
+          "name": "opentest4j",
+          "scope": "testRuntimeClasspath",
+          "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+          "version": "1.3.0"
+        },
+        {
+          "file": "aircompressor-0.27.jar",
+          "group": "io.airlift",
+          "name": "aircompressor",
+          "scope": "testRuntimeClasspath",
+          "sha256": "fdbef3137a28f63bb0cb93487803080ede746a4ec3d421e36c6f0c305c35e5e4",
+          "version": "0.27"
+        },
+        {
+          "file": "gson-2.10.1.jar",
+          "group": "com.google.code.gson",
+          "name": "gson",
+          "scope": "testRuntimeClasspath",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+          "version": "2.10.1"
+        }
+      ],
+      "project": "verification"
+    }
+  ],
+  "license_conclusion": "NOASSERTION; see bundled component notices and pending full license closure",
+  "native": [],
+  "schema": "spm-core-resolved-inventory/1",
+  "scope": "LOCAL_RESOLVED_INVENTORY; preview only; full dependency licensing and source origin certification remain pending",
+  "status": "LOCAL_RESOLVED_INVENTORY"
+}

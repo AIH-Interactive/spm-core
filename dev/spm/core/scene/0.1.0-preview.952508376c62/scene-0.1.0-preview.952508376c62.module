@@ -1,0 +1,118 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "scene",
+    "version": "0.1.0-preview.952508376c62",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "scene-0.1.0-preview.952508376c62.jar",
+          "url": "scene-0.1.0-preview.952508376c62.jar",
+          "size": 173322,
+          "sha512": "f1feab77eea7ab1bd528d4a9fab6ecff8d11c88b795e1b21f72ad7d93d48952cb06fd272acc6a7ad8f7bc2b74cea8519d942b04d631ac2ea48cbd7d2e33a473b",
+          "sha256": "8580a83a57ca4b27fe2229f8b632c57bdeb57e4c4fad80dd94755f7efb1537b5",
+          "sha1": "08faa44295ef409bc24432d822988cfb7097dd52",
+          "md5": "ef2cd8a8616d63fd6480e0046ebe53e2"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "scene-0.1.0-preview.952508376c62.jar",
+          "url": "scene-0.1.0-preview.952508376c62.jar",
+          "size": 173322,
+          "sha512": "f1feab77eea7ab1bd528d4a9fab6ecff8d11c88b795e1b21f72ad7d93d48952cb06fd272acc6a7ad8f7bc2b74cea8519d942b04d631ac2ea48cbd7d2e33a473b",
+          "sha256": "8580a83a57ca4b27fe2229f8b632c57bdeb57e4c4fad80dd94755f7efb1537b5",
+          "sha1": "08faa44295ef409bc24432d822988cfb7097dd52",
+          "md5": "ef2cd8a8616d63fd6480e0046ebe53e2"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "scene-0.1.0-preview.952508376c62-sources.jar",
+          "url": "scene-0.1.0-preview.952508376c62-sources.jar",
+          "size": 57521,
+          "sha512": "8827449d7dadc41bfd3b2cc9716736f3bc1b37fcf7e29d0237f30e7b08ed8f3f9bf282b3ce19848fe85a303b05a901d7adcaf0965fc7d6e14e9d4d4b0e625935",
+          "sha256": "20740988597f80019f0d5c0cf880eb1c5f504d0bb6797649e488070fe25d7889",
+          "sha1": "7050ba1d6fd71ca1a2bf54ff811c5bf25aeb0606",
+          "md5": "b2491298276630f99b245b97242086e0"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "scene-0.1.0-preview.952508376c62-javadoc.jar",
+          "url": "scene-0.1.0-preview.952508376c62-javadoc.jar",
+          "size": 4328543,
+          "sha512": "b8ce5d8798e749dff2e982692e57232a9d14ad51401966bc1aa784725143de0ea264cfda89b66bafda63d556989d25095759303f9cc007ab5173a8c2c9b212f8",
+          "sha256": "da5df56f8abc602543e5c8eb20d3f5727941031956f122e961582b6103f84b7c",
+          "sha1": "f5e44c71fe9cf13f18232d83af23e7af61f1709c",
+          "md5": "5d2b8c0e2afdfbd0e9ca12842d9d40ad"
+        }
+      ]
+    }
+  ]
+}

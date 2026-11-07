@@ -1,0 +1,132 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "render-cpu",
+    "version": "0.1.0-preview.952508376c62",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "acceleration-api",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "render-cpu-0.1.0-preview.952508376c62.jar",
+          "url": "render-cpu-0.1.0-preview.952508376c62.jar",
+          "size": 28210,
+          "sha512": "cd0876329b2e6faf57abc82d466b21ce2e5e2fd69bd18caeba0cad095397dde2f2f85560472187d74aa9675745b4c2ca3aabf68bc08405bce33a313ceb12b8a0",
+          "sha256": "db9a54f84bc47bb0255adddcb741328ce3e366a209d98db5d994b5849873fe77",
+          "sha1": "f403ecf2f715bb1d14ed4d24834d822285dc480d",
+          "md5": "bc94f2b761a050619e50cd74ad3a6f6e"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "acceleration-api",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "render-cpu-0.1.0-preview.952508376c62.jar",
+          "url": "render-cpu-0.1.0-preview.952508376c62.jar",
+          "size": 28210,
+          "sha512": "cd0876329b2e6faf57abc82d466b21ce2e5e2fd69bd18caeba0cad095397dde2f2f85560472187d74aa9675745b4c2ca3aabf68bc08405bce33a313ceb12b8a0",
+          "sha256": "db9a54f84bc47bb0255adddcb741328ce3e366a209d98db5d994b5849873fe77",
+          "sha1": "f403ecf2f715bb1d14ed4d24834d822285dc480d",
+          "md5": "bc94f2b761a050619e50cd74ad3a6f6e"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "render-cpu-0.1.0-preview.952508376c62-sources.jar",
+          "url": "render-cpu-0.1.0-preview.952508376c62-sources.jar",
+          "size": 14359,
+          "sha512": "da3a3f4c865b999a5274a3e5477261c54f1c3f158f751934c50a6b0d5154178397964642b1f407c0a653d01a7a6e071a89597f654a34ae78c828bbd0e1a3347b",
+          "sha256": "3db4cf4ad9920a2fa38ce1d72a61c46e7a4720a148c8105a66e4e62a5e91a081",
+          "sha1": "5c27ba3c46ffd80b70b970fe3f5c58bea34fdaed",
+          "md5": "a677cb243e65e4ea7f3d1345fb3d0e1c"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "render-cpu-0.1.0-preview.952508376c62-javadoc.jar",
+          "url": "render-cpu-0.1.0-preview.952508376c62-javadoc.jar",
+          "size": 4169153,
+          "sha512": "7d1a86f8732f86a2cc9165f91f8c595384210a42125b72703247429e5fb4f25f240e956f27b0c387315cd9b4c8a3fac99e9f05e834e25f7a83e29edd4e2b8d40",
+          "sha256": "ee3208a5fd0a16b309530a26ecb81e8578c1f27bf7244fc2761bb1f9aba10b1d",
+          "sha1": "6c6de4c087c2f87b8ba142b4780b1d4fb262bf63",
+          "md5": "09530fb9e0efd639bfe2f88b91ed41d3"
+        }
+      ]
+    }
+  ]
+}

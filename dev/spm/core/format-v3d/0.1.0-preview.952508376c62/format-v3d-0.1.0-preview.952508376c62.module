@@ -1,0 +1,132 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "format-v3d",
+    "version": "0.1.0-preview.952508376c62",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-v3d-0.1.0-preview.952508376c62.jar",
+          "url": "format-v3d-0.1.0-preview.952508376c62.jar",
+          "size": 28029,
+          "sha512": "1c97758879a700378e594ed877cc688b8b50f3428035d2bc572d343c9c7bc6d19c036491b979bc2d801a00054f9cda6ec1bcaf192ae256e2ecd2fcd8d06e63a2",
+          "sha256": "ea45bb52f06abc8908aca6f4140c0d0dcc81fbe378f2ef5d5042b3b89199dece",
+          "sha1": "cad4dc580160bc2acd66e46c543f5748e70efff2",
+          "md5": "556452942f0e877fbc3e2f3e9ca0f790"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "format-ysm",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "format-common",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-v3d-0.1.0-preview.952508376c62.jar",
+          "url": "format-v3d-0.1.0-preview.952508376c62.jar",
+          "size": 28029,
+          "sha512": "1c97758879a700378e594ed877cc688b8b50f3428035d2bc572d343c9c7bc6d19c036491b979bc2d801a00054f9cda6ec1bcaf192ae256e2ecd2fcd8d06e63a2",
+          "sha256": "ea45bb52f06abc8908aca6f4140c0d0dcc81fbe378f2ef5d5042b3b89199dece",
+          "sha1": "cad4dc580160bc2acd66e46c543f5748e70efff2",
+          "md5": "556452942f0e877fbc3e2f3e9ca0f790"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-v3d-0.1.0-preview.952508376c62-sources.jar",
+          "url": "format-v3d-0.1.0-preview.952508376c62-sources.jar",
+          "size": 8128,
+          "sha512": "d8a14fb0352b1b563c0e7911fad37e36939cb8e0008ef26d81d4d02adb3239315e4622619366527155deb1560755ddc60fcde6f5888a79140c1355a3bb71d04b",
+          "sha256": "89bb154298af9b1cd6f39f053f6aeb6a82599740e129e0dfdacfe08b254decad",
+          "sha1": "cfcee88271a9bb618d4973438949861678b5f12c",
+          "md5": "8665d419d7249f8f335d7c9f8f87dd2f"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-v3d-0.1.0-preview.952508376c62-javadoc.jar",
+          "url": "format-v3d-0.1.0-preview.952508376c62-javadoc.jar",
+          "size": 4183028,
+          "sha512": "3a0181e6a29c69fe9cddb0f9e340c074446274d55d19ae6c3bdb10a2f9a31da24f9059756ce961b0a4e5ae76d95739dbf6bb2b30363564a96e0eaa0eafcaa9af",
+          "sha256": "d024b9992f6ed5023909e64891bb786d65e5a2e74cf9dc61c5057071dae03293",
+          "sha1": "89de23e795306a325816f2dc5ccda224bd983f50",
+          "md5": "d63d288bea5bcab923d9884afa34b86f"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <!-- This module was also published with a richer model, Gradle metadata,  -->
+  <!-- which should be used instead. Do not delete the following line which  -->
+  <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+  <!-- that they should prefer consuming it instead. -->
+  <!-- do_not_remove: published-with-gradle-metadata -->
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>dev.spm.core</groupId>
+  <artifactId>format-v3d</artifactId>
+  <version>0.1.0-preview.952508376c62</version>
+  <name>SPM Core format-v3d</name>
+  <description>Independent host-neutral model runtime and optional Rust acceleration</description>
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+    </license>
+  </licenses>
+  <dependencies>
+    <dependency>
+      <groupId>dev.spm.core</groupId>
+      <artifactId>api</artifactId>
+      <version>0.1.0-preview.952508376c62</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>dev.spm.core</groupId>
+      <artifactId>format-ysm</artifactId>
+      <version>0.1.0-preview.952508376c62</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>dev.spm.core</groupId>
+      <artifactId>format-common</artifactId>
+      <version>0.1.0-preview.952508376c62</version>
+      <scope>runtime</scope>
+    </dependency>
+  </dependencies>
+</project>

@@ -1,0 +1,132 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "format-ysm",
+    "version": "0.1.0-preview.952508376c62",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-ysm-0.1.0-preview.952508376c62.jar",
+          "url": "format-ysm-0.1.0-preview.952508376c62.jar",
+          "size": 115315,
+          "sha512": "af5149e37396e5449084c7d17250cf8b66af4d9320e06f25ab20269f61e9557b98aac98f9377430c13cfb03fed52f53e8551dedc459f9dfba13c2204a6af9693",
+          "sha256": "11b683e61a70a6ce6868b395ebf1e63311b9a85fa91d2a690f1f0a0af386fe18",
+          "sha1": "56e1d3b4b107e3460f3dedc536f2027d8bf8fcaa",
+          "md5": "a6c19626964dcd7b6a8a79ba980ffd0c"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "codec",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        },
+        {
+          "group": "io.airlift",
+          "module": "aircompressor",
+          "version": {
+            "requires": "0.27"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "0.1.0-preview.952508376c62"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-ysm-0.1.0-preview.952508376c62.jar",
+          "url": "format-ysm-0.1.0-preview.952508376c62.jar",
+          "size": 115315,
+          "sha512": "af5149e37396e5449084c7d17250cf8b66af4d9320e06f25ab20269f61e9557b98aac98f9377430c13cfb03fed52f53e8551dedc459f9dfba13c2204a6af9693",
+          "sha256": "11b683e61a70a6ce6868b395ebf1e63311b9a85fa91d2a690f1f0a0af386fe18",
+          "sha1": "56e1d3b4b107e3460f3dedc536f2027d8bf8fcaa",
+          "md5": "a6c19626964dcd7b6a8a79ba980ffd0c"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-ysm-0.1.0-preview.952508376c62-sources.jar",
+          "url": "format-ysm-0.1.0-preview.952508376c62-sources.jar",
+          "size": 52869,
+          "sha512": "11c278911ec38c971d6657ab34f3fa13962a457a93b042e0844844035728a9d78fec9520f2931a3e7525164d72be357b015eeb77fdc3777981bf4f53a37f45b6",
+          "sha256": "44cd91636d0f74ed6cbcc0cc1203e980a1e1f9a52142533fea1085d3cdb4a238",
+          "sha1": "1f3e52c448e65cf12c6a8f73f028fd9d0dd56a22",
+          "md5": "bab2562f353d969b5ca1e8a8b002ca9a"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-ysm-0.1.0-preview.952508376c62-javadoc.jar",
+          "url": "format-ysm-0.1.0-preview.952508376c62-javadoc.jar",
+          "size": 4228190,
+          "sha512": "32a5dd0136319d84fe0e3744d36b07da65f7a177fe164cd8572ed6f4b2f43e8b3631ea92bbe3d42f5dc39e42e9abb825654bee8fe26c6ac30827fdb7310b440f",
+          "sha256": "d4b0999d7b1c3bca92cf50b2e3152792c2dfe0d5430b2ea14ee4331f53883e66",
+          "sha1": "14946da5c32f13420ab8ff25cbbb9ef06fdf2f9a",
+          "md5": "e26bfefe1e59a311eb5d35a25d1f81bd"
+        }
+      ]
+    }
+  ]
+}

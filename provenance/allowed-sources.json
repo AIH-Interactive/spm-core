@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "policy": "Only original YSM and explicitly reviewed non-OpenYSM source components; independent rewrites and attributed third-party dependencies",
+  "references": [
+    {
+      "repository": "https://github.com/YesSteveModel/YesSteveModel",
+      "commit": "c0fff0bc99c58ff623e2f2acc2545521bdd8909c",
+      "use": "model, material, animation and runtime behavior specification",
+      "topLevelLicense": "Apache-2.0"
+    },
+    {
+      "repository": "https://github.com/AndreaFrederica/OhMyYesSteveModel",
+      "commit": "d2536542747a1aa5c02594827f579171c525843c",
+      "use": "historical formats, independent Java runtime semantics and licensed synthetic fixtures",
+      "topLevelLicense": "Apache-2.0",
+      "thirdPartyExceptions": "CityHash and ChaCha notices retained separately; no bundled artwork or third-party runtime tree copied wholesale"
+    },
+    {
+      "repository": "https://github.com/JannisX11/blockbench",
+      "commit": "ec0b2827104d0799c153bfb5f867579c0c44652f",
+      "historicalCommit": "813379d114aab14a2ff1e40e4bba6985dfa6844e",
+      "use": "file-format and transform-order specification only; no application source bundled",
+      "topLevelLicense": "GPL-3.0"
+    }
+  ],
+  "exclusions": ["OpenYSM source or binaries", "OpenYSM behavior oracle", "unreviewed old SPM algorithms", "upstream model artwork"],
+  "reviewScope": "Component-scoped reference investigations; no claim that every upstream repository file has been source-certified"
+}
