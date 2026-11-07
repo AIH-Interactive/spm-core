@@ -44,7 +44,17 @@ final class ParserResultBuilder implements AutoCloseable {
                 };
             }catch(IOException|RuntimeException|Error failure){release.run();throw failure;}
         };
-        var result=new ImportResult(models,diagnostics,guarded,state::release);
+        ResourceResolver publishedResources=guarded;
+        if(resourceSource instanceof ResourceCatalog catalog) {
+            publishedResources=new ResourceCatalog() {
+                @Override public java.util.Set<ResourceKey> entries() {
+                    Runnable release=state.pin();
+                    try{return java.util.Set.copyOf(catalog.entries());}finally{release.run();}
+                }
+                @Override public InputStream open(ResourceKey key)throws IOException {return guarded.open(key);}
+            };
+        }
+        var result=new ImportResult(models,diagnostics,publishedResources,state::release);
         published=true;return result;
     }
     @Override public void close(){

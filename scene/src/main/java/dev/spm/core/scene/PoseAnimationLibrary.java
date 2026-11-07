@@ -102,20 +102,29 @@ public final class PoseAnimationLibrary {
         this.clips=Collections.unmodifiableMap(new LinkedHashMap<>(clips));
     }
     public static PoseAnimationLibrary fromModel(ModelDocument model, ScriptBudget budget) {
+        Objects.requireNonNull(model);
+        return fromModel(model,budget,model.sourceFormat().startsWith("ysm-")
+                ?AnimationDecodeLimits.historicalYsm():AnimationDecodeLimits.genericDefaults());
+    }
+    /** Decode with the caller's explicit resource policy, independently of the source format. */
+    public static PoseAnimationLibrary fromModel(ModelDocument model, ScriptBudget budget, AnimationDecodeLimits limits) {
         Objects.requireNonNull(model); Objects.requireNonNull(budget).step();
         if (model.skeleton().boneCount()>65536) throw limit("At most 65536 animation skeleton bones");
         boolean ysm=model.sourceFormat().startsWith("ysm-");
         return new Decoder(model.skeleton(),budget,
-                ysm?InterpolationProfile.HISTORICAL_YSM:InterpolationProfile.CORE_NON_UNIFORM,ysm)
+                ysm?InterpolationProfile.HISTORICAL_YSM:InterpolationProfile.CORE_NON_UNIFORM,ysm,Objects.requireNonNull(limits))
                 .decode(model.metadata());
     }
     public static PoseAnimationLibrary decode(JsonObject source, Skeleton skeleton, ScriptBudget budget) {
         return decode(source,skeleton,budget,InterpolationProfile.CORE_NON_UNIFORM);
     }
     public static PoseAnimationLibrary decode(JsonObject source,Skeleton skeleton,ScriptBudget budget,InterpolationProfile profile) {
+        return decode(source,skeleton,budget,profile,AnimationDecodeLimits.genericDefaults());
+    }
+    public static PoseAnimationLibrary decode(JsonObject source,Skeleton skeleton,ScriptBudget budget,InterpolationProfile profile,AnimationDecodeLimits limits) {
         Objects.requireNonNull(source); Objects.requireNonNull(skeleton); Objects.requireNonNull(budget).step();
         if (skeleton.boneCount()>65536) throw limit("At most 65536 animation skeleton bones");
-        return new Decoder(skeleton,budget,Objects.requireNonNull(profile),false).decode(source);
+        return new Decoder(skeleton,budget,Objects.requireNonNull(profile),false,Objects.requireNonNull(limits)).decode(source);
     }
     public Set<String> names() { return clips.keySet(); }
     public int boneCount() { return skeleton.boneCount(); }
@@ -201,14 +210,16 @@ public final class PoseAnimationLibrary {
         final ScriptBudget budget;
         final InterpolationProfile profile;
         final boolean historicalYsm;
+        final AnimationDecodeLimits limits;
         final Map<String,Integer> boneIndices=new LinkedHashMap<>();
         int totalKeys;
         int totalTracks;
         int totalEvents;
         int expressionChars;
-        Decoder(Skeleton skeleton,ScriptBudget budget,InterpolationProfile profile,boolean historicalYsm) {
+        Decoder(Skeleton skeleton,ScriptBudget budget,InterpolationProfile profile,boolean historicalYsm,AnimationDecodeLimits limits) {
             this.skeleton=skeleton; this.budget=budget; this.profile=profile;
             this.historicalYsm=historicalYsm;
+            this.limits=limits;
             for (int i=0;i<skeleton.boneCount();i++) { budget.step(); boneIndices.put(skeleton.names().get(i),i); }
         }
         PoseAnimationLibrary decode(JsonObject source) {
@@ -271,7 +282,7 @@ public final class PoseAnimationLibrary {
                 budget.step(); countEvent();
                 List<MolangProgram> instructions=new ArrayList<>();
                 if (entry.getValue() instanceof JsonArray array) {
-                    int instructionLimit=historicalYsm?4096:128;
+                    int instructionLimit=limits.maximumEventInstructions();
                     if (array.values().size()>instructionLimit)
                         throw limit("At most "+instructionLimit+" instructions per timeline event");
                     for (JsonValue instruction:array.values()) instructions.add(program(string(instruction,"timeline instruction")));
@@ -374,7 +385,7 @@ public final class PoseAnimationLibrary {
         }
         Key key(double time,JsonValue value) {
             budget.step();
-            int keyLimit=historicalYsm?131072:65536;
+            int keyLimit=limits.maximumKeys();
             if (++totalKeys>keyLimit) throw limit("At most "+keyLimit+" animation keys");
             if (!(value instanceof JsonObject object)) { Vector vector=vector(value); return new Key(time,vector,vector,Interpolation.LINEAR); }
             fields(object,Set.of("pre","post","vector","lerp_mode","easing"));
@@ -419,14 +430,15 @@ public final class PoseAnimationLibrary {
             return new Scalar(0,program(string(value,"Molang scalar")));
         }
         MolangProgram program(String source) {
-            int singleExpressionLimit=historicalYsm?131072:65536;
-            if (source.length()>singleExpressionLimit || expressionChars>4_194_304-source.length())
-                throw limit("Animation expression source limit exceeded");
+            int singleExpressionLimit=limits.maximumExpressionCharacters();
+            if (source.length()>singleExpressionLimit)
+                throw limit("Animation expression source limit exceeded: single="+source.length()+", maximum="+singleExpressionLimit);
+            if (expressionChars>limits.maximumTotalExpressionCharacters()-source.length())
+                throw limit("Animation expression source limit exceeded: aggregate="+((long)expressionChars+source.length())+", maximum="+limits.maximumTotalExpressionCharacters());
             expressionChars+=source.length();
             for (int i=0;i<source.length();i+=16) budget.step();
-            return historicalYsm
-                    ?MolangProgram.compile(source,131072,8192)
-                    :MolangProgram.compile(source);
+            return MolangProgram.compile(source,limits.maximumExpressionCharacters(),
+                    limits.maximumExpressionTokens(),limits.maximumExpressionDepth());
         }
         double time(String text) {
             budget.step();

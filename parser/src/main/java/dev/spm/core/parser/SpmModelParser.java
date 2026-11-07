@@ -94,7 +94,7 @@ public final class SpmModelParser implements ModelImporter {
         builder.retain(asset);builder.add("main",asset.document());builder.resources(request.source().resolver());
     }
     private static void historical(ParserResultBuilder builder,YsmImportResult imported,ImportRequest request) throws ModelImportException {
-        builder.retain(imported);builder.resources(imported::open);
+        builder.retain(imported);builder.resources(ResourceCatalog.of(imported.resources(),imported::open));
         for(var variant:imported.variants()){
             if(variant.document().isEmpty())throw failure(request,ImportErrorCode.UNSUPPORTED_FEATURE,new IOException(variant.limitation()));
             builder.add(variant.sourceType()+"/"+variant.sourceKey(),variant.document().orElseThrow());

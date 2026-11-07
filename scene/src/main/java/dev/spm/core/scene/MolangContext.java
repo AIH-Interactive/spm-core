@@ -32,6 +32,7 @@ public final class MolangContext {
         if(!valid) throw new MolangException(MolangException.Reason.ARITY,"Wrong arity: "+name);
     }
     MolangValue suppressedEffect(String name) {
+        if(name.equals("ysm.sync") && hookState.syncMode==SceneInputs.SyncMode.NONE)return MolangValue.missing();
         if(effectsAllowed || !EFFECTS.contains(name)) return null;
         return SOUND_RESULTS.contains(name)?MolangValue.bool(false):MolangValue.missing();
     }
@@ -42,6 +43,14 @@ public final class MolangContext {
     private final Map<String, MolangValue> parameters;
     private final ScriptBudget budget;
     private final RandomState random;
+    private HookState hookState=new HookState(MolangHooks.empty(),SceneInputs.SyncMode.HOST);
+    private static final class HookState {
+        final MolangHooks handlers;
+        final SceneInputs.SyncMode syncMode;
+        final java.util.List<java.util.List<MolangValue>> deferred=new java.util.ArrayList<>();
+        HookState(MolangHooks handlers,SceneInputs.SyncMode syncMode) {this.handlers=Objects.requireNonNull(handlers);this.syncMode=Objects.requireNonNull(syncMode);}
+    }
+    private MolangContext shareHooks(MolangContext child) {child.hookState=hookState;return child;}
 
     public MolangContext(Map<String, Double> queries, Map<String, Double> variables,
                          Map<String, MolangProgram> functions, ScriptBudget budget) {
@@ -62,7 +71,7 @@ public final class MolangContext {
         this.bindings=bindings; this.physics=physics; this.effectsAllowed=effectsAllowed; this.pending=pending;
     }
     public MolangContext child(Map<String, Double> childQueries) {
-        return new MolangContext(boundedCopy(childQueries), variables, functions, parameters, budget, random, bindings, physics,effectsAllowed,pending);
+        return shareHooks(new MolangContext(boundedCopy(childQueries), variables, functions, parameters, budget, random, bindings, physics,effectsAllowed,pending));
     }
     MolangContext overlay(Map<String, Double> overrides) {
         Map<String, Double> combined = new HashMap<>(queries);
@@ -76,8 +85,8 @@ public final class MolangContext {
         return context.overlay(overrides);
     }
     MolangContext invocation(Map<String, MolangValue> arguments) {
-        return new MolangContext(queries, variables, functions,
-                Collections.unmodifiableMap(new HashMap<>(arguments)), budget, random, bindings, physics,effectsAllowed,pending);
+        return shareHooks(new MolangContext(queries, variables, functions,
+                Collections.unmodifiableMap(new HashMap<>(arguments)), budget, random, bindings, physics,effectsAllowed,pending));
     }
     public ScriptBudget budget() { return budget; }
     public Map<String, Double> variables() {
@@ -88,9 +97,35 @@ public final class MolangContext {
     public Map<String,MolangValue> typedVariables() { return Map.copyOf(variables); }
     public MolangContext(SceneInputs inputs,Map<String,MolangValue> variables,Map<String,MolangProgram> functions,ScriptBudget budget) {
         this(inputs.queries(),typedCopy(variables),functionCopy(functions),Map.of(),budget,new RandomState(0),inputs.bindings(),new MolangPhysics(),inputs.effectsAllowed(),new java.util.ArrayList<>());
+        hookState=new HookState(MolangHooks.empty(),inputs.syncMode());
     }
     MolangContext(SceneInputs inputs,MolangState prior,Map<String,MolangProgram> functions,ScriptBudget budget,long seed) {
         this(inputs.queries(),new HashMap<>(prior.variables),functionCopy(functions),Map.of(),budget,new RandomState(seed),inputs.bindings(),prior.physics.copy(),inputs.effectsAllowed(),new java.util.ArrayList<>());
+        hookState=new HookState(MolangHooks.empty(),inputs.syncMode());
+    }
+    MolangContext(SceneInputs inputs,MolangState prior,Map<String,MolangProgram> functions,ScriptBudget budget,long seed,MolangHooks hooks) {
+        this(inputs,prior,functions,budget,seed);hookState=new HookState(hooks,inputs.syncMode());
+    }
+    void initializeHooks() {invokeHooks(hookState.handlers.initialize(),java.util.List.of());}
+    void beforeStepHooks() {invokeHooks(hookState.handlers.beforeStep(),java.util.List.of());}
+    void afterStepHooks() {invokeHooks(hookState.handlers.afterStep(),java.util.List.of());}
+    void afterFrameHooks() {invokeHooks(hookState.handlers.afterFrame(),java.util.List.of());}
+    private void invokeHooks(java.util.List<MolangProgram> programs,java.util.List<MolangValue> arguments) {
+        Map<String,MolangValue> parameters=new HashMap<>();
+        for(int index=0;index<arguments.size();index++)parameters.put("arg"+index,arguments.get(index));
+        MolangContext invocation=invocation(parameters);
+        for(MolangProgram program:programs) {
+            budget.enterFunction();
+            try{program.evaluateValue(invocation);}finally{budget.leaveFunction();}
+        }
+    }
+    void flushDeferred() {
+        var initial=java.util.List.copyOf(hookState.deferred);hookState.deferred.clear();
+        try {
+            for(int index=initial.size()-1;index>=0;index--) {
+                budget.step();invokeHooks(hookState.handlers.defer(),initial.get(index));
+            }
+        } finally {hookState.deferred.clear();}
     }
     MolangState snapshot() { return new MolangState(variables,physics); }
     private static Map<String,MolangValue> typedNumeric(Map<String,Double> source) {
@@ -204,6 +239,29 @@ public final class MolangContext {
         return MolangValue.struct(fields);
     }
     MolangValue call(String name,java.util.List<MolangValue> arguments) {
+        if(name.equals("ysm.defer")) {
+            if(!effectsAllowed || arguments.isEmpty() || !(arguments.get(0) instanceof MolangValue.TextValue text) || text.value().isEmpty())return MolangValue.missing();
+            budget.step();
+            if(hookState.deferred.size()>=4096)throw new MolangException(MolangException.Reason.CAPACITY,"Deferred call capacity exceeded");
+            hookState.deferred.add(java.util.List.copyOf(arguments.subList(1,arguments.size())));
+            return MolangValue.missing();
+        }
+        if(name.equals("ysm.sync")) {
+            checkArity(name,arguments.size());
+            var packed=new java.util.ArrayList<MolangValue>(arguments.size());
+            for(MolangValue argument:arguments) {
+                budget.step();
+                float value=(float)argument.number();
+                if(!Float.isFinite(value))throw new MolangException(MolangException.Reason.NON_FINITE,"Sync argument exceeds finite float32");
+                packed.add(MolangValue.number(value));
+            }
+            arguments=java.util.List.copyOf(packed);
+        }
+        if(name.equals("ysm.sync") && hookState.syncMode!=SceneInputs.SyncMode.HOST) {
+            checkArity(name,arguments.size());
+            if(effectsAllowed && hookState.syncMode==SceneInputs.SyncMode.LOCAL)invokeHooks(hookState.handlers.sync(),arguments);
+            return MolangValue.missing();
+        }
         if(name.equals("query.position_delta") || name.equals("query.position")) {
             if(arguments.size()!=1) throw new MolangException(MolangException.Reason.ARITY,"Position query requires one axis");
             int axis=(int)arguments.get(0).number();
@@ -217,8 +275,9 @@ public final class MolangContext {
             if(name.equals("ysm.defer") && (arguments.isEmpty() || !(arguments.get(0) instanceof MolangValue.TextValue text) || text.value().isEmpty()))
                 return MolangValue.missing();
             MolangValue result=MolangValue.missing();
+            if(effectsAllowed && pending.size()>=4096) throw new MolangException(MolangException.Reason.CAPACITY,"Effect queue capacity exceeded");
             if(effectsAllowed && (SOUND_RESULTS.contains(name) || name.equals("ysm.particle") || name.equals("ysm.abs_particle")))
-                result=bindings.call(name,arguments);
+                result=bindings.call(name,arguments,pending.size());
             if(effectsAllowed) {
                 budget.step();
                 if(pending.size()>=4096) throw new MolangException(MolangException.Reason.CAPACITY,"Effect queue capacity exceeded");

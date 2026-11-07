@@ -86,6 +86,24 @@ final class V3dModelAdapterTest {
         var failure=assertThrows(ModelImportException.class,()->new SpmModelParser(List.of(adapter())).importModel(request(files,FormatHint.V3D,budget,new ArrayList<>())));
         assertEquals(ImportErrorCode.MALFORMED_INPUT,failure.diagnostic().code());assertEquals(0,budget.used());
     }
+    @Test void decodedWorkspaceFunctionsCannotBecomeAuthoritativeExecutableResources() throws Exception {
+        var files=fixture();
+        // A valid decoded workspace always includes its root as well as the injected script.
+        byte[] root="{}".getBytes(StandardCharsets.UTF_8),script="v.injected=1;".getBytes(StandardCharsets.UTF_8);
+        addDecoded(files,"legacy/model.json",root);
+        for(var key:List.of(V3dManifest.MANIFEST,V3dManifest.INTEGRITY)) {
+            String metadata=new String(files.get(key),StandardCharsets.UTF_8);
+            String entry="\"functions/injected.molang\":{\"size\":"+script.length+",\"sha256\":\""+sha(script)+"\"},";
+            files.put(key,metadata.replace("\"files\":{","\"files\":{"+entry).getBytes(StandardCharsets.UTF_8));
+        }
+        files.put(new ResourceKey("functions/injected.molang"),script);
+        var budget=new ResourceBudget(16<<20);
+        try(var result=new SpmModelParser(List.of(adapter())).importModel(request(files,FormatHint.V3D,budget,new ArrayList<>()))) {
+            var catalog=assertInstanceOf(ResourceCatalog.class,result.resources());
+            assertFalse(catalog.entries().contains(new ResourceKey("functions/injected.molang")));
+        }
+        assertEquals(0,budget.used());
+    }
     @Test void refusesUnsafeDecodedNamesBeforeOpeningThemAndNeverFallsThroughToHostResources() throws Exception {
         var files=fixture();addDecoded(files,"legacy/model.json",new byte[]{1});
         for(var key:List.of(V3dManifest.MANIFEST,V3dManifest.INTEGRITY))

@@ -29,7 +29,7 @@ final class RawYsmParser {
 
     private RawYsmParser(ModelArchive archive,ImportRequest request,ParserResultBuilder result,BoundedJson.Quota quota){
         this.archive=archive;this.request=request;this.result=result;this.quota=quota;
-        entries=archive.entries();resolver=archive::open;
+        entries=archive.entries();resolver=ResourceCatalog.of(entries,archive::open);
     }
     static void parse(ModelArchive archive,ImportRequest request,ParserResultBuilder result)throws IOException {
         var quota=new BoundedJson.Quota(request.policy(),request.budget(),request.cancellation());

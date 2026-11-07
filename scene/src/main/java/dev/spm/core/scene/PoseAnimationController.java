@@ -22,11 +22,18 @@ public final class PoseAnimationController {
     private long randomState;
     private long sequence;
     private PoseFrame lastFrame;
+    private final Map<String,MolangProgram> functions;
+    private final MolangHooks hooks;
     public PoseAnimationController(PoseAnimationLibrary library,PoseControllerDefinition definition,BonePose bindPose,int maximumCatchUpSteps) {
         this(library,definition,bindPose,maximumCatchUpSteps,0);
     }
     public PoseAnimationController(PoseAnimationLibrary library,PoseControllerDefinition definition,BonePose bindPose,int maximumCatchUpSteps,long randomSeed) {
+        this(library,definition,bindPose,maximumCatchUpSteps,randomSeed,Map.of(),MolangHooks.empty());
+    }
+    public PoseAnimationController(PoseAnimationLibrary library,PoseControllerDefinition definition,BonePose bindPose,int maximumCatchUpSteps,long randomSeed,
+                                   Map<String,MolangProgram> functions,MolangHooks hooks) {
         Objects.requireNonNull(library); Objects.requireNonNull(definition); Objects.requireNonNull(bindPose);
+        this.functions=Map.copyOf(functions);this.hooks=Objects.requireNonNull(hooks);
         if(definition.library!=library) throw new IllegalArgumentException("Controller was decoded against another animation library");
         if(bindPose.boneCount()!=library.boneCount()) throw new IllegalArgumentException("Controller bind pose does not match skeleton");
         controller=new ControllerRuntime<>(definition.graph,new PoseClipExecution(library,bindPose,definition));
@@ -43,12 +50,14 @@ public final class PoseAnimationController {
         var advance=candidateClock.advance(nowNanos);
         long firstStep=advance.totalSteps()-advance.executedSteps();
         var candidate=controller.copy();
-        var context=new MolangContext(inputs,scriptState,Map.of(),budget,randomState);
+        var context=new MolangContext(inputs,scriptState,functions,budget,randomState,hooks);
         List<EffectTimeline.Pending> pending=new ArrayList<>();
-        if(lastFrame==null) candidate.initialize(at(context,0),pending);
+        if(lastFrame==null) {at(context,0).initializeHooks();candidate.initialize(at(context,0),pending);}
         for(int offset=1;offset<=advance.executedSteps();offset++) {
-            budget.step(); long step=firstStep+offset; candidate.tick(step,at(context,step),pending);
+            budget.step(); long step=firstStep+offset;MolangContext stepContext=at(context,step);
+            stepContext.beforeStepHooks();candidate.tick(step,stepContext,pending);stepContext.afterStepHooks();
         }
+        MolangContext finalContext=at(context,advance.totalSteps());finalContext.afterFrameHooks();finalContext.flushDeferred();
         List<EffectCommand> effects=new ArrayList<>(pending.size());
         for(var effect:pending) {
             budget.step(); var cue=effect.cue();
@@ -60,7 +69,8 @@ public final class PoseAnimationController {
         PoseFrame frame=new PoseFrame(instanceId,generation,frameId,advance.totalSteps(),advance.totalSteps()/60.0,
                 advance.interpolation(),advance.droppedSteps(),snapshot.state(),snapshot.stateTimeSeconds(),false,candidate.pose(),context.variables(),effects);
         long nextSequence=Math.addExact(sequence,effects.size());
-        clock=candidateClock; controller=candidate; variables=frame.variables(); scriptState=context.snapshot(); randomState=context.randomState(); sequence=nextSequence; lastFrame=frame;
+        MolangState nextScriptState=context.snapshot();
+        clock=candidateClock; controller=candidate; variables=frame.variables(); scriptState=nextScriptState; randomState=context.randomState(); sequence=nextSequence; lastFrame=frame;
         return frame;
     }
     public synchronized void reset() {

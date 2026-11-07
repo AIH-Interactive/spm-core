@@ -57,7 +57,12 @@ public final class V3dModelAdapter implements ModelFormatAdapter {
             for(var diagnostic:imported.diagnostics())builder.diagnostic(diagnostic);
             var archiveKeys=archive.entries();var resources=imported.resources();
             // Package allowlists exclude historical/images/*, so source files cannot override model resources.
-            builder.resources(key->archiveKeys.contains(key)?archive.open(key):resources.open(key));
+            var originalKeys=resources instanceof ResourceCatalog catalog?catalog.entries():Set.<ResourceKey>of();
+            var resourceKeys=new LinkedHashSet<ResourceKey>();
+            // Editable decoded functions are archival views, never executable replacements for source scripts.
+            for(var key:archiveKeys)if(!key.path().startsWith("functions/"))resourceKeys.add(key);
+            resourceKeys.addAll(originalKeys);
+            builder.resources(ResourceCatalog.of(resourceKeys,key->originalKeys.contains(key)?resources.open(key):archive.open(key)));
             request.cancellation().check();return builder.finish();
         } catch(ModelImportException nested){throw failure(request,nested.diagnostic().code(),nested);}
         catch(ParserInput.InputLimitException limited){throw failure(request,ImportErrorCode.INPUT_LIMIT,limited);}

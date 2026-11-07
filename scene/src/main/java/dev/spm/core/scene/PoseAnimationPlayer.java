@@ -28,12 +28,19 @@ public final class PoseAnimationPlayer {
     private String requested;
     private double requestedBlend;
     private boolean pending;
+    private final Map<String,MolangProgram> functions;
+    private final MolangHooks hooks;
 
     public PoseAnimationPlayer(PoseAnimationLibrary library,BonePose bindPose,int maximumCatchUpSteps,double resetSeconds) {
         this(library,bindPose,maximumCatchUpSteps,resetSeconds,0);
     }
     public PoseAnimationPlayer(PoseAnimationLibrary library,BonePose bindPose,int maximumCatchUpSteps,double resetSeconds,long randomSeed) {
+        this(library,bindPose,maximumCatchUpSteps,resetSeconds,randomSeed,Map.of(),MolangHooks.empty());
+    }
+    public PoseAnimationPlayer(PoseAnimationLibrary library,BonePose bindPose,int maximumCatchUpSteps,double resetSeconds,long randomSeed,
+                               Map<String,MolangProgram> functions,MolangHooks hooks) {
         this.library=Objects.requireNonNull(library);
+        this.functions=Map.copyOf(functions);this.hooks=Objects.requireNonNull(hooks);
         this.bindPose=Objects.requireNonNull(bindPose);
         if (library.boneCount()!=bindPose.boneCount()) throw new IllegalArgumentException("Player bind pose does not match animation skeleton");
         if (!Double.isFinite(resetSeconds) || resetSeconds<0 || resetSeconds>60) throw new IllegalArgumentException("Reset duration must be 0..60 seconds");
@@ -66,8 +73,9 @@ public final class PoseAnimationPlayer {
         FixedStepClock.Advance advance=candidateClock.advance(nowNanos);
         long firstStep=advance.totalSteps()-advance.executedSteps();
         State candidate=state.copy();
-        MolangContext context=new MolangContext(inputs,scriptState,Map.of(),budget,randomState);
+        MolangContext context=new MolangContext(inputs,scriptState,functions,budget,randomState,hooks);
         List<EffectCommand> effects=new ArrayList<>();
+        if(lastFrame==null)local(candidate,firstStep,0,context).initializeHooks();
         if (pending) {
             candidate.clip=requested==null?null:library.clip(requested);
             candidate.startedStep=firstStep;
@@ -82,10 +90,14 @@ public final class PoseAnimationPlayer {
         for (int offset=1;offset<=advance.executedSteps();offset++) {
             budget.step();
             long step=firstStep+offset;
+            local(candidate,step,Math.max(0,(step-candidate.startedStep)/60.0),context).beforeStepHooks();
             if (!candidate.onceEnded) emit(candidate,Math.max(0,(step-1-candidate.startedStep)/60.0),
                     (step-candidate.startedStep)/60.0,false,step,context,effects);
             sample(candidate,step,context);
+            local(candidate,step,Math.max(0,(step-candidate.startedStep)/60.0),context).afterStepHooks();
         }
+        MolangContext finalContext=local(candidate,advance.totalSteps(),Math.max(0,(advance.totalSteps()-candidate.startedStep)/60.0),context);
+        finalContext.afterFrameHooks();finalContext.flushDeferred();
         context.appendEffects(effects,instanceId,generation,effectSequence);
         if(!inputs.effectsAllowed()) effects.clear();
         budget.checkCancelled();
@@ -96,7 +108,8 @@ public final class PoseAnimationPlayer {
         PoseFrame frame=new PoseFrame(instanceId,generation,frameId,advance.totalSteps(),advance.totalSteps()/60.0,
                 advance.interpolation(),advance.droppedSteps(),name,animationTime,finished,candidate.pose,context.variables(),effects);
         long nextSequence=Math.addExact(effectSequence,effects.size());
-        clock=candidateClock; state=candidate; variables=frame.variables(); scriptState=context.snapshot(); randomState=context.randomState();
+        MolangState nextScriptState=context.snapshot();
+        clock=candidateClock; state=candidate; variables=frame.variables(); scriptState=nextScriptState; randomState=context.randomState();
         effectSequence=nextSequence; lastFrame=frame; pending=false;
         return frame;
     }

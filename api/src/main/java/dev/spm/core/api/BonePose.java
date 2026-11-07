@@ -4,7 +4,9 @@ import java.util.Arrays;
 
 /** Immutable local channels. Coordinates and deltas are already in Core units and orientation.
  * Rotations are final local Euler radians, including any model initial rotation.
- * Glow 255 preserves host light; levels 0..15 override it. */
+ * Glow 255 preserves host light; levels 0..15 override it.
+ * colorsRgba packs red in bits 0..7, green 8..15, blue 16..23 and alpha 24..31
+ * (numeric 0xAABBGGRR, RGBA bytes in little-endian memory). */
 public record BonePose(float[] rotations, float[] translations, float[] scales,
                        boolean[] ownHidden, boolean[] childrenHidden, int[] glow, int[] colorsRgba) {
     public BonePose(float[] rotations,float[] translations,float[] scales,boolean[] ownHidden,boolean[] childrenHidden,int[] glow) {

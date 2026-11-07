@@ -54,13 +54,16 @@ subprojects {
         preserveFileTimestamps = false
         reproducibleFileOrder = true
     }
+    tasks.withType(Jar).configureEach {
+        manifest.attributes('Automatic-Module-Name': "dev.spm.core.${project.name.replace('-', '')}")
+    }
     tasks.withType(Test).configureEach {
         useJUnitPlatform()
         javaLauncher = javaToolchains.launcherFor {
             languageVersion = JavaLanguageVersion.of(providers.gradleProperty('spmTestJavaVersion').orElse('25').get().toInteger())
         }
         jvmArgs '--enable-native-access=ALL-UNNAMED'
-        testLogging { events 'failed', 'skipped'; exceptionFormat 'full' }
+        testLogging { events 'failed', 'skipped'; exceptionFormat = 'full' }
     }
     tasks.named('processResources') {
         from(rootProject.file('LICENSE')) { into 'META-INF/spm-core' }

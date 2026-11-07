@@ -11,7 +11,7 @@ class TypedHostEffectTest {
     private static ScriptBudget budget() { return new ScriptBudget(100000,128,new CancellationToken()); }
     private static SceneInstance scene() {
         return new SceneInstance(new SceneDefinition(new AnimationClip("test",1,true,Map.of(),List.of()),
-                MolangProgram.compile("ysm.defer('OnTick',1); v.x=(v.x ?? 0)+1"),
+                MolangProgram.compile("ctrl.set_animation('OnTick',1); v.x=(v.x ?? 0)+1"),
                 Map.of("x",MolangProgram.compile("q.fail ? math.sqrt(-1) : v.x")),Map.of()),60);
     }
     @Test void typedEffectsAreDataAndAreCommittedOnceWithTheFrame() {
@@ -29,6 +29,17 @@ class TypedHostEffectTest {
         assertEquals(1,retry.effects().size());
         assertEquals(frame.effects().get(0).sequence()+1,retry.effects().get(0).sequence());
     }
+    @Test void realDeferredHookRemainsInternalAndCanEmitTypedHostEffects() {
+        var hooks=new MolangHooks(List.of(MolangProgram.compile("ysm.defer('event',7)")),List.of(),List.of(),List.of(),
+                List.of(MolangProgram.compile("v.value=args[0]; ctrl.set_animation('hook',args[0])")),List.of());
+        var owner=new SceneInstance(new SceneDefinition(new AnimationClip("test",1,true,Map.of(),List.of()),
+                MolangProgram.compile("0"),Map.of(),Map.of(),hooks),60);
+        var frame=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertEquals(7,frame.variables().get("value"));
+        assertEquals(1,frame.effects().size());assertEquals("ctrl.set_animation",frame.effects().get(0).kind());
+        assertEquals(List.of(MolangValue.text("hook"),MolangValue.number(7)),frame.effects().get(0).arguments());
+        assertTrue(owner.evaluate(1,16_666_667,new SceneInputs(Map.of()),budget()).effects().isEmpty());
+    }
     @Test void hostCanSuppressEmissionWithoutSuppressingSimulation() {
         var scene=scene();
         var input=new SceneInputs(Map.of(),MolangBindings.empty(),false);
@@ -39,7 +50,7 @@ class TypedHostEffectTest {
     }
     @Test void scriptAndTimelineEffectsKeepTickOrderDuringCatchUp() {
         var clip=new AnimationClip("test",1,true,Map.of(),List.of(new AnimationClip.Cue(0.025,"sound","test",Map.of())));
-        var scene=new SceneInstance(new SceneDefinition(clip,MolangProgram.compile("ysm.defer('OnTick')"),Map.of(),Map.of()),60);
+        var scene=new SceneInstance(new SceneDefinition(clip,MolangProgram.compile("ctrl.set_animation('OnTick')"),Map.of(),Map.of()),60);
         scene.evaluate(0,0,new SceneInputs(Map.of()),budget());
         var effects=scene.evaluate(1,33_333_334,new SceneInputs(Map.of()),budget()).effects();
         assertEquals(List.of(1L,2L,2L),effects.stream().map(EffectCommand::step).toList());
@@ -47,7 +58,7 @@ class TypedHostEffectTest {
     }
     @Test void suppressedEffectsDoNotEvaluateArgumentsAndSoundReturnsFalse() {
         var context=new MolangContext(new SceneInputs(Map.of(),MolangBindings.empty(),false),Map.of(),Map.of(),budget());
-        assertEquals(0,MolangProgram.compile("ysm.defer('On',v.x=1); ysm.play_sound(0,'test') ?? 9").evaluate(context));
+        assertEquals(0,MolangProgram.compile("ctrl.set_animation('On',v.x=1); ysm.play_sound(0,'test') ?? 9").evaluate(context));
         assertFalse(context.typedVariables().containsKey("x"));
         assertEquals(MolangValue.missing(),MolangProgram.compile("ysm.defer()").evaluateValue(context));
         assertThrows(MolangException.class,()->MolangProgram.compile("ctrl.reset(1)"));
@@ -55,7 +66,7 @@ class TypedHostEffectTest {
     @Test void hostDependentEffectResultsRequireExplicitSampledResults() {
         var context=new MolangContext(Map.of(),Map.of(),Map.of(),budget());
         assertThrows(MolangException.class,()->MolangProgram.compile("ysm.play_sound(0,'test')").evaluate(context));
-        var call=new MolangBindings.Call("ysm.play_sound",List.of(MolangValue.number(0),MolangValue.text("test")));
+        var call=new MolangBindings.Call("ysm.play_sound",List.of(MolangValue.number(0),MolangValue.text("test")),0);
         var sampled=new MolangContext(new SceneInputs(Map.of(),new MolangBindings(Map.of(),Map.of(call,MolangValue.bool(true)))),Map.of(),Map.of(),budget());
         assertEquals(MolangValue.bool(true),MolangProgram.compile("ysm.play_sound(0,'test')").evaluateValue(sampled));
     }

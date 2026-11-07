@@ -23,6 +23,11 @@ import dev.spm.core.runtime.ModelFrameRenderer;
 import dev.spm.core.scene.MolangContext;
 import dev.spm.core.scene.PoseAnimationLibrary;
 import dev.spm.core.scene.ScriptBudget;
+import dev.spm.core.scene.AnimationDecodeLimits;
+import dev.spm.core.scene.MolangBindings;
+import dev.spm.core.scene.MolangException;
+import dev.spm.core.scene.MolangValue;
+import dev.spm.core.scene.SceneInputs;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -82,7 +87,7 @@ class RealCorpusSkinningTest {
         assertEquals(run.meshes, run.weightedMeshes, "Every mesh must be weighted, not left rigid");
         assertEquals(run.variants, run.renderedVariants, "Every variant must render through the weighted path");
         assertTrue(run.totalVertices > 0, "No vertices were skinned");
-        assertTrue(run.posedFromOwnClip >= 35,
+        assertTrue(run.posedFromOwnClip >= 39,
                 "Historical YSM clip binding coverage regressed below the measured corpus floor");
         // The strong claim, scoped to exactly the variants where it is true.
         assertEquals(run.identityBindVariants, run.bitIdenticalVariants,
@@ -93,6 +98,7 @@ class RealCorpusSkinningTest {
                 + " bitIdenticalBindVariants=" + run.bitIdenticalVariants
                 + " posedRenderedVariants=" + run.posedRenderedVariants
                 + " posedFromOwnClip=" + run.posedFromOwnClip
+                + " authoredInvalidVariants=" + run.authoredInvalidVariants
                 + " weightedPeakMiB=" + String.format("%.1f", run.peakWorking / 1048576.0));
     }
 
@@ -110,13 +116,14 @@ class RealCorpusSkinningTest {
                 + " vertices=" + run.totalVertices
                 + " bitIdentical=" + run.bitIdenticalVariants
                 + " posedCompleted=" + run.posedRenderedVariants
-                + " posedFromOwnClip=" + run.posedFromOwnClip);
+                + " posedFromOwnClip=" + run.posedFromOwnClip
+                + " authoredInvalidVariants=" + run.authoredInvalidVariants);
     }
 
     /** Frame of run accounting, so the tests assert on measured coverage rather than on silence. */
     private static final class Run {
         int files, models, variants, boundVariants, renderedVariants, meshes, weightedMeshes;
-        int identityBindVariants, bitIdenticalVariants, posedRenderedVariants, posedFromOwnClip;
+        int identityBindVariants, bitIdenticalVariants, posedRenderedVariants, posedFromOwnClip, authoredInvalidVariants;
         long totalVertices, peakWorking;
         final List<String> nonIdentityBindModels = new ArrayList<>();
     }
@@ -197,6 +204,7 @@ class RealCorpusSkinningTest {
                     // not to reproduce the rigid path — see the class javadoc for why.
                     Posed posedFrame = posedFrame(document, label);
                     if (posedFrame.fromClip()) run.posedFromOwnClip++;
+                    if (posedFrame.authoredInvalid()) run.authoredInvalidVariants++;
                     BonePose pose = posedFrame.pose();
                     assertEquals(document.skeleton().boneCount(), pose.boneCount(), label + " pose size");
                     var posedBudget = new ResourceBudget(budgetBytes);
@@ -287,25 +295,56 @@ class RealCorpusSkinningTest {
     }
 
     /** A posed frame plus where it came from, so the report can state the split honestly. */
-    private record Posed(BonePose pose, boolean fromClip) { }
+    private record Posed(BonePose pose, boolean fromClip, boolean authoredInvalid) { }
 
     /** A posed frame: the document's own first clip when it decodes, otherwise a deterministic tilt. */
     private static Posed posedFrame(ModelDocument document, String label) {
+        System.out.println("REAL_CLIP_SOURCE " + label + " stringCharacters=" + stringCharacters(document.metadata().values().get("animations")));
         var budget = new ScriptBudget(50_000_000L, 64, new CancellationToken());
+        final PoseAnimationLibrary library;
         try {
-            var library = PoseAnimationLibrary.fromModel(document, budget);
-            var names = new TreeSet<>(library.names());
-            if (!names.isEmpty()) {
-                var context = new MolangContext(Map.of(), Map.of(), Map.of(), budget);
-                BonePose sampled = library.sample(names.first(), 0.4, context, document.bindPose());
-                if (sampled.boneCount() == document.skeleton().boneCount())
-                    return new Posed(sampled, true);
-            }
-        } catch (RuntimeException undecodableClips) {
-            System.out.println("REAL_CLIP_FAILURE " + label + " :: " + undecodableClips.getMessage());
-            // A model whose clips cannot be decoded still needs a posed frame; fall through.
+            library = PoseAnimationLibrary.fromModel(document, budget, AnimationDecodeLimits.localYsm());
+        } catch (MolangException invalid) {
+            if (!authoredInvalid(invalid)) throw invalid;
+            System.out.println("REAL_AUTHORED_INVALID_CLIP " + label + " :: " + invalid.reason() + " :: " + invalid.getMessage());
+            return new Posed(tilted(document.bindPose()), false, true);
         }
-        return new Posed(tilted(document.bindPose()), false);
+        var names = new TreeSet<>(library.names());
+        if (!names.isEmpty()) {
+            // Explicit stationary Host snapshot for this geometry test, never a Core default.
+            var calls = new java.util.LinkedHashMap<MolangBindings.Call,MolangValue>();
+            for (String name : List.of("query.position", "query.position_delta"))
+                for (int axis=0;axis<3;axis++) calls.put(new MolangBindings.Call(name,
+                        List.of(MolangValue.number(axis))),MolangValue.number(0));
+            var zeroVector = MolangValue.struct(Map.of("x",MolangValue.number(0),
+                    "y",MolangValue.number(0),"z",MolangValue.number(0)));
+            var bindings = new MolangBindings(Map.of("query.position",zeroVector,
+                    "query.position_delta",zeroVector), calls);
+            var context = new MolangContext(new SceneInputs(Map.of(),bindings,false),Map.of(),Map.of(),budget);
+            BonePose sampled = library.sample(names.first(), 0.4, context, document.bindPose());
+            assertEquals(document.skeleton().boneCount(),sampled.boneCount(),label+" sampled pose size");
+            return new Posed(sampled, true, false);
+        }
+        return new Posed(tilted(document.bindPose()), false, false);
+    }
+
+    private static long stringCharacters(ModelDocument.JsonValue value) {
+        if (value instanceof ModelDocument.JsonString text) return text.value().length();
+        if (value instanceof ModelDocument.JsonArray array) return array.values().stream().mapToLong(RealCorpusSkinningTest::stringCharacters).sum();
+        if (value instanceof ModelDocument.JsonObject object) return object.values().values().stream().mapToLong(RealCorpusSkinningTest::stringCharacters).sum();
+        return 0;
+    }
+
+    static boolean authoredInvalid(MolangException failure) {
+        if (failure.reason()==MolangException.Reason.SYNTAX) {
+            String message=failure.getMessage();
+            return !message.startsWith("Token count exceeds ") && !message.startsWith("Source exceeds ")
+                    && !message.startsWith("Expression tree exceeds depth ") && !message.startsWith("Parser nesting exceeds ");
+        }
+        if (failure.reason()!=MolangException.Reason.UNSUPPORTED) return false;
+        String message=failure.getMessage();
+        return message.startsWith("Assignment requires variable or temp at character ")
+                || message.matches("Unsupported name: (\\[|\\)|;|nan) at character [0-9]+");
     }
 
     /**

@@ -66,6 +66,7 @@ final class HistoricalLowering {
     private YsmImportResult run()throws IOException {
         token.check();Struct root=historical.root();
         String identity=historical.innerVersion()<19?text(root.field("identity")):text(struct(root.field("info")).field("hash"));
+        functions(root);
         if(historical.innerVersion()<19){
             List<ModelDocument.Material> materials=textures(root.field("textures"),true);
             for(Entry entry:mapping(root.field("geos")).entries()){
@@ -103,6 +104,36 @@ final class HistoricalLowering {
         flushPending();
         historical.close();
         var result=new YsmImportResult(variants,resources,reservations);reservations.clear();return result;
+    }
+    /** Legacy functions are text; modern common functions wrap that same text with its source hash. */
+    private void functions(Struct root)throws IOException {
+        HistoricalValue source=historical.innerVersion()<19?root.fields().get("functions")
+                :struct(root.field("common")).fields().get("functions");
+        if(source==null)return;
+        var functions=mapping(source);
+        if(functions.entries().size()>4096)throw new IOException("At most 4096 historical functions");
+        Set<String> names=new HashSet<>();long total=0;
+        for(Entry entry:functions.entries()) {
+            token.check();String name=text(entry.key());
+            if(name.isEmpty() || name.length()>256 || name.contains("..") || !name.matches("[A-Za-z_@][A-Za-z0-9_@./]*"))
+                throw new IOException("Unsafe historical function name");
+            ResourceKey key;
+            try{new ResourceKey(name);key=new ResourceKey("functions/"+name+".molang");}
+            catch(IllegalArgumentException invalid){throw new IOException("Unsafe historical function name",invalid);}
+            if(!names.add(name.toLowerCase(Locale.ROOT)))throw new IOException("Duplicate historical function name");
+            String body=text(unwrap(entry.value()));
+            if(body.length()>131_072)throw new IOException("Historical function source character limit exceeded");
+            var encoded=java.nio.charset.StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .encode(java.nio.CharBuffer.wrap(body));
+            total+=encoded.remaining();
+            if(total>(4L<<20))throw new IOException("Historical function sources exceed 4 MiB");
+            if(resources.size()>=policy.maxEntries())throw new DecodeLimitException(ImportErrorCode.RESOURCE_LIMIT,"Historical resource count limit");
+            retain(arrayBytes(encoded.remaining(),1)+128L+2L*key.path().length());
+            byte[] bytes=new byte[encoded.remaining()];encoded.get(bytes);
+            if(resources.putIfAbsent(key,bytes)!=null)throw new IOException("Historical function resource collision");
+        }
     }
     private void replacement(String type,String key,String identity,Struct source)throws IOException {
         Struct texture=struct(source.field("texture"));

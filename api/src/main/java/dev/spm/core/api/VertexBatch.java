@@ -2,7 +2,8 @@ package dev.spm.core.api;
 
 import java.util.Arrays;
 
-/** Immutable positions, normals and one rigid bone index per vertex. No skinning is implied. */
+/** Immutable positions, normals and one rigid bone index per vertex. No skinning is implied.
+ * colorsRgba uses numeric 0xAABBGGRR, as specified by {@link BonePose}. */
 public record VertexBatch(float[] positions, float[] normals, int[] boneIndices, int[] glow,int[] colorsRgba) {
     public VertexBatch(float[] positions,float[] normals,int[] boneIndices,int[] glow){this(positions,normals,boneIndices,glow,white(boneIndices.length));}
     public VertexBatch(float[] positions, float[] normals, int[] boneIndices) {

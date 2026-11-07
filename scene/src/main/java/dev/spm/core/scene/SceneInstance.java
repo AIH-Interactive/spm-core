@@ -56,10 +56,11 @@ public final class SceneInstance {
         FixedStepClock candidateClock = clock.copy();
         FixedStepClock.Advance advance = candidateClock.advance(nowNanos);
         long firstStep = advance.totalSteps() - advance.executedSteps();
-        MolangContext context = new MolangContext(inputs,scriptState,definition.functions(),budget,randomState);
+        MolangContext context = new MolangContext(inputs,scriptState,definition.functions(),budget,randomState,definition.hooks());
         ControllerRuntime<Map<String,Double>> candidateController = controller == null ? null : controller.copy();
         List<EffectTimeline.Pending> pending = new ArrayList<>();
         if (lastFrame == null) {
+            sceneContext(context, firstStep).initializeHooks();
             if (candidateController == null) EffectTimeline.append(definition.clip(), 0, 0, true, 0, pending, budget);
             else candidateController.initialize(sceneContext(context, 0), pending);
         }
@@ -67,10 +68,13 @@ public final class SceneInstance {
             budget.step();
             long step = firstStep + offset;
             MolangContext tickContext = sceneContext(context, step);
-            definition.update().evaluate(candidateController == null ? tickContext : candidateController.contextAt(tickContext, step));
+            MolangContext hookContext = candidateController == null ? tickContext : candidateController.contextAt(tickContext, step);
+            hookContext.beforeStepHooks();
+            definition.update().evaluate(hookContext);
             if (candidateController == null) {
                 EffectTimeline.append(definition.clip(), (step - 1) / 60.0, step / 60.0, false, step, pending, budget);
             } else candidateController.tick(step, tickContext, pending);
+            (candidateController == null ? tickContext : candidateController.contextAt(tickContext,step)).afterStepHooks();
         }
         double time = advance.totalSteps() / 60.0;
         Map<String, Double> channels = new TreeMap<>();
@@ -87,6 +91,8 @@ public final class SceneInstance {
             budget.step();
             channels.put(entry.getKey(), entry.getValue().evaluate(sample));
         }
+        sample.afterFrameHooks();
+        sample.flushDeferred();
         List<EffectCommand> effects = new ArrayList<>(pending.size());
         for (EffectTimeline.Pending effect : pending) {
             budget.step();
@@ -100,9 +106,10 @@ public final class SceneInstance {
         FrameEvaluation candidate = new FrameEvaluation(instanceId, generation, frameId, advance.totalSteps(), time,
                 advance.interpolation(), advance.droppedSteps(), channels, context.variables(), effects);
         long candidateSequence = Math.addExact(effectSequence, effects.size());
+        MolangState candidateScriptState=context.snapshot();
         clock = candidateClock;
         variables = candidate.variables();
-        scriptState=context.snapshot();
+        scriptState=candidateScriptState;
         effectSequence = candidateSequence;
         controller = candidateController;
         randomState = context.randomState();

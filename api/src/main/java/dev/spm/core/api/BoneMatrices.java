@@ -4,7 +4,8 @@ import java.util.Objects;
 
 /** Immutable logical column-major matrices, independent of any native ABI.
  * Normals are complete inverse transposes, not compact normalized approximations.
- * Invisible bones must not emit vertices or locators. descendantVisible controls child traversal. */
+ * Invisible bones must not emit vertices or locators. descendantVisible controls child traversal.
+ * colorsRgba uses numeric 0xAABBGGRR, as specified by {@link BonePose}. */
 public record BoneMatrices(float[] transforms, float[] normals, boolean[] visible,
                            boolean[] descendantVisible, float[] locatorPositions, int[] glow, int[] colorsRgba) {
     public BoneMatrices(float[] transforms,float[] normals,boolean[] visible,boolean[] descendantVisible,float[] locatorPositions,int[] glow){

@@ -8,11 +8,13 @@ import java.util.Objects;
 
 /** Immutable Host-sampled values and call results. Contains data, never executable callbacks. */
 public record MolangBindings(Map<String,MolangValue> values, Map<Call,MolangValue> calls) {
-    public record Call(String name,List<MolangValue> arguments) {
+    public record Call(String name,List<MolangValue> arguments,long occurrence) {
+        public Call(String name,List<MolangValue> arguments) { this(name,arguments,-1); }
         public Call {
             name=normalize(name);
             arguments=List.copyOf(arguments);
             if(arguments.size()>64) throw new IllegalArgumentException("At most 64 binding arguments");
+            if(occurrence < -1 || occurrence>=4096) throw new IllegalArgumentException("Invalid binding occurrence");
         }
     }
     public MolangBindings {
@@ -27,8 +29,12 @@ public record MolangBindings(Map<String,MolangValue> values, Map<Call,MolangValu
     public static MolangBindings empty() { return new MolangBindings(Map.of(),Map.of()); }
     public MolangValue value(String name) { return MolangContext.lookup(values,normalize(name)); }
     public MolangValue call(String name,List<MolangValue> arguments) {
-        MolangValue result=calls.get(new Call(name,arguments));
-        if(result==null) throw new MolangException(MolangException.Reason.UNKNOWN_FUNCTION,"Host snapshot has no call: "+name);
+        return call(name,arguments,-1);
+    }
+    public MolangValue call(String name,List<MolangValue> arguments,long occurrence) {
+        Call request=new Call(name,arguments,occurrence);
+        MolangValue result=calls.get(request);
+        if(result==null) throw new MolangException(MolangException.Reason.UNKNOWN_FUNCTION,"Host snapshot has no call: "+name,request);
         return result;
     }
     private static String normalize(String name) {

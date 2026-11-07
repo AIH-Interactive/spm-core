@@ -104,6 +104,18 @@ equivalence to historical native behavior that was unavailable in the allowed so
 `SceneInputs` can carry `MolangBindings`: immutable Host-sampled values and exact call results,
 without game objects or executable callbacks. Unsampled calls fail explicitly. Sound and particle
 results require a Host snapshot; enqueueing a request does not establish that a Host executed it.
+An unsampled call exposes its immutable `MolangException.bindingRequest()` for a Host retry with
+an enriched snapshot. Stateful calls include their occurrence; retries reuse the same frame meter.
+
+`MolangFunctionLibrary` compiles function assets from an authorized `ResourceCatalog`. Original
+wire resources remain authoritative over editable V3D workspace scripts. `MolangHooks` executes
+owner lifecycle handlers within the unpublished frame candidate. Deferred arguments are flushed
+in reverse submission order to the registered defer handlers; nested submissions are discarded
+after that initial batch. `SceneInputs.SyncMode` selects local hook execution, a Host sync effect,
+or suppression. Core supplies no network transport.
+
+`AnimationDecodeLimits` separates explicitly selected local-asset limits from Peer limits.
+Selecting a format never grants local trust or raises the Peer policy.
 
 Script effects join timeline effects in tick order and commit with the successful frame. Hosts can
 suppress emission while simulation continues. Owner `reset()` advances the generation and clears
