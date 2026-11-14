@@ -118,15 +118,48 @@ def validate_resolved(records: list[dict], manifest: dict, inventory: dict) -> N
         raise ValueError('Consumer exact GAV/hash closure differs from published runtime inventory')
 
 
-CONSUMER_MAIN = '''import dev.spm.core.api.ResourceBudget;
+CONSUMER_MAIN = '''import dev.spm.core.api.*;
+import dev.spm.core.parser.SpmModelParser;
+import dev.spm.core.runtime.ModelFrameRenderer;
+import dev.spm.core.scene.*;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 public final class Consumer {
-    public static void main(String[] args) {
-        ResourceBudget budget = new ResourceBudget(4);
-        try (var reservation = budget.reserve(4)) {
-            if (reservation.bytes() != 4 || budget.used() != 4) throw new AssertionError("admission");
+    public static void main(String[] args) throws Exception {
+        byte[] source = """
+            {"format_version":"1.12.0","minecraft:geometry":[{"description":{"identifier":"geometry.consumer","texture_width":16,"texture_height":16},
+              "bones":[{"name":"root","pivot":[0,0,0],"cubes":[{"origin":[0,0,0],"size":[16,16,16],"uv":[0,0]}]}]}],
+             "animations":{"move":{"loop":true,"animation_length":1,"bones":{"root":{"position":[0,16,0]}}}}}
+            """.getBytes(StandardCharsets.UTF_8);
+        ResourceBudget budget = new ResourceBudget(8L << 20);
+        var token = new CancellationToken();
+        var functions = Map.of("twice",MolangProgram.compile("return args[0]*2;"));
+        var context = new MolangContext(Map.of(),Map.of(),functions,new ScriptBudget(10000,128,token));
+        if(MolangProgram.compile("return fn.twice(3);").evaluate(context)!=6)throw new AssertionError("Molang function");
+        var request = new ImportRequest(new ModelSource("owned-consumer-fixture",new ResourceKey("consumer.geo.json"),
+                key -> new ByteArrayInputStream(source)),FormatHint.BEDROCK,DecodePolicy.conservative(),budget,token);
+        var imported = new SpmModelParser().importModel(request);
+        try {
+            var asset=imported.models().get(0).asset();var document=asset.document();
+            var library=PoseAnimationLibrary.fromModel(document,new ScriptBudget(100000,128,token));
+            var fallback=new CodedFallbackPlan(List.of(new CodedFallbackPlan.Branch(null,List.of(),CodedPlayDecision.STOP)));
+            var definition=new CodedControllerDefinition("main",MolangProgram.compile("ctrl.set_animation('move'); return ctrl.state_continue;"),fallback,0);
+            var owner=new CodedAnimationCollection(library,document.bindPose(),List.of(definition),60,42);
+            var candidate=owner.evaluate(0,0,new SceneInputs(Map.of()),new ScriptBudget(100000,128,token));
+            if(candidate.pose().translations()[1]!=1)throw new AssertionError("coded pose");
+            try(var frame=ModelFrameRenderer.render(asset,candidate.pose(),budget,token)) {
+                if(frame.meshes().isEmpty()||frame.meshes().get(0).vertices().vertexCount()==0)throw new AssertionError("CPU geometry");
+                for(float value:frame.meshes().get(0).vertices().positions())if(!Float.isFinite(value))throw new AssertionError("CPU position");
+                imported.close();
+                if(budget.used()==0)throw new AssertionError("live frame lost its asset lease");
+            }
+        } finally {
+            imported.close();
         }
         if (budget.used() != 0) throw new AssertionError("release");
-        System.out.println("SPM_CONSUMER_OK");
+        System.out.println("SPM_CONSUMER_OK import=true molang=true coded=true cpu=true close=true");
     }
 }
 '''
@@ -157,7 +190,10 @@ def validate(repository: str, revision: str, manifest_sha256: str, gradle: Path,
         env = {key: value for key, value in os.environ.items() if key not in {'GRADLE_OPTS', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS'}
                and not key.startswith('ORG_GRADLE_PROJECT_')}
         env['GRADLE_USER_HOME'] = str(root / 'gradle-home')
-        command = [str(gradle.resolve()), '--no-daemon', '--no-configuration-cache', '--no-build-cache', 'resolveCandidate']
+        # A source checkout may intentionally track the POSIX wrapper without an executable mode.
+        # Invoke it through bash rather than chmodding a clean checkout before packaging.
+        launcher = ['bash', str(gradle.resolve())] if os.name != 'nt' and gradle.name == 'gradlew' else [str(gradle.resolve())]
+        command = launcher + ['--no-daemon', '--no-configuration-cache', '--no-build-cache', 'resolveCandidate']
         if compiler_home is not None:
             compiler_home, runtime_home = compiler_home.resolve(), runtime_home.resolve()
             compiler_record = java_evidence(compiler_home, 25, env)
@@ -193,7 +229,7 @@ tasks.withType(JavaCompile).configureEach {
             runtime = runtime_home / 'bin' / ('java.exe' if os.name == 'nt' else 'java')
             execution = subprocess.run([str(runtime), '-cp', classpath, 'Consumer'], cwd=root, env=env,
                                        capture_output=True, text=True, encoding='utf-8', errors='replace')
-            if execution.returncode or execution.stdout.strip() != 'SPM_CONSUMER_OK':
+            if execution.returncode or execution.stdout.strip() != 'SPM_CONSUMER_OK import=true molang=true coded=true cpu=true close=true':
                 raise ValueError('Explicit JRE17 standalone API consumer failed: ' + execution.stderr)
             compiler_record['release'] = 17
             runtime_record['consumer_result'] = execution.stdout.strip()
@@ -202,6 +238,7 @@ tasks.withType(JavaCompile).configureEach {
                 metadata='POM-only secondary check' if pom_only else 'Default Gradle module metadata',
                 modules=manifest['modules'], resolved=records, native_loading='Not exercised; remains an explicit host operation',
                 compiler=compiler_record, runtime=runtime_record,
+                executed_scenarios=['import','Molang function','coded animation','CPU render','frame lease','close and budget zero'] if compiler_record else [],
                 scope='Exact anonymous artifact/GAV/hash resolution; not upstream origin, license closure or host compatibility certification')
 
 

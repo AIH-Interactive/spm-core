@@ -128,9 +128,11 @@ def validate_java_evidence(root: Path, log: str, test_java: int, native: bool) -
 # replacement for the XML reports, and no task-output/configuration cache is used in this job.
 INIT_SCRIPT = '''
 allprojects {
+    def ciModuleName = project.name
+    def expectedRuntimeHome = new File(System.getenv('SPM_TEST_JAVA_HOME')).canonicalFile
     tasks.withType(JavaCompile).configureEach {
         doFirst {
-            def record = [module: project.name, task: name,
+            def record = [module: ciModuleName, task: name,
                 java: javaCompiler.get().metadata.languageVersion.asInt(), release: options.release.get(),
                 werror: options.compilerArgs.contains('-Werror'), xlint: options.compilerArgs.contains('-Xlint:all')]
             println('SPM_CI_COMPILE=' + groovy.json.JsonOutput.toJson(record))
@@ -140,8 +142,12 @@ allprojects {
     }
     tasks.withType(Test).configureEach {
         doFirst {
+            def launcher = javaLauncher.get()
+            def actualRuntimeHome = launcher.metadata.installationPath.asFile.canonicalFile
+            if (actualRuntimeHome != expectedRuntimeHome)
+                throw new GradleException('Actual test JVM differs from the inspected runtime: ' + actualRuntimeHome)
             println('SPM_CI_TEST=' + groovy.json.JsonOutput.toJson([
-                module: project.name, java: javaLauncher.get().metadata.languageVersion.asInt()]))
+                module: ciModuleName, java: launcher.metadata.languageVersion.asInt(), home: actualRuntimeHome.toString()]))
         }
     }
 }
@@ -254,6 +260,8 @@ def build(args: argparse.Namespace) -> None:
         wrapper = [str(root / 'gradlew.bat')] if os.name == 'nt' else ['bash', str(root / 'gradlew')]
         gradle = wrapper + ['clean', 'check', 'bundleArtifacts', '--console=plain', '--info', '--no-build-cache',
                             '--no-configuration-cache', '--rerun-tasks', '--dependency-verification', 'strict',
+                            '-Dorg.gradle.java.installations.auto-detect=false',
+                            '-Dorg.gradle.java.installations.auto-download=false',
                             '-PspmTestJavaVersion=' + str(args.test_java),
                             '-Dorg.gradle.java.installations.paths=' + str(compiler) + ',' + str(test_home),
                             '--init-script', str(init)]

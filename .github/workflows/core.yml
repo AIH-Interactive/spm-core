@@ -10,6 +10,11 @@ on:
         required: false
         default: false
         type: boolean
+      consumer:
+        description: Package a local preview and execute its isolated JRE17 consumer
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -19,6 +24,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  consumer:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.consumer }}
+    needs: candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        id: consumer_runtime
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Build an immutable local preview and test anonymous file repository consumption
+        shell: bash
+        env:
+          CONSUMER_RUNTIME_HOME: ${{ steps.consumer_runtime.outputs.path }}
+        run: |
+          bash ./gradlew clean publishCandidate -PspmCoreVersion="0.1.0-preview.${GITHUB_SHA:0:12}" --no-build-cache --rerun-tasks --console=plain
+          python scripts/package_candidate.py --revision "$GITHUB_SHA"
+          python -c 'import hashlib,os,subprocess,sys; from pathlib import Path; p=Path("build/candidate-dist").resolve(); subprocess.run([sys.executable,"scripts/validate_candidate_consumer.py","--repository",p.as_uri(),"--revision",os.environ["GITHUB_SHA"],"--manifest-sha256",hashlib.sha256((p/"manifest.json").read_bytes()).hexdigest(),"--gradle",str(Path("gradlew").resolve()),"--compiler-home",os.environ["JAVA_HOME"],"--runtime-home",os.environ["CONSUMER_RUNTIME_HOME"],"--output","build/consumer-evidence.json"],check=True)'
+      - name: Preserve the preview and consumer result
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: core-consumer-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/candidate-dist/
+            build/consumer-evidence.json
+          if-no-files-found: error
   stability:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.stability }}
     uses: ./.github/workflows/core-stability.yml
