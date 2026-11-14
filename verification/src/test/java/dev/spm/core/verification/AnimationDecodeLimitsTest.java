@@ -102,6 +102,11 @@ class AnimationDecodeLimitsTest {
     }
 
     @Test void corpusFallbackClassifiesAuthoredErrorsWithoutHidingCapacityOrMissingCapabilities() {
+        for(String name:List.of("o","data3")) {
+            var rejected=assertThrows(MolangException.class,()->MolangProgram.compile(name));
+            assertTrue(RealCorpusSkinningTest.authoredInvalid(rejected));
+        }
+        assertFalse(RealCorpusSkinningTest.authoredInvalid(new MolangException(MolangException.Reason.UNSUPPORTED,"Unsupported name: other at character 0")));
         assertTrue(RealCorpusSkinningTest.authoredInvalid(new MolangException(MolangException.Reason.SYNTAX,"Expected ')' at character 5")));
         assertTrue(RealCorpusSkinningTest.authoredInvalid(new MolangException(MolangException.Reason.UNSUPPORTED,"Unsupported name: [ at character 0")));
         assertTrue(RealCorpusSkinningTest.authoredInvalid(new MolangException(MolangException.Reason.UNSUPPORTED,"Assignment requires variable or temp at character 7")));

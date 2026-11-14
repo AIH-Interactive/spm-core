@@ -349,7 +349,10 @@ class RealCorpusSkinningTest {
         if (failure.reason()!=MolangException.Reason.UNSUPPORTED) return false;
         String message=failure.getMessage();
         return message.startsWith("Assignment requires variable or temp at character ")
-                || message.matches("Unsupported name: (\\[|\\)|;|nan) at character [0-9]+");
+                // o/data3 are unbound bare identifiers in the inspected corpus. The pinned allowed
+                // reference's PrimaryBinding/CustomMolangParser register neither; its parser rejects
+                // both before evaluation. This classifies authored input, never substitutes a value.
+                || message.matches("Unsupported name: (\\[|\\)|;|nan|o|data3) at character [0-9]+");
     }
 
     /**

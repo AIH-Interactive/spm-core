@@ -52,6 +52,11 @@ jobs:
             java: '25'
             java_arch: aarch64
             native_target: aarch64-apple-darwin
+          - label: native-25-macos-x64
+            runner: macos-15-intel
+            java: '25'
+            java_arch: x64
+            native_target: x86_64-apple-darwin
     steps:
       - name: Check out the exact event SHA (PR merge SHA for pull_request)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
