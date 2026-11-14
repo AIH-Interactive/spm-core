@@ -86,7 +86,7 @@ public final class SpmModelParser implements ModelImporter {
                         }
                     }
                     case YSM_PAYLOAD -> {
-                        var historical=YsmHistoricalCodec.decode(bytes,request.policy(),request.budget(),request.cancellation());
+                        var historical=YsmHistoricalCodec.decodeForImport(bytes,request.policy(),request.budget(),request.cancellation());
                         YsmImportResult imported;
                         try{imported=YsmModelImporter.importPayload(historical,request.policy(),request.budget(),request.cancellation());}
                         catch(IOException|RuntimeException|Error problem){historical.close();throw problem;}

@@ -139,6 +139,7 @@ class RealCorpusSkinningTest {
         long budgetMiB = Long.parseLong(System.getProperty("spm.corpus.budgetMiB", "512"));
         long budgetBytes = Math.multiplyExact(budgetMiB, 1L << 20);
         var run = new Run();
+        var failures = new ArrayList<Throwable>();
         run.files = files.size();
         for (Path file : files) {
             String key = root.relativize(file).toString().replace('\\', '/');
@@ -225,10 +226,14 @@ class RealCorpusSkinningTest {
                     }
                     assertEquals(0, posedBudget.used(), label + " posed frame budget not released");
                 }
+            } catch (Exception | AssertionError failure) {
+                System.out.println("REAL_CORPUS_FAILURE " + key + " :: " + failure.getClass().getSimpleName() + " :: " + failure.getMessage());
+                failures.add(new AssertionError(key + ": " + failure.getMessage(),failure));
             } finally {
                 assertEquals(0, importBudget.used(), "Retained import budget after " + key);
             }
         }
+        assertAll("Every corpus file must complete",failures.stream().map(failure -> (org.junit.jupiter.api.function.Executable) () -> {throw failure;}));
         if (!run.nonIdentityBindModels.isEmpty()) {
             System.out.println("REAL_SKINNING_NON_IDENTITY_BIND count=" + run.nonIdentityBindModels.size());
             for (String label : run.nonIdentityBindModels)

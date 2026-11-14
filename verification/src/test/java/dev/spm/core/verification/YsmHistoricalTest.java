@@ -8,6 +8,17 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 final class YsmHistoricalTest {
+    @Test void streamingImportReadsEveryHistoricalWireVersionAndReleasesOnTruncation() throws Exception {
+        for(int version=1;version<=32;version++) {
+            byte[] wire=sample("v"+version);var budget=new ResourceBudget(1<<20);
+            try(var streamed=YsmHistoricalCodec.decodeForImport(wire,DecodePolicy.conservative(),budget,new CancellationToken())) {
+                assertEquals(version,streamed.innerVersion());assertNotNull(streamed.root());
+            }
+            assertEquals(0,budget.used());
+            assertThrows(IOException.class,()->YsmHistoricalCodec.decodeForImport(Arrays.copyOf(wire,wire.length-1),DecodePolicy.conservative(),budget,new CancellationToken()));
+            assertEquals(0,budget.used());
+        }
+    }
     private byte[] sample(String name) throws IOException {
         try (var stream = getClass().getResourceAsStream("/ysm/historical/" + name + ".wire")) {
             assertNotNull(stream); return stream.readAllBytes();

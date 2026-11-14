@@ -687,7 +687,7 @@ public final class YsmHistoricalCodec {
             return struct(r -> {
                 r.add("model_types", () -> list(() -> enumeration(1, 3)))
                         .add("geos", () -> map(() -> enumeration(1, 3), () -> optional(this::geometry)))
-                        .add("animations", () -> map(() -> enumeration(1, 11), () -> optional(this::animations)));
+                        .add("animations", this::legacyAnimationSets);
                 if (version >= 10) r.add("controllers", () -> list(() -> optional(this::controllers)))
                         .add("controller_hashes", () -> map(this::text, this::hash));
                 r.add("textures", () -> map(this::text, () -> {
@@ -707,6 +707,14 @@ public final class YsmHistoricalCodec {
                 if (version >= 2) r.add("info", () -> optional(() -> struct(i -> i.add("metadata", () -> optional(this::metadata)).add("properties", this::properties))));
                 if (version >= 6) r.add("export", () -> optional(this::export));
             });
+        }
+        private Mapping legacyAnimationSets() throws IOException {
+            if (!streamPlayerAnimations) return map(() -> enumeration(1,11), () -> optional(this::animations));
+            animationCollector=HistoricalSceneProjection.collector(version,policy,token);
+            String[] setKey={""};
+            return map(() -> {
+                Unsigned key=enumeration(1,11);setKey[0]=Long.toUnsignedString(key.bits());return key;
+            }, () -> optional(() -> struct(r -> r.add("animations", () -> streamedClips(setKey[0])))));
         }
     }
 }

@@ -11,6 +11,33 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ModelFrameRendererTest {
+    @Test void cancellationWhileAssetRetiresReturnsLeaseAndAllCredits() throws Exception {
+        var skeleton=new Skeleton(List.of("root"),new int[]{-1},new float[3]);
+        var document=new ModelDocument("race","synthetic",skeleton,List.of(),BonePose.identity(1),List.of(),List.of(),new JsonObject(Map.of()));
+        var budget=new ResourceBudget(1<<20);var released=new AtomicInteger();
+        var asset=new ModelAsset(document,List.of(budget.reserve(256)),released::incrementAndGet);
+        var entered=new java.util.concurrent.CountDownLatch(1);var resume=new java.util.concurrent.CountDownLatch(1);
+        var token=new CancellationToken();var scalar=new JavaComputeProvider();
+        CpuComputeProvider provider=new CpuComputeProvider() {
+            public String backend(){return "latch";}
+            public BoneMatrices evaluateBones(Skeleton s,BonePose p){
+                entered.countDown();
+                try {if(!resume.await(10,java.util.concurrent.TimeUnit.SECONDS))throw new AssertionError("worker timeout");}
+                catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw new AssertionError(interrupted);}
+                return scalar.evaluateBones(s,p);
+            }
+            public VertexBatch renderVertices(VertexBatch v,BoneMatrices b){return scalar.renderVertices(v,b);}
+        };
+        var worker=java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            var future=worker.submit(()->ModelFrameRenderer.render(asset,BonePose.identity(1),provider,budget,token));
+            assertTrue(entered.await(10,java.util.concurrent.TimeUnit.SECONDS));
+            asset.close();token.cancel();assertEquals(0,released.get());resume.countDown();
+            var failure=assertThrows(java.util.concurrent.ExecutionException.class,()->future.get(10,java.util.concurrent.TimeUnit.SECONDS));
+            assertInstanceOf(java.util.concurrent.CancellationException.class,failure.getCause());
+            assertEquals(0,budget.used());assertEquals(1,released.get());asset.close();assertEquals(1,released.get());
+        } finally {resume.countDown();worker.shutdownNow();asset.close();}
+    }
     @Test void hidesTrianglesAndRemapsIndicesUvAndMaterialsTogether() {
         var skeleton=new Skeleton(List.of("hidden","visible"),new int[]{-1,-1},new float[6]);
         float[] positions={0,0,0,1,0,0,0,1,0, 2,0,0,3,0,0,2,1,0};
