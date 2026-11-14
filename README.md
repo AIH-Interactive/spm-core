@@ -59,8 +59,13 @@ Additional formats register through `new SpmModelParser(List<ModelFormatAdapter>
 a unique `formatId`, a read-only bounded probe and the same request budget/token. The parser replays
 the exact probed root snapshot, including for one-shot sources, and pins it until dependent assets
 and streams close. Extensions return the same owned `ImportResult`; a plugin must implement the
-geometry/animation capabilities it declares. The GLTF/GLB hints reserve extension points and do not
-declare built-in weighted rendering or Lua execution.
+geometry/animation capabilities it declares. The built-in glTF 2.0 adapter reads static triangle
+geometry from `.gltf` and `.glb`, including bounded external buffers resolved relative to the logical
+entry and base64 buffer data URIs. It maps positions, optional `TEXCOORD_0`, and indices into rigid
+single-root geometry. It rejects node transforms, materials/images/textures, extra vertex attributes,
+sparse or normalized accessors, skins, morphs, animations, and unsupported extensions; it does not
+silently drop these semantics. This subset does not provide glTF material resources, weighted rendering,
+or Lua execution.
 
 V3D sources use a logical `v3d.json` entry and authorized sibling resources. Admission checks the
 actual decrypted source against the declared wire, in addition to hashes and bounded paths. Edited
@@ -128,7 +133,7 @@ steps, preserve their caller's AST depth and have a separate call limit; a total
 of 512 additionally bounds the interpreter stack. These contracts require a real Host adapter;
 Core unit tests alone do not certify game-side Peer counting or compatibility-mod behavior.
 
-This is an implementation candidate, not a declaration of complete SPM migration or upstream feature parity. Current executable geometry is rigid per-bone geometry. Weighted BDEF/SDEF/QDEF, glTF/VRM/MMD, Figura Lua, complete typed Molang and every Host extension are not implemented by the existing rigid API. JSON metadata preservation does not imply animation/script execution.
+This is an implementation candidate, not a declaration of complete SPM migration or upstream feature parity. Current executable geometry is rigid per-bone geometry. Weighted BDEF/SDEF/QDEF, full glTF semantics, VRM/MMD, Figura Lua, complete typed Molang and every Host extension are not implemented by the existing rigid API. JSON metadata preservation does not imply animation/script execution.
 
 Bedrock imports currently require one supported geometry per request. BBModel mesh/plugin element types are rejected when unsupported. Historical bone flags without an established allowed-source runtime mapping retain their exact archival values and return an explicit variant limitation instead of guessed rendered behavior. Full V3D filesystem cache management and online cache wire integration are separate work.
 

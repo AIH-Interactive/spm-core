@@ -5,11 +5,16 @@ import java.util.Objects;
 
 /** Pure data. (instanceId, generation, sequence) is the host's idempotency key. */
 public record EffectCommand(long instanceId, long generation, long sequence, long step,
-                            String kind, String resource, Map<String, Double> parameters,java.util.List<MolangValue> arguments) {
+                            String kind, String resource, Map<String, Double> parameters,java.util.List<MolangValue> arguments,String controllerScope) {
+    public EffectCommand(long instanceId,long generation,long sequence,long step,String kind,String resource,Map<String,Double> parameters,java.util.List<MolangValue> arguments) {
+        this(instanceId,generation,sequence,step,kind,resource,parameters,arguments,"");
+    }
     public EffectCommand(long instanceId,long generation,long sequence,long step,String kind,String resource,Map<String,Double> parameters) {
         this(instanceId,generation,sequence,step,kind,resource,parameters,java.util.List.of());
     }
     public EffectCommand {
+        Objects.requireNonNull(controllerScope);
+        if(controllerScope.length()>256)throw new IllegalArgumentException("Controller scope too long");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(resource, "resource");
         if (kind.isBlank() || kind.length() > 64) throw new IllegalArgumentException("Invalid effect kind");

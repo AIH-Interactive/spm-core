@@ -5,6 +5,7 @@ dependencies {
     implementation project(':format-bedrock')
     implementation project(':format-bbmodel')
     implementation project(':format-v3d')
+    implementation project(':format-gltf')
     testImplementation project(':runtime')
     testImplementation project(':native-jni')
     testImplementation project(':render-cpu')

@@ -20,7 +20,27 @@ final class HistoricalLowering {
      */
     static long arrayBytes(long count, long element) {
         // Header plus payload, padded to the 8-byte alignment every HotSpot object honours.
-        return (16L + count * element + 7L) & ~7L;
+        if(count<0||element<0)throw new IllegalArgumentException("Negative array size");
+        return Math.addExact(Math.addExact(16L,Math.multiplyExact(count,element)),7L)&~7L;
+    }
+    private static long meshRetainedBytes(long vertices,long quads){
+        return Math.addExact(
+                Math.addExact(
+                        Math.addExact(arrayBytes(Math.multiplyExact(vertices,3L),4L),arrayBytes(Math.multiplyExact(vertices,3L),4L)),
+                        Math.addExact(arrayBytes(Math.multiplyExact(vertices,2L),4L),Math.multiplyExact(3L,arrayBytes(vertices,4L)))),
+                Math.addExact(arrayBytes(Math.multiplyExact(quads,6L),4L),Math.multiplyExact(quads,FACE_BYTES)));
+    }
+    /** The same skeleton/pose allocation formula is used by tree and streaming geometry lowering. */
+    private static long skeletonPoseBytes(long bones){
+        long components=Math.multiplyExact(bones,3L);
+        long total=0;
+        for(int i=0;i<2;i++)total=Math.addExact(total,arrayBytes(bones,4L)); // parents + constructor copy
+        for(int i=0;i<2;i++)total=Math.addExact(total,arrayBytes(components,4L)); // pivots + constructor copy
+        for(int i=0;i<3;i++)total=Math.addExact(total,arrayBytes(bones,4L)); // hierarchy order arrays
+        for(int i=0;i<6;i++)total=Math.addExact(total,arrayBytes(components,4L)); // pose channels + copies
+        for(int i=0;i<4;i++)total=Math.addExact(total,arrayBytes(bones,1L)); // hidden channels + copies
+        for(int i=0;i<2;i++)total=Math.addExact(total,arrayBytes(bones,4L)); // glow and RGBA
+        return Math.addExact(total,Math.multiplyExact(bones,BONE_NAME_REF));
     }
     /** Bytes per retained {@link ModelDocument.Face}: header, three ints, a String ref, a boolean. */
     private static final long FACE_BYTES = 40L;
@@ -53,8 +73,10 @@ final class HistoricalLowering {
     private int resourceIndex;
     private HistoricalLowering(YsmHistoricalModel historical,DecodePolicy policy,ResourceBudget budget,CancellationToken token){
         this.historical=Objects.requireNonNull(historical);this.policy=Objects.requireNonNull(policy);
-        this.streamed=historical.takeAnimationCollector();
-        this.collectedMeshes=historical.takeMeshCollectors();
+        // Borrow inputs until the result is fully built. A failed attempt must leave the caller's
+        // historical model intact so the same input can be retried with a larger budget.
+        this.streamed=historical.animationCollector();
+        this.collectedMeshes=historical.meshCollectors();
         this.budget=Objects.requireNonNull(budget);this.token=Objects.requireNonNull(token);
     }
     static YsmImportResult lower(YsmHistoricalModel model,DecodePolicy policy,ResourceBudget budget,CancellationToken token)throws IOException {
@@ -204,13 +226,11 @@ final class HistoricalLowering {
                                   HistoricalValue controllers)throws IOException {
         token.check();
         if(variants.size()>=policy.maxEntries())throw new IOException("YSM variant limit");
-        // Charge the arrays the collector will trim to, from the counts it actually allocated.
+        // Charge the immutable output arrays from their final element counts. The collector's source
+        // buffers are separately charged by the decoder and released when the historical owner closes.
         long vertexCount=collected.quadCount()*4L, quadCount=collected.quadCount();
-        retain(Math.addExact(
-                Math.addExact(
-                        Math.addExact(arrayBytes(vertexCount*3L,4L),arrayBytes(vertexCount*3L,4L)),
-                        Math.addExact(arrayBytes(vertexCount*2L,4L),arrayBytes(vertexCount,4L))),
-                Math.addExact(arrayBytes(quadCount*6L,4L),Math.multiplyExact(quadCount,FACE_BYTES))));
+        retain(meshRetainedBytes(vertexCount,quadCount));
+        retain(skeletonPoseBytes(collected.boneCount()));
         String limitation=collected.authoredBoneFlags()
                 ?"Historical authored bone flags retained; runtime mapping requires allowed-source semantic evidence"
                 :"";
@@ -243,41 +263,13 @@ final class HistoricalLowering {
     }
     private ModelDocument document(String identity,String type,String key,Struct geo,List<ModelDocument.Material> materials,HistoricalValue animations,HistoricalValue controllers)throws IOException {
         List<HistoricalValue> bones=sequence(geo.field("bones")).values();int n=bones.size();
-        long quads=0;for(HistoricalValue item:bones){Struct b=struct(item);quads+=quads(b).size();}
+        long quads=0;for(HistoricalValue item:bones){Struct b=struct(item);quads=Math.addExact(quads,quads(b).size());}
         if(quads>policy.maxCollectionEntries()||quads>Integer.MAX_VALUE/24)throw new DecodeLimitException(ImportErrorCode.COLLECTION_LIMIT,"YSM projected geometry limit");
-        // Charge what is actually allocated just below, from the same counts. The vertex batch holds
-        // three float arrays and an int array of 4*quads elements (positions, normals, uv, bones),
-        // the index array holds 6*quads ints, and each quad also retains one Face record.
+        // Charge immutable arrays from their exact element counts. VertexBatch also retains glow and
+        // RGBA arrays; omitting them or treating xyz as one element understated the live asset charge.
         long vertexCount=Math.multiplyExact(quads,4L);
-        retain(Math.addExact(
-                Math.addExact(
-                        Math.addExact(arrayBytes(vertexCount,4L),arrayBytes(vertexCount,4L)),  // positions, normals
-                        Math.addExact(arrayBytes(Math.multiplyExact(vertexCount,2L),4L),      // uvs
-                                arrayBytes(vertexCount,4L))),                                 // vertexBones
-                Math.addExact(arrayBytes(Math.multiplyExact(quads,6L),4L),                 // indices
-                        Math.multiplyExact(quads,FACE_BYTES))));                            // faces
-        // Skeleton keeps and clones parents/pivots and derives three int[n] arrays; BonePose keeps and
-        // clones three float[3n], two boolean[n] and two int[n]. Both are sized by the bone count.
-        long components=Math.multiplyExact(n,3L);
-        retain(Math.addExact(
-                Math.addExact(
-                        Math.addExact(
-                                Math.addExact(arrayBytes(n,4L),arrayBytes(n,4L)),        // parents + clone
-                                Math.addExact(arrayBytes(components,4L),arrayBytes(components,4L))), // pivots + clone
-                        Math.addExact(Math.addExact(arrayBytes(n,4L),arrayBytes(n,4L)),arrayBytes(n,4L))), // order/firstChild/next
-                Math.addExact(
-                        Math.addExact(
-                                Math.addExact(arrayBytes(components,4L),arrayBytes(components,4L)),
-                                Math.addExact(arrayBytes(components,4L),arrayBytes(components,4L))),
-                        Math.addExact(
-                                Math.addExact(arrayBytes(components,4L),arrayBytes(components,4L)),
-                                Math.addExact(
-                                        Math.addExact(
-                                                Math.addExact(arrayBytes(n,1L),arrayBytes(n,1L)),
-                                                Math.addExact(arrayBytes(n,1L),arrayBytes(n,1L))),
-                                        Math.addExact(
-                                                Math.addExact(arrayBytes(n,4L),arrayBytes(n,4L)),
-                                                Math.multiplyExact(n,BONE_NAME_REF)))))));
+        retain(meshRetainedBytes(vertexCount,quads));
+        retain(skeletonPoseBytes(n));
         var names=new ArrayList<String>();var byName=new HashMap<String,Integer>();
         for(int i=0;i<n;i++){String name=text(struct(bones.get(i)).field("name"));if(byName.put(name,i)!=null)throw new IOException("Duplicate historical bone");names.add(name);}
         int[] parents=new int[n],glow=new int[n];float[] pivots=new float[n*3],rotation=new float[n*3],scale=new float[n*3];Arrays.fill(scale,1);Arrays.fill(glow,255);
@@ -320,7 +312,7 @@ final class HistoricalLowering {
             // The projected scene is retained by the import, not by the decoder, so its credit is
             // taken from the collector: the reader's reservations are long gone by now, and charging
             // through them reported a few megabytes for a set that actually holds hundreds.
-            long projected=streamed.takeProjectedBytes();
+            long projected=streamed.projectedBytes();
             if(projected>0)retain(projected);
             retain(96);
         }

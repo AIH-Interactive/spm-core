@@ -20,6 +20,7 @@ subprojects {
     }
     tasks.register('writeDependencyInventory') {
         group = 'verification'
+        def inventoryProjectName = project.name
         doLast {
             def records = []
             ['runtimeClasspath','testRuntimeClasspath'].each { scope ->
@@ -42,7 +43,7 @@ subprojects {
                 def relative = rootDir.toPath().relativize(input.toPath()).toString().replace('\\','/')
                 buildInputs[relative] = java.security.MessageDigest.getInstance('SHA-256').digest(input.bytes).encodeHex().toString()
             }
-            destination.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([project:project.name, dependencies:records, buildInputs:buildInputs])) + '\n'
+            destination.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([project:inventoryProjectName, dependencies:records, buildInputs:buildInputs])) + '\n'
         }
     }
     tasks.withType(JavaCompile).configureEach {

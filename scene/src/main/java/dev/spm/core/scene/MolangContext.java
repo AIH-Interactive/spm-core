@@ -32,13 +32,14 @@ public final class MolangContext {
         if(!valid) throw new MolangException(MolangException.Reason.ARITY,"Wrong arity: "+name);
     }
     MolangValue suppressedEffect(String name) {
+        if(codedCommand(name))return codedControl==null?MolangValue.missing():null;
         if(name.equals("ysm.sync") && hookState.syncMode==SceneInputs.SyncMode.NONE)return MolangValue.missing();
         if(effectsAllowed || !EFFECTS.contains(name)) return null;
         return SOUND_RESULTS.contains(name)?MolangValue.bool(false):MolangValue.missing();
     }
 
     private final java.util.List<PendingCall> pending;
-    private record PendingCall(long step,String name,java.util.List<MolangValue> arguments) { }
+    private record PendingCall(long step,String name,String resource,Map<String,Double> parameters,java.util.List<MolangValue> arguments,String scope) { }
     private final Map<String, MolangProgram> functions;
     private final Map<String, MolangValue> parameters;
     private final ScriptBudget budget;
@@ -46,11 +47,24 @@ public final class MolangContext {
     private HookState hookState=new HookState(MolangHooks.empty(),SceneInputs.SyncMode.HOST);
     private static final class HookState {
         final MolangHooks handlers;
+        Map<MolangHooks.Phase,java.util.List<MolangValue>> phaseArguments=Map.of();
         final SceneInputs.SyncMode syncMode;
-        final java.util.List<java.util.List<MolangValue>> deferred=new java.util.ArrayList<>();
-        HookState(MolangHooks handlers,SceneInputs.SyncMode syncMode) {this.handlers=Objects.requireNonNull(handlers);this.syncMode=Objects.requireNonNull(syncMode);}
+        final java.util.List<java.util.List<MolangValue>> deferred;
+        HookState(MolangHooks handlers,SceneInputs.SyncMode syncMode) {this(handlers,syncMode,new java.util.ArrayList<>());}
+        HookState(MolangHooks handlers,SceneInputs.SyncMode syncMode,java.util.List<java.util.List<MolangValue>> deferred) {this.handlers=Objects.requireNonNull(handlers);this.syncMode=Objects.requireNonNull(syncMode);this.deferred=deferred;}
     }
-    private MolangContext shareHooks(MolangContext child) {child.hookState=hookState;return child;}
+    private CodedControl codedControl;
+    private String controllerScope="";
+    private Map<String,MolangValue> contextVariables;
+    private MolangContext shareHooks(MolangContext child) {child.hookState=hookState;child.codedControl=codedControl;child.controllerScope=controllerScope;child.contextVariables=contextVariables;return child;}
+    MolangContext memberScope(String name,Map<String,MolangValue> contextState,java.util.List<java.util.List<MolangValue>> deferred) {
+        MolangContext child=child(queries);child.controllerScope=name;child.contextVariables=contextState;child.hookState=new HookState(hookState.handlers,hookState.syncMode,deferred);child.hookState.phaseArguments=hookState.phaseArguments;return child;
+    }
+    MolangValue contextVariable(String name) {return contextVariables==null?parameter(name):lookup(contextVariables,name);}
+    void contextVariable(String name,MolangValue value) {if(contextVariables!=null)assign(contextVariables,name,value,true);}
+    static boolean codedCommand(String name) { return name.equals("ctrl.set_animation")||name.equals("ctrl.set_beginning_transition_length")||name.equals("ctrl.reset")||name.equals("ctrl.indicate_reload"); }
+    boolean hasCodedControl() {return codedControl!=null;}
+    void codedControl(CodedControl value) {codedControl=value;}
 
     public MolangContext(Map<String, Double> queries, Map<String, Double> variables,
                          Map<String, MolangProgram> functions, ScriptBudget budget) {
@@ -97,19 +111,19 @@ public final class MolangContext {
     public Map<String,MolangValue> typedVariables() { return Map.copyOf(variables); }
     public MolangContext(SceneInputs inputs,Map<String,MolangValue> variables,Map<String,MolangProgram> functions,ScriptBudget budget) {
         this(inputs.queries(),typedCopy(variables),functionCopy(functions),Map.of(),budget,new RandomState(0),inputs.bindings(),new MolangPhysics(),inputs.effectsAllowed(),new java.util.ArrayList<>());
-        hookState=new HookState(MolangHooks.empty(),inputs.syncMode());
+        hookState=new HookState(MolangHooks.empty(),inputs.syncMode());hookState.phaseArguments=inputs.hookArguments();
     }
     MolangContext(SceneInputs inputs,MolangState prior,Map<String,MolangProgram> functions,ScriptBudget budget,long seed) {
         this(inputs.queries(),new HashMap<>(prior.variables),functionCopy(functions),Map.of(),budget,new RandomState(seed),inputs.bindings(),prior.physics.copy(),inputs.effectsAllowed(),new java.util.ArrayList<>());
-        hookState=new HookState(MolangHooks.empty(),inputs.syncMode());
+        hookState=new HookState(MolangHooks.empty(),inputs.syncMode());hookState.phaseArguments=inputs.hookArguments();
     }
     MolangContext(SceneInputs inputs,MolangState prior,Map<String,MolangProgram> functions,ScriptBudget budget,long seed,MolangHooks hooks) {
-        this(inputs,prior,functions,budget,seed);hookState=new HookState(hooks,inputs.syncMode());
+        this(inputs,prior,functions,budget,seed);hookState=new HookState(hooks,inputs.syncMode());hookState.phaseArguments=inputs.hookArguments();
     }
-    void initializeHooks() {invokeHooks(hookState.handlers.initialize(),java.util.List.of());}
-    void beforeStepHooks() {invokeHooks(hookState.handlers.beforeStep(),java.util.List.of());}
-    void afterStepHooks() {invokeHooks(hookState.handlers.afterStep(),java.util.List.of());}
-    void afterFrameHooks() {invokeHooks(hookState.handlers.afterFrame(),java.util.List.of());}
+    void initializeHooks() {invokeHooks(hookState.handlers.initialize(),hookState.phaseArguments.getOrDefault(MolangHooks.Phase.INITIALIZE,java.util.List.of()));}
+    void beforeStepHooks() {invokeHooks(hookState.handlers.beforeStep(),hookState.phaseArguments.getOrDefault(MolangHooks.Phase.BEFORE_STEP,java.util.List.of()));}
+    void afterStepHooks() {invokeHooks(hookState.handlers.afterStep(),hookState.phaseArguments.getOrDefault(MolangHooks.Phase.AFTER_STEP,java.util.List.of()));}
+    void afterFrameHooks() {invokeHooks(hookState.handlers.afterFrame(),hookState.phaseArguments.getOrDefault(MolangHooks.Phase.AFTER_FRAME,java.util.List.of()));}
     private void invokeHooks(java.util.List<MolangProgram> programs,java.util.List<MolangValue> arguments) {
         Map<String,MolangValue> parameters=new HashMap<>();
         for(int index=0;index<arguments.size();index++)parameters.put("arg"+index,arguments.get(index));
@@ -239,6 +253,25 @@ public final class MolangContext {
         return MolangValue.struct(fields);
     }
     MolangValue call(String name,java.util.List<MolangValue> arguments) {
+        if(codedCommand(name)) {
+            if(codedControl==null)return MolangValue.missing();
+            checkArity(name,arguments.size());
+            switch(name) {
+                case "ctrl.set_animation" -> {
+                    String animation=arguments.get(0) instanceof MolangValue.TextValue text?text.value():"";
+                    if(!animation.isEmpty()) {
+                        int mode=arguments.size()>1?(int)arguments.get(1).number():0;
+                        codedControl.select(animation,switch(mode){case 10->CodedLoopMode.LOOP;case 11->CodedLoopMode.PLAY_ONCE;case 12->CodedLoopMode.HOLD_ON_LAST_FRAME;default->CodedLoopMode.CLIP_DEFAULT;});
+                    }
+                }
+                case "ctrl.set_beginning_transition_length" -> {double ticks=arguments.get(0).number();if(ticks>=0)codedControl.transition(ticks);}
+                case "ctrl.reset" -> codedControl.resetPlayback();
+                case "ctrl.indicate_reload" -> codedControl.reload();
+                default -> throw new IllegalStateException();
+            }
+            return MolangValue.missing();
+        }
+
         if(name.equals("ysm.defer")) {
             if(!effectsAllowed || arguments.isEmpty() || !(arguments.get(0) instanceof MolangValue.TextValue text) || text.value().isEmpty())return MolangValue.missing();
             budget.step();
@@ -268,7 +301,7 @@ public final class MolangContext {
             if(axis<0 || axis>2) return MolangValue.missing();
             MolangValue vector=bindings.value(name);
             if(vector!=MolangValue.missing()) return vector.field(axis==0?"x":axis==1?"y":"z");
-            return bindings.call(name,java.util.List.of(MolangValue.number(axis)));
+            return bindings.call(name,java.util.List.of(MolangValue.number(axis)),-1,controllerScope);
         }
         if(EFFECTS.contains(name)) {
             checkArity(name,arguments.size());
@@ -277,12 +310,12 @@ public final class MolangContext {
             MolangValue result=MolangValue.missing();
             if(effectsAllowed && pending.size()>=4096) throw new MolangException(MolangException.Reason.CAPACITY,"Effect queue capacity exceeded");
             if(effectsAllowed && (SOUND_RESULTS.contains(name) || name.equals("ysm.particle") || name.equals("ysm.abs_particle")))
-                result=bindings.call(name,arguments,pending.size());
+                result=bindings.call(name,arguments,pending.stream().filter(call->call.scope().equals(controllerScope)).count(),controllerScope);
             if(effectsAllowed) {
                 budget.step();
                 if(pending.size()>=4096) throw new MolangException(MolangException.Reason.CAPACITY,"Effect queue capacity exceeded");
                 double time=queries.getOrDefault("life_time",0.0);
-                pending.add(new PendingCall(Math.max(0,Math.round(time*60)),name,java.util.List.copyOf(arguments)));
+                pending.add(new PendingCall(Math.max(0,Math.round(time*60)),name,name,Map.of(),java.util.List.copyOf(arguments),controllerScope));
             }
             return result;
         }
@@ -297,17 +330,21 @@ public final class MolangContext {
             double c=arguments.size()>4?arguments.get(4).number():1;
             return MolangValue.number(physics.second(key,input,a,b,c,budget));
         }
-        return bindings.call(name,arguments);
+        return bindings.call(name,arguments,-1,controllerScope);
+    }
+    void resetAnimationContext() {flushDeferred();if(contextVariables!=null)contextVariables.clear();}
+    void timelineEffects(java.util.List<EffectTimeline.Pending> effects) {
+        for(var effect:effects){budget.step();if(pending.size()>=4096)throw new MolangException(MolangException.Reason.CAPACITY,"Effect capacity exceeded");var cue=effect.cue();pending.add(new PendingCall(effect.step(),cue.kind(),cue.resource(),cue.parameters(),java.util.List.of(),controllerScope));}
     }
     void appendEffects(java.util.List<EffectCommand> target,long owner,long generation,long sequence) {
         for(PendingCall call:pending) {
             budget.step();
-            target.add(new EffectCommand(owner,generation,Math.addExact(sequence,target.size()),call.step(),call.name(),call.name(),Map.of(),call.arguments()));
+            target.add(new EffectCommand(owner,generation,Math.addExact(sequence,target.size()),call.step(),call.name(),call.resource(),call.parameters(),call.arguments(),call.scope()));
         }
         target.sort(java.util.Comparator.comparingLong(EffectCommand::step));
         for(int index=0;index<target.size();index++) {
             budget.step(); EffectCommand effect=target.get(index);
-            target.set(index,new EffectCommand(owner,generation,Math.addExact(sequence,index),effect.step(),effect.kind(),effect.resource(),effect.parameters(),effect.arguments()));
+            target.set(index,new EffectCommand(owner,generation,Math.addExact(sequence,index),effect.step(),effect.kind(),effect.resource(),effect.parameters(),effect.arguments(),effect.controllerScope()));
         }
     }
     MolangProgram function(String name) {

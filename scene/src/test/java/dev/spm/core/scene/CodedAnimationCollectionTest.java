@@ -1,0 +1,194 @@
+package dev.spm.core.scene;
+
+import dev.spm.core.api.BonePose;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import static dev.spm.core.scene.PoseControllerTest.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+class CodedAnimationCollectionTest {
+    private static PoseAnimationLibrary clips() {
+        return library(obj("a",obj("loop",true,"animation_length",1,"bones",obj("root",obj("position",List.of(0,16,0)))),
+                "b",obj("loop",true,"animation_length",1,"bones",obj("root",obj("position",List.of(0,32,0))))));
+    }
+    private static CodedFallbackPlan fallback(String animation) {
+        return new CodedFallbackPlan(List.of(new CodedFallbackPlan.Branch(null,
+                List.of(new CodedAction.SelectAnimation(animation,CodedLoopMode.CLIP_DEFAULT)),CodedPlayDecision.CONTINUE)));
+    }
+    private static CodedControllerDefinition controller(String name,String script,String fallback) {
+        return new CodedControllerDefinition(name,MolangProgram.compile(script),fallback(fallback),0);
+    }
+    private static CodedAnimationCollection owner(CodedControllerDefinition... controllers) {
+        return new CodedAnimationCollection(clips(),BonePose.identity(1),List.of(controllers),60,42);
+    }
+    @Test void initialPredicateSelectsAndSamplesTheSameUnpublishedCandidate() {
+        var owner=owner(controller("main","ctrl.set_animation('a'); return ctrl.state_continue;","b"));
+        var frame=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertEquals(1,frame.pose().translations()[1]);
+        assertEquals("a",frame.controllers().get(0).selectedClip());
+        assertTrue(frame.effects().isEmpty());
+        assertSame(frame,owner.evaluate(0,999_999_999,new SceneInputs(Map.of()),budget()));
+        assertThrows(UnsupportedOperationException.class,()->frame.controllers().clear());
+    }
+    @Test void nestedTypedFunctionsKeepArgumentsAndReturnValuesInsideTheCandidate() {
+        var functions=Map.of("outer",MolangProgram.compile("return fn.inner(args[0])+1;"),
+                "inner",MolangProgram.compile("return args[0]+1;"),"name",MolangProgram.compile("return args[0];"));
+        var definition=controller("main","v.result=fn.outer(3); v.clip=fn.name('a'); ctrl.set_animation(v.clip); return 2;","b");
+        var owner=new CodedAnimationCollection(clips(),BonePose.identity(1),List.of(definition),60,42,functions,MolangHooks.empty());
+        var frame=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertEquals(5,frame.variables().get("result"));
+        assertEquals(MolangValue.text("a"),owner.typedVariables().get("clip"));
+        assertEquals("a",frame.controllers().get(0).selectedClip());
+        assertEquals(1,frame.pose().translations()[1]);
+        assertFalse(frame.variables().containsKey("arg0"));
+    }
+    @Test void missingOptionalFunctionDoesNotEvaluateItsArguments() {
+        var owner=owner(controller("main","v.result=fn.absent(v.unwanted=1); ctrl.set_animation('a'); return 2;","b"));
+        var frame=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertFalse(frame.variables().containsKey("unwanted"));
+        assertFalse(frame.variables().containsKey("result"));
+        assertEquals("a",frame.controllers().get(0).selectedClip());
+    }
+    @Test void bypassRunsFrozenFallbackAfterScriptMutationsAndZeroStepDoesNotRepeat() {
+        var owner=owner(controller("main","v.calls=(v.calls??0)+1; ctrl.set_animation('a'); return ctrl.state_bypass;","b"));
+        var frame=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertEquals(2,frame.pose().translations()[1]);assertEquals(1,frame.variables().get("calls"));
+        var zero=owner.evaluate(1,1,new SceneInputs(Map.of()),budget());
+        assertEquals(1,zero.variables().get("calls"));
+        assertEquals(2,owner.evaluate(2,16_666_667,new SceneInputs(Map.of()),budget()).variables().get("calls"));
+    }
+    @Test void rejectedInitialCandidateDoesNotPublishSelectionOrVariables() {
+        var owner=owner(controller("main","v.calls=(v.calls??0)+1; ctrl.set_animation(q.fail?'missing':'a'); q.fail ? math.sqrt(-1) : 0; return 2;","b"));
+        assertThrows(MolangException.class,()->owner.evaluate(0,0,new SceneInputs(Map.of("fail",1.0)),budget()));
+        assertTrue(owner.typedVariables().isEmpty());
+        var frame=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertEquals(1,frame.variables().get("calls"));assertEquals(1,frame.pose().translations()[1]);
+    }
+    @Test void inactiveControlAndEmptySelectionSkipArguments() {
+        var context=new MolangContext(Map.of(),Map.of(),Map.of(),budget());
+        assertEquals(MolangValue.missing(),MolangProgram.compile("ctrl.set_animation(v.unwanted=1)").evaluateValue(context));
+        assertTrue(context.typedVariables().isEmpty());
+        var owner=owner(controller("main","ctrl.set_animation('',v.unwanted=1); ctrl.set_animation('a'); return 2;","b"));
+        var frame=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertFalse(frame.variables().containsKey("unwanted"));assertEquals(1,frame.pose().translations()[1]);
+    }
+    @Test void entityVariablesAreSharedButAnimationContextsAreIndependent() {
+        var owner=owner(controller("a","ctrl.set_animation('a'); v.shared=(v.shared??0)+1; c.local=(c.local??0)+1; v.a=c.local; return 2;","a"),
+                controller("b","ctrl.set_animation('b'); v.seen=v.shared; c.local=(c.local??0)+10; v.b=c.local; return 2;","b"));
+        var frame=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertEquals(1,frame.variables().get("seen"));assertEquals(1,frame.variables().get("a"));assertEquals(10,frame.variables().get("b"));
+        var next=owner.evaluate(1,16_666_667,new SceneInputs(Map.of()),budget());
+        assertEquals(1,next.variables().get("a"));assertEquals(10,next.variables().get("b"));
+        var third=owner.evaluate(2,33_333_334,new SceneInputs(Map.of()),budget());assertEquals(2,third.variables().get("a"));assertEquals(20,third.variables().get("b"));
+    }
+    @Test void scopedHostRequestsAndEffectsPreserveOriginalArgumentsAndRollbackAllMembers() {
+        var owner=owner(controller("a","v.count=(v.count??0)+1; ysm.bone_glow('Case',1); ysm.play_sound(0,'same'); return 2;","a"),
+                controller("b","ysm.play_sound(0,'same'); return 2;","b"));
+        var args=List.<MolangValue>of(MolangValue.number(0),MolangValue.text("same"));
+        var sampled=new java.util.HashMap<MolangBindings.Call,MolangValue>();
+        for(String scope:List.of("a","b")) {
+            var failure=assertThrows(MolangException.class,()->owner.evaluate(0,0,new SceneInputs(Map.of(),new MolangBindings(Map.of(),sampled)),budget()));
+            var request=failure.bindingRequest().orElseThrow();assertEquals(scope,request.controllerScope());assertEquals(args,request.arguments());
+            sampled.put(request,MolangValue.bool(true));assertTrue(owner.typedVariables().isEmpty());
+        }
+        var frame=owner.evaluate(0,0,new SceneInputs(Map.of(),new MolangBindings(Map.of(),sampled)),budget());
+        assertEquals(1,frame.variables().get("count"));
+        assertEquals(List.of("a","a","b"),frame.effects().stream().map(EffectCommand::controllerScope).toList());
+        var cursor=new EffectCursor();assertEquals(3,cursor.claim(frame,owner.generation()).size());assertTrue(cursor.claim(frame).isEmpty());
+    }
+    @Test void sameSelectionIsIdempotentReloadOnlyWaitsForNextSelectionAndLoopOverridesApply() {
+        var owner=owner(controller("main","q.reload ? ctrl.indicate_reload() : 0; q.select ? ctrl.set_animation('a',q.mode) : 0; return 2;","b"));
+        owner.evaluate(0,0,new SceneInputs(Map.of("select",1.0,"mode",12.0)),budget());
+        var first=owner.evaluate(1,16_666_667,new SceneInputs(Map.of("select",1.0,"mode",12.0)),budget());
+        assertEquals(1.0/60,first.controllers().get(0).animationTimeSeconds(),1e-9);
+        var reload=owner.evaluate(2,33_333_334,new SceneInputs(Map.of("reload",1.0)),budget());
+        assertEquals("a",reload.controllers().get(0).selectedClip());assertEquals(2.0/60,reload.controllers().get(0).animationTimeSeconds(),1e-9);
+        var restart=owner.evaluate(3,50_000_000,new SceneInputs(Map.of("select",1.0,"mode",12.0)),budget());
+        assertEquals(0,restart.controllers().get(0).animationTimeSeconds());
+    }
+    @Test void pauseAdvancesWithoutContributionAndStopFadesBeforeIdle() {
+        var owner=owner(controller("main","q.stop?0:ctrl.set_animation('a'); return q.pause?4:q.stop?3:2;","b"));
+        owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        var paused=owner.evaluate(1,16_666_667,new SceneInputs(Map.of("pause",1.0)),budget());
+        assertFalse(paused.controllers().get(0).contributing());assertEquals(8.0/9,paused.pose().translations()[1],1e-6);assertEquals(1.0/60,paused.controllers().get(0).animationTimeSeconds(),1e-9);
+        var resumed=owner.evaluate(2,33_333_334,new SceneInputs(Map.of()),budget());assertEquals(1,resumed.pose().translations()[1]);
+        var stop=owner.evaluate(3,50_000_000,new SceneInputs(Map.of("stop",1.0)),budget());assertEquals(1,stop.pose().translations()[1]);
+        var ending=owner.evaluate(4,66_666_667,new SceneInputs(Map.of("stop",1.0)),budget());
+        assertTrue(ending.pose().translations()[1]>0&&ending.pose().translations()[1]<1);
+    }
+    @Test void beginningTransitionUsesTwentyTickUnitsAndScaleIsImmediate() {
+        var definition=new CodedControllerDefinition("main",MolangProgram.compile("ctrl.set_animation('a'); return 2;"),fallback("b"),1);
+        var owner=owner(definition);
+        assertEquals(0,owner.evaluate(0,0,new SceneInputs(Map.of()),budget()).pose().translations()[1]);
+        assertEquals(1.0/3,owner.evaluate(1,16_666_667,new SceneInputs(Map.of()),budget()).pose().translations()[1],1e-6);
+        assertEquals(1,owner.evaluate(2,50_000_000,new SceneInputs(Map.of()),budget()).pose().translations()[1],1e-6);
+    }
+    @Test void timelineInstructionsAndDeferredContextFlushOnlyAtPlaybackBoundary() {
+        var library=library(obj("a",obj("loop",true,"animation_length",0.05,"bones",obj("root",obj("position",List.of(0,16,0))),
+                "timeline",obj("0","ysm.defer('ignored',1); c.value=7; v.starts=(v.starts??0)+1;"),"sound_effects",obj("0","test.sound"))));
+        var hooks=new MolangHooks(List.of(),List.of(),List.of(),List.of(),List.of(MolangProgram.compile("v.drained=(v.drained??0)+args[0]; v.context=c.value")),List.of());
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),List.of(controller("main","ctrl.set_animation('a'); return 2;","a")),60,42,Map.of(),hooks);
+        var first=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertEquals(1,first.variables().get("starts"));assertFalse(first.variables().containsKey("drained"));
+        assertEquals("main",first.effects().get(0).controllerScope());
+        assertEquals(1,owner.evaluate(1,16_666_667,new SceneInputs(Map.of()),budget()).variables().get("starts"));
+        var loop=owner.evaluate(2,66_666_667,new SceneInputs(Map.of()),budget());
+        assertEquals(1,loop.variables().get("drained"));assertEquals(7,loop.variables().get("context"));assertEquals(2,loop.variables().get("starts"));
+    }
+    @Test void stopDrainsMemberDeferredCallsBeforeClearingItsContext() {
+        var library=library(obj("a",obj("loop",true,"animation_length",1,"timeline",obj("0","c.marker=7; ysm.defer('ignored',c.marker)"))));
+        var hooks=new MolangHooks(List.of(),List.of(),List.of(),List.of(),List.of(MolangProgram.compile("v.drained=args[0]; v.context=c.marker")),List.of());
+        var definition=controller("main","q.stop?0:ctrl.set_animation('a'); return q.stop?3:2;","a");
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),List.of(definition),60,42,Map.of(),hooks);
+        owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        var stopped=owner.evaluate(1,16_666_667,new SceneInputs(Map.of("stop",1.0)),budget());
+        assertEquals(7,stopped.variables().get("drained"));
+        assertEquals(7,stopped.variables().get("context"));
+    }
+    @Test void lateMemberFailureDiscardsTimelineEffectsAndSharedMeterIsNotRefunded() {
+        var library=library(obj("a",obj("loop",true,"animation_length",1,"timeline",obj("0","v.start=(v.start??0)+1;"),"sound_effects",obj("0","test.sound"))));
+        var definitions=List.of(controller("a","v.roll=math.random(0,100); ctrl.set_animation('a'); return 2;","a"),controller("b","q.fail ? math.sqrt(-1) : 0; return 2;","a"));
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),definitions,60,42);
+        var meter=budget();long before=meter.remainingSteps();
+        assertThrows(MolangException.class,()->owner.evaluate(0,0,new SceneInputs(Map.of("fail",1.0)),meter));
+        assertTrue(owner.typedVariables().isEmpty());assertTrue(meter.remainingSteps()<before);
+        var retry=owner.evaluate(0,0,new SceneInputs(Map.of()),meter);
+        assertEquals(1,retry.variables().get("start"));assertEquals(1,retry.effects().size());assertEquals(0,retry.effects().get(0).sequence());
+        var clean=new CodedAnimationCollection(library,BonePose.identity(1),definitions,60,42).evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertEquals(clean.variables(),retry.variables());assertEquals(clean.controllers(),retry.controllers());
+        assertArrayEquals(clean.pose().rotations(),retry.pose().rotations());
+        assertArrayEquals(clean.pose().translations(),retry.pose().translations());
+        assertArrayEquals(clean.pose().scales(),retry.pose().scales());assertEquals(clean.effects().size(),retry.effects().size());
+        for(int i=0;i<clean.effects().size();i++) {
+            var a=clean.effects().get(i);var b=retry.effects().get(i);
+            assertEquals(a.sequence(),b.sequence());assertEquals(a.step(),b.step());assertEquals(a.kind(),b.kind());
+            assertEquals(a.resource(),b.resource());assertEquals(a.parameters(),b.parameters());assertEquals(a.arguments(),b.arguments());
+            assertEquals(a.controllerScope(),b.controllerScope());
+        }
+    }
+    @Test void codedMaskCompositionOverridesOnlyDrivenChannelsAndEndingRevealsLowerLayer() {
+        var library=library(obj("a",obj("loop",true,"animation_length",1,"bones",obj("root",obj("position",List.of(0,16,0),"rotation",List.of(0,0,90),"scale",2))),
+                "b",obj("loop",true,"animation_length",1,"bones",obj("root",obj("position",List.of(0,32,0),"scale",3)))));
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),List.of(controller("a","ctrl.set_animation('a'); return 2;","a"),
+                controller("b","q.stop?0:ctrl.set_animation('b'); return q.stop?3:2;","b")),60,42);
+        var initial=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertEquals(2,initial.pose().translations()[1]);assertEquals(Math.PI/2,initial.pose().rotations()[2],1e-6);assertEquals(3,initial.pose().scales()[0]);
+        owner.evaluate(1,16_666_667,new SceneInputs(Map.of("stop",1.0)),budget());
+        var ending=owner.evaluate(2,33_333_334,new SceneInputs(Map.of("stop",1.0)),budget());
+        assertEquals(2-1.0/9,ending.pose().translations()[1],1e-6);assertEquals(3-1.0/9,ending.pose().scales()[0],1e-6);
+    }
+    @Test void physicsKeysAreSharedWithinTheEntityLaneAndSeparateAcrossOwners() {
+        var a=controller("a","v.a=ysm.first_order('same',1); return 2;","a");
+        var b=controller("b","v.b=ysm.first_order('same',9); return 2;","b");
+        var frame=owner(a,b).evaluate(0,0,new SceneInputs(Map.of()),budget());assertEquals(0,frame.variables().get("b")); // Existing Core filter returns its stored initial position on a repeated same-step key.
+        var preview=owner(b).evaluate(0,0,new SceneInputs(Map.of()),budget());assertEquals(9,preview.variables().get("b"));
+    }
+    @Test void resettingLastDrivenControllerUsesModelChannelResetTransition() {
+        var owner=owner(controller("main","q.reset?ctrl.reset():ctrl.set_animation('a'); return 2;","a"));
+        owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        var first=owner.evaluate(1,16_666_667,new SceneInputs(Map.of("reset",1.0)),budget());
+        assertEquals(8.0/9,first.pose().translations()[1],1e-6);
+        assertEquals(7.0/9,owner.evaluate(2,33_333_334,new SceneInputs(Map.of("reset",1.0)),budget()).pose().translations()[1],1e-6);
+    }
+}

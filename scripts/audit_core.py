@@ -40,13 +40,15 @@ def audit(root: Path, require_jars: bool = False) -> dict:
             errors.append(f'{rel}: development-machine CPU target in portable source')
         if path.suffix == '.java' and 'jdk.incubator.vector' in text:
             errors.append(f'{rel}: explicit SIMD belongs in Rust')
+        if rel == 'provenance/allowed-sources.json':
+            continue
         sources.append({'path': rel, 'sha256': digest(data)})
     jars = sorted(root.glob('*/build/libs/*.jar'))
     runtime_jars = [p for p in jars if not p.name.endswith(('-sources.jar', '-javadoc.jar'))
                     and p.parent.parent.parent.name not in {'verification', 'integration-tests'}]
     if require_jars:
         expected = {'api', 'codec', 'format-ysm', 'format-bedrock', 'format-bbmodel', 'scene',
-                    'acceleration-api', 'native-jni', 'render-cpu', 'runtime', 'format-v3d', 'format-common', 'parser'}
+                    'acceleration-api', 'native-jni', 'render-cpu', 'runtime', 'format-v3d', 'format-common', 'parser', 'format-gltf'}
         built = {p.parent.parent.parent.name for p in runtime_jars}
         for missing in sorted(expected - built):
             errors.append(f'{missing}: expected runtime jar missing')

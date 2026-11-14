@@ -2,6 +2,10 @@ package dev.spm.core.runtime;
 
 import org.junit.jupiter.api.Test;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RuntimeLeaseTest {
@@ -60,5 +64,19 @@ class RuntimeLeaseTest {
         assertThrows(IllegalStateException.class,lease::value);
         lease.close();
         registry.close();
+    }
+
+    @Test void shutdownBetweenStagingAndPublishClosesTheLateGeneration() throws Exception {
+        var registry=new ResourceRegistry<String>();AtomicInteger closed=new AtomicInteger();
+        long ticket=registry.begin("model");var staged=new CountDownLatch(1);var allowPublish=new CountDownLatch(1);
+        ExecutorService worker=Executors.newSingleThreadExecutor();
+        try {
+            Future<Boolean> result=worker.submit(()->{
+                staged.countDown();allowPublish.await();
+                return registry.publishIfCurrent("model",ticket,"late",closed::incrementAndGet);
+            });
+            staged.await();registry.close();allowPublish.countDown();
+            assertFalse(result.get());assertEquals(1,closed.get());assertTrue(registry.acquire("model").isEmpty());
+        } finally {worker.shutdownNow();}
     }
 }

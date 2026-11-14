@@ -78,4 +78,16 @@ class MolangHooksTest {
         var token=new CancellationToken();token.cancel();
         assertThrows(java.util.concurrent.CancellationException.class,()->controller.evaluate(1,16_666_667,new SceneInputs(Map.of()),new ScriptBudget(1000,128,token)));
     }
+    @Test void frozenPhaseArgumentsReachHooksWithoutReplacingDeferredAndSyncArguments() {
+        var mutable=new java.util.ArrayList<MolangValue>(List.of(MolangValue.bool(true)));
+        var input=new SceneInputs(Map.of(),MolangBindings.empty(),true,SyncMode.LOCAL,
+                Map.of(MolangHooks.Phase.BEFORE_STEP,mutable,MolangHooks.Phase.AFTER_FRAME,List.of(MolangValue.bool(false))));
+        mutable.clear();
+        var hooks=hooks(scripts("ysm.defer('x',7); ysm.sync(9)"),scripts("v.tick=args[0]"),List.of(),scripts("v.render=args[0]"),scripts("v.deferred=args[0]"),scripts("v.synced=args[0]"));
+        var player=player(hooks);
+        player.evaluate(0,0,input,budget());var frame=player.evaluate(1,16_666_667,input,budget());
+        assertEquals(1,frame.variables().get("tick"));assertEquals(0,frame.variables().get("render"));
+        assertEquals(7,frame.variables().get("deferred"));assertEquals(9,frame.variables().get("synced"));
+        assertThrows(UnsupportedOperationException.class,()->input.hookArguments().get(MolangHooks.Phase.BEFORE_STEP).clear());
+    }
 }

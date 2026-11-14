@@ -21,6 +21,12 @@
       "historicalCommit": "813379d114aab14a2ff1e40e4bba6985dfa6844e",
       "use": "file-format and transform-order specification only; no application source bundled",
       "topLevelLicense": "GPL-3.0"
+    },
+    {
+      "repository": "https://github.com/KhronosGroup/glTF",
+      "commit": "60d514b8079f19230a2f49ef5884dd09fa3feb6d",
+      "use": "glTF 2.0 container, accessor, buffer and static geometry specification only; independently written importer, no upstream implementation or fixtures copied",
+      "topLevelLicense": "CC-BY-4.0"
     }
   ],
   "exclusions": ["OpenYSM source or binaries", "OpenYSM behavior oracle", "unreviewed old SPM algorithms", "upstream model artwork"],

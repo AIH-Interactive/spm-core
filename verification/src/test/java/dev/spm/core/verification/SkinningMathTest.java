@@ -242,6 +242,35 @@ class SkinningMathTest {
                         MorphWeights.none(0))).getMessage());
     }
 
+    @Test void nonUniformPositiveScaleProducesFinitePositionsAndNormalsOnScalarBackends() {
+        var skeleton=new Skeleton(List.of("a"),new int[]{-1},new float[3]);var bind=BoneEvaluator.evaluate(skeleton,BonePose.identity(1));
+        var pose=new BonePose(new float[3],new float[3],new float[]{2,0.5f,3},new boolean[1],new boolean[1],BonePose.identity(1).glow());
+        var posed=BoneEvaluator.evaluate(skeleton,pose);var weights=SkinWeights.rigid(1,new int[]{0});var batch=new VertexBatch(new float[]{1,2,3},new float[]{1,1,1},new int[]{0});
+        var bdef=SkinningRenderer.transform(batch,skin(weights,SkinningMethod.BDEF),posed,bind,MorphWeights.none(0));
+        assertArrayEquals(new float[]{2,1,9},bdef.positions(),EPS);for(float n:bdef.normals())assertTrue(Float.isFinite(n));
+        var qdef=SkinningRenderer.transform(batch,skin(weights,SkinningMethod.QDEF),posed,bind,MorphWeights.none(0));
+        assertArrayEquals(batch.positions(),qdef.positions(),EPS);for(float n:qdef.normals())assertTrue(Float.isFinite(n));
+    }
+
+    @Test void additiveMorphsSupportNegativeWeightsAndPreserveFiniteOutput() {
+        var skeleton=new Skeleton(List.of("a"),new int[]{-1},new float[3]);var bind=BoneEvaluator.evaluate(skeleton,BonePose.identity(1));
+        var weights=SkinWeights.rigid(1,new int[]{0});var skin=new MeshSkin.Weighted(weights,SkinningMethod.BDEF,List.of(
+                new MorphTarget("positive",new float[]{1,0,0}),new MorphTarget("negative",new float[]{0,2,0})));
+        var batch=new VertexBatch(new float[]{3,4,5},new float[]{0,0,1},new int[]{0});
+        var out=SkinningRenderer.transform(batch,skin,bind,bind,new MorphWeights(new float[]{-0.5f,0.25f}));
+        assertArrayEquals(new float[]{2.5f,4.5f,5},out.positions(),EPS);assertArrayEquals(new float[]{0,0,1},out.normals(),EPS);
+    }
+
+    @Test void zeroAndTinyPositiveScalesRemainFiniteForBdefAndRefuseUnrepresentableQdef() {
+        var skeleton=new Skeleton(List.of("a"),new int[]{-1},new float[3]);var bind=BoneEvaluator.evaluate(skeleton,BonePose.identity(1));var weights=SkinWeights.rigid(1,new int[]{0});
+        var batch=new VertexBatch(new float[]{1,2,3},new float[]{0,1,0},new int[]{0});
+        var collapsed=BoneEvaluator.evaluate(skeleton,new BonePose(new float[3],new float[3],new float[]{0,1,1},new boolean[1],new boolean[1],BonePose.identity(1).glow()));
+        var bdef=SkinningRenderer.transform(batch,skin(weights,SkinningMethod.BDEF),collapsed,bind,MorphWeights.none(0));assertEquals(0,bdef.vertexCount());
+        assertThrows(IllegalArgumentException.class,()->SkinningRenderer.transform(batch,skin(weights,SkinningMethod.QDEF),collapsed,bind,MorphWeights.none(0)));
+        var tiny=BoneEvaluator.evaluate(skeleton,new BonePose(new float[3],new float[3],new float[]{1e-20f,1,1},new boolean[1],new boolean[1],BonePose.identity(1).glow()));
+        var finite=SkinningRenderer.transform(batch,skin(weights,SkinningMethod.BDEF),tiny,bind,MorphWeights.none(0));for(float n:finite.normals())assertTrue(Float.isFinite(n));
+    }
+
     @Test void hiddenInfluencesAreDroppedAndTheRemainderRenormalized() {
         var weights = SkinWeights.of(2, new int[][] {{0, 1}}, new float[][] {{0.25f, 0.75f}});
         var batch = new VertexBatch(new float[] {3, 0, 0}, new float[] {1, 0, 0}, new int[] {0});

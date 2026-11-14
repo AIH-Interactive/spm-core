@@ -5,6 +5,7 @@ import java.util.List;
 /** Immutable owner lifecycle programs. Every phase executes within the same unpublished frame candidate. */
 public record MolangHooks(List<MolangProgram> initialize,List<MolangProgram> beforeStep,List<MolangProgram> afterStep,
                           List<MolangProgram> afterFrame,List<MolangProgram> defer,List<MolangProgram> sync) {
+    public enum Phase { INITIALIZE, BEFORE_STEP, AFTER_STEP, AFTER_FRAME, DEFER, SYNC }
     public MolangHooks {
         initialize=List.copyOf(initialize);beforeStep=List.copyOf(beforeStep);afterStep=List.copyOf(afterStep);
         afterFrame=List.copyOf(afterFrame);defer=List.copyOf(defer);sync=List.copyOf(sync);

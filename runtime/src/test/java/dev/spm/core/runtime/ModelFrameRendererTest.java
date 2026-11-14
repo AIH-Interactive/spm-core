@@ -2,9 +2,12 @@ package dev.spm.core.runtime;
 
 import dev.spm.core.api.*;
 import dev.spm.core.api.ModelDocument.*;
+import dev.spm.core.acceleration.CpuComputeProvider;
+import dev.spm.core.render.cpu.JavaComputeProvider;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ModelFrameRendererTest {
@@ -32,5 +35,24 @@ class ModelFrameRendererTest {
         var cancelled=new CancellationToken();cancelled.cancel();
         assertThrows(java.util.concurrent.CancellationException.class,()->ModelFrameRenderer.render(document,pose,budget,cancelled));
         assertEquals(0,budget.used());
+    }
+    @Test void rendererFailureReleasesWorkingReservationAndAssetLease() {
+        var skeleton=new Skeleton(List.of("root"),new int[]{-1},new float[3]);
+        var vertices=new VertexBatch(new float[]{0,0,0},new float[]{0,0,1},new int[]{0});
+        var mesh=new Mesh("mesh",vertices,new float[]{0,0},new int[0],List.of(),new Bounds(0,0,0,0,0,0),0);
+        var document=new ModelDocument("failure","synthetic",skeleton,List.of(mesh),BonePose.identity(1),
+                List.of(new Material("skin",1,1,List.of())),List.of(),new JsonObject(Map.of()));
+        var budget=new ResourceBudget(1<<20);var retained=budget.reserve(256);var released=new AtomicInteger();
+        var asset=new ModelAsset(document,List.of(retained),released::incrementAndGet);
+        var java=new JavaComputeProvider();
+        CpuComputeProvider failing=new CpuComputeProvider() {
+            public String backend(){return "injected";}
+            public BoneMatrices evaluateBones(Skeleton s,BonePose p){return java.evaluateBones(s,p);}
+            public VertexBatch renderVertices(VertexBatch v,BoneMatrices b){throw new IllegalStateException("injected renderer failure");}
+        };
+        assertThrows(IllegalStateException.class,()->ModelFrameRenderer.render(asset,BonePose.identity(1),failing,budget,new CancellationToken()));
+        assertEquals(256,budget.used(),"failure must release only the temporary frame reservation");
+        assertEquals(0,released.get(),"failed rendering must return its lease while the asset remains open");
+        asset.close();assertEquals(0,budget.used());assertEquals(1,released.get());
     }
 }

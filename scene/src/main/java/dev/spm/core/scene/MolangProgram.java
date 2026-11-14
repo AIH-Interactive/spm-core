@@ -204,6 +204,7 @@ public final class MolangProgram {
                         left = nullableNode(e -> {
                             MolangValue value = right.runNullable(e);
                             if (target.startsWith("v.")) e.context.variable(target.substring(2), value);
+                            else if(target.startsWith("c.")) e.context.contextVariable(target.substring(2),value);
                             else e.context.temporary(e.temporary,target.substring(2),value);
                             return value;
                         }, right);
@@ -316,6 +317,11 @@ public final class MolangProgram {
                         MolangValue suppressed=e.context.suppressedEffect(binding);
                         if(suppressed!=null) return suppressed;
                         List<MolangValue> values=new ArrayList<>();
+                        if(binding.equals("ctrl.set_animation")) {
+                            MolangValue first=args[0].runNullable(e);
+                            if(!(first instanceof MolangValue.TextValue text)||text.value().isEmpty())return MolangValue.missing();
+                            values.add(first);
+                        }
                         int used=args.length;
                         if(binding.equals("ysm.first_order") || binding.equals("ysm.second_order")) {
                             if(args.length<2) throw new MolangException(MolangException.Reason.ARITY,"Expected key and input");
@@ -332,10 +338,13 @@ public final class MolangProgram {
                 }
                 String function = name.substring(name.indexOf('.') + 1);
                 return nullableNode(e -> {
+                    MolangProgram program=name.startsWith("fn.")?e.context.findFunction(function):null;
+                    // Optional fn.* calls with no registered implementation are absent values. Resolve
+                    // that absence before evaluating arguments so their side effects cannot leak.
+                    if(name.startsWith("fn.")&&program==null)return MolangValue.missing();
                     Map<String, MolangValue> parameters = new HashMap<>();
                     for (int i = 0; i < args.length; i++) parameters.put("arg" + i, args[i].runNullable(e));
-                    MolangProgram program=name.startsWith("fn.")?e.context.findFunction(function):e.context.function(function);
-                    if(program==null) return MolangValue.missing();
+                    if(program==null)program=e.context.function(function);
                     e.context.budget().enterFunction();
                     try { return program.evaluateValue(e.context.invocation(parameters)); }
                     finally { e.context.budget().leaveFunction(); }
@@ -354,7 +363,7 @@ public final class MolangProgram {
             return switch (namespace) {
                 case "query", "q" -> nullableNode(e -> e.context.query(field));
                 case "ysm", "ctrl", "tlm" -> nullableNode(e -> e.context.boundValue(namespace+"."+field));
-                case "context", "c" -> nullableNode(e -> e.context.parameter(field));
+                case "context", "c" -> new Node(1,null,e -> e.context.contextVariable(field),"c."+field);
                 case "variable", "v" -> new Node(1, null, e -> e.context.variable(field), "v." + field);
                 case "temp", "t" -> new Node(1, null, e -> MolangContext.lookup(e.temporary,field), "t." + field);
                 default -> throw unsupported("Unsupported namespace: " + namespace, start);

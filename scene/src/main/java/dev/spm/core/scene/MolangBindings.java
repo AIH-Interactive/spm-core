@@ -8,9 +8,12 @@ import java.util.Objects;
 
 /** Immutable Host-sampled values and call results. Contains data, never executable callbacks. */
 public record MolangBindings(Map<String,MolangValue> values, Map<Call,MolangValue> calls) {
-    public record Call(String name,List<MolangValue> arguments,long occurrence) {
+    public record Call(String name,List<MolangValue> arguments,long occurrence,String controllerScope) {
+        public Call(String name,List<MolangValue> arguments,long occurrence) {this(name,arguments,occurrence,"");}
         public Call(String name,List<MolangValue> arguments) { this(name,arguments,-1); }
         public Call {
+            Objects.requireNonNull(controllerScope);
+            if(controllerScope.length()>256)throw new IllegalArgumentException("Controller scope too long");
             name=normalize(name);
             arguments=List.copyOf(arguments);
             if(arguments.size()>64) throw new IllegalArgumentException("At most 64 binding arguments");
@@ -32,7 +35,10 @@ public record MolangBindings(Map<String,MolangValue> values, Map<Call,MolangValu
         return call(name,arguments,-1);
     }
     public MolangValue call(String name,List<MolangValue> arguments,long occurrence) {
-        Call request=new Call(name,arguments,occurrence);
+        return call(name,arguments,occurrence,"");
+    }
+    public MolangValue call(String name,List<MolangValue> arguments,long occurrence,String controllerScope) {
+        Call request=new Call(name,arguments,occurrence,controllerScope);
         MolangValue result=calls.get(request);
         if(result==null) throw new MolangException(MolangException.Reason.UNKNOWN_FUNCTION,"Host snapshot has no call: "+name,request);
         return result;

@@ -56,6 +56,11 @@ public final class YsmHistoricalModel implements AutoCloseable {
         if (root == null) throw new IllegalStateException("Historical model is closed");
         var taken = meshCollectors; meshCollectors = null; return taken;
     }
+    /** Borrows collected geometry while lowering is still fallible. */
+    synchronized Map<Long,HistoricalMeshCollector> meshCollectors() {
+        if (root == null) throw new IllegalStateException("Historical model is closed");
+        return meshCollectors;
+    }
     @Override public synchronized void close() {
         root = null; animationCollector = null; meshCollectors = null;
         reservations.forEach(ResourceBudget.Reservation::close); reservations.clear();

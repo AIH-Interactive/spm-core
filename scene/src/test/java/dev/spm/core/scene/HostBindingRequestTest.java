@@ -19,7 +19,7 @@ class HostBindingRequestTest {
     }
     @Test void failedRequestDoesNotPublishVariablesEffectsOrRefundTheFrameMeter() {
         var scene=new SceneInstance(new SceneDefinition(new AnimationClip("test",1,true,Map.of(),List.of()),
-                MolangProgram.compile("v.n=(v.n ?? 0)+1; ctrl.set_animation('F',v.n)"),
+                MolangProgram.compile("v.n=(v.n ?? 0)+1; ysm.bone_glow('F',v.n)"),
                 Map.of("result",MolangProgram.compile("q.external(v.n)")),Map.of()),60);
         var firstBinding=new MolangBindings.Call("query.external",List.of(MolangValue.missing()));
         var input=new SceneInputs(Map.of(),new MolangBindings(Map.of(),Map.of(firstBinding,MolangValue.number(0))));

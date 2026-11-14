@@ -3,6 +3,7 @@ package dev.spm.core.parser;
 import dev.spm.core.api.*;
 import dev.spm.core.format.bedrock.BedrockJsonImporter;
 import dev.spm.core.format.bbmodel.BbmodelJsonImporter;
+import dev.spm.core.format.gltf.GltfModelImporter;
 import dev.spm.core.format.common.BoundedJson;
 import dev.spm.core.format.ysm.*;
 import java.io.IOException;
@@ -21,6 +22,7 @@ public final class SpmModelParser implements ModelImporter {
     public SpmModelParser(List<ModelFormatAdapter> extensions){
         var registered=new java.util.ArrayList<>(List.copyOf(extensions));var ids=new HashSet<String>();
         ids.addAll(Set.of("ysm","ysm-payload","bedrock","bbmodel"));
+        if(!registered.stream().anyMatch(a->a instanceof GltfModelImporter))registered.add(new GltfModelImporter());
         for(var adapter:registered)if(!adapter.formatId().matches("[a-z][a-z0-9-]{0,63}")||!ids.add(adapter.formatId()))
             throw new IllegalArgumentException("Duplicate or invalid format adapter id");
         if(!ids.contains("v3d"))registered.add(new V3dModelAdapter());
@@ -41,12 +43,28 @@ public final class SpmModelParser implements ModelImporter {
             try(snapshot){
                 byte[] bytes=snapshot.bytes();FormatHint hint=request.hint();
                 if(hint==FormatHint.AUTO)hint=detect(bytes,request);
+                if(hint==FormatHint.GLB || hint==FormatHint.GLTF){
+                    for(var adapter:extensions){
+                        if(adapter.supports(hint)&&adapter.accepts(hint,request.source().entry(),prefix(bytes))){
+                            request.cancellation().check();builder.retain(snapshot.retain());
+                            ResourceResolver replay=key->key.equals(request.source().entry())?new ByteArrayInputStream(bytes):request.source().resolver().open(key);
+                            var source=new ModelSource(request.source().identity(),request.source().entry(),replay);
+                            var replayRequest=new ImportRequest(source,request.hint()==FormatHint.AUTO?hint:request.hint(),request.policy(),request.budget(),request.cancellation(),request.sourceProfile(),request.actionProfile());
+                            var imported=adapter.importModel(replayRequest);builder.retain(imported);
+                            for(var model:imported.models())builder.add(model.key(),model.asset().document());
+                            for(var diagnostic:imported.diagnostics())builder.diagnostic(diagnostic);
+                            builder.resources(imported.resources());request.cancellation().check();return builder.finish();
+                        }
+                    }
+                    throw failure(request,ImportErrorCode.UNSUPPORTED_FORMAT,null);
+                }
                 if(hint==null || !supportsBuiltin(hint)){
-                    for(var adapter:extensions)if(adapter.supports(request.hint()) && adapter.accepts(request.hint(),request.source().entry(),prefix(bytes))) {
+                    FormatHint probeHint=hint==null?request.hint():hint;
+                    for(var adapter:extensions)if(adapter.supports(probeHint) && adapter.accepts(probeHint,request.source().entry(),prefix(bytes))){
                         request.cancellation().check();builder.retain(snapshot.retain());
                         ResourceResolver replay=key->key.equals(request.source().entry())?new ByteArrayInputStream(bytes):request.source().resolver().open(key);
                         var source=new ModelSource(request.source().identity(),request.source().entry(),replay);
-                        var replayRequest=new ImportRequest(source,request.hint(),request.policy(),request.budget(),request.cancellation(),request.sourceProfile(),request.actionProfile());
+                        var replayRequest=new ImportRequest(source,probeHint,request.policy(),request.budget(),request.cancellation(),request.sourceProfile(),request.actionProfile());
                         var imported=adapter.importModel(replayRequest);builder.retain(imported);
                         for(var model:imported.models())builder.add(model.key(),model.asset().document());
                         for(var diagnostic:imported.diagnostics())builder.diagnostic(diagnostic);
@@ -102,6 +120,7 @@ public final class SpmModelParser implements ModelImporter {
     }
     private static boolean supportsBuiltin(FormatHint hint){return hint==FormatHint.YSM||hint==FormatHint.YSM_PAYLOAD||hint==FormatHint.BEDROCK||hint==FormatHint.BBMODEL;}
     private static FormatHint detect(byte[] bytes,ImportRequest request) throws IOException {
+        if(bytes.length>=4&&ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt()==0x46546c67)return FormatHint.GLB;
         if(isV3(bytes)||bytes.length>=4&&bytes[0]=='Y'&&bytes[1]=='S'&&bytes[2]=='G'&&bytes[3]=='P')return FormatHint.YSM;
         int first=0;while(first<bytes.length&&(bytes[first]==' '||bytes[first]=='\t'||bytes[first]=='\r'||bytes[first]=='\n'))first++;
         if(first==bytes.length||bytes[first]!='{')return null;
@@ -109,6 +128,7 @@ public final class SpmModelParser implements ModelImporter {
             var root=BoundedJson.read(bytes,quota);
             if(root.values().containsKey("minecraft:geometry"))return FormatHint.BEDROCK;
             if(root.values().containsKey("elements")&&root.values().containsKey("outliner"))return FormatHint.BBMODEL;
+            if(root.values().containsKey("asset")&&root.values().containsKey("buffers"))return FormatHint.GLTF;
             return null;
         }
     }
