@@ -33,6 +33,7 @@ public final class MolangContext {
     }
     MolangValue suppressedEffect(String name) {
         if(codedCommand(name))return codedControl==null?MolangValue.missing():null;
+        if(name.equals("ysm.defer"))return null; // Deferred handlers are local simulation, not Host effects.
         if(name.equals("ysm.sync") && hookState.syncMode==SceneInputs.SyncMode.NONE)return MolangValue.missing();
         if(effectsAllowed || !EFFECTS.contains(name)) return null;
         return SOUND_RESULTS.contains(name)?MolangValue.bool(false):MolangValue.missing();
@@ -273,7 +274,7 @@ public final class MolangContext {
         }
 
         if(name.equals("ysm.defer")) {
-            if(!effectsAllowed || arguments.isEmpty() || !(arguments.get(0) instanceof MolangValue.TextValue text) || text.value().isEmpty())return MolangValue.missing();
+            if(arguments.isEmpty() || !(arguments.get(0) instanceof MolangValue.TextValue text) || text.value().isEmpty())return MolangValue.missing();
             budget.step();
             if(hookState.deferred.size()>=4096)throw new MolangException(MolangException.Reason.CAPACITY,"Deferred call capacity exceeded");
             hookState.deferred.add(java.util.List.copyOf(arguments.subList(1,arguments.size())));

@@ -58,7 +58,7 @@ public final class GltfModelImporter implements ModelFormatAdapter {
                     request.cancellation().check();var primitive=obj(primitiveValue,"primitive");
                     require(integer(optional(primitive.get("mode"),4),"primitive.mode")==4,"Only TRIANGLES primitives are supported");
                     var attributes=obj(primitive.get("attributes"),"primitive.attributes");
-                    requireSupported(attributes.values().keySet().stream().allMatch(key->key.equals("POSITION")||key.equals("TEXCOORD_0")),"Unsupported vertex attribute");
+                    requireSupported(attributes.values().keySet().stream().allMatch(key->key.equals("POSITION")||key.equals("NORMAL")||key.equals("TEXCOORD_0")),"Unsupported vertex attribute");
                     requireSupported(primitive.get("material")==null,"glTF materials and textures are not supported by this importer");
                     int positionAccessor=integer(attributes.get("POSITION"),"POSITION accessor");
                     require(positionAccessor>=0&&positionAccessor<accessors.size(),"POSITION accessor index out of range");
@@ -74,7 +74,9 @@ public final class GltfModelImporter implements ModelFormatAdapter {
                     int[] indices=indexValue==null?sequence(vertices):readIndices(accessor(accessors,integer(indexValue,"indices")),views,buffers,quota,vertices);
                     require(indices.length==indexCount,"Index count changed during decoding");
                     for(int index:indices)require(index>=0&&index<vertices,"Index outside POSITION accessor");
-                    float[] normals=generatedNormals(positions,indices,quota);
+                    JsonValue normalAccessor=attributes.get("NORMAL");
+                    float[] normals=normalAccessor==null?generatedNormals(positions,indices,quota):readVec3(accessor(accessors,integer(normalAccessor,"NORMAL")),views,buffers,quota);
+                    require(normals.length==positions.length,"NORMAL count must match POSITION count");
                     int[] bones=new int[vertices],glow=new int[vertices],colors=new int[vertices];Arrays.fill(glow,255);Arrays.fill(colors,0xffffffff);
                     float[] min={0,0,0},max={0,0,0};if(vertices>0){Arrays.fill(min,Float.POSITIVE_INFINITY);Arrays.fill(max,Float.NEGATIVE_INFINITY);for(int i=0;i<positions.length;i++){int axis=i%3;min[axis]=Math.min(min[axis],positions[i]);max[axis]=Math.max(max[axis],positions[i]);}}
                     meshes.add(new Mesh(primitiveIndex==0?meshName:meshName+"-"+primitiveIndex,new VertexBatch(positions,normals,bones,glow,colors),uvs,indices,List.of(),new Bounds(min[0],min[1],min[2],max[0],max[1],max[2]),0));primitiveIndex++;
@@ -87,9 +89,9 @@ public final class GltfModelImporter implements ModelFormatAdapter {
                 modelIndex++;
             }
             if(documents.isEmpty())throw new IOException("No supported triangle meshes");
+            List<ImportResult.Model> models=new ArrayList<>();
             var retained=quota.transfer();transferred=true;
             SharedRetention shared=null;
-            List<ImportResult.Model> models=new ArrayList<>();
             int assigned=0;
             try {
                 shared=new SharedRetention(retained,documents.size());
@@ -104,6 +106,7 @@ public final class GltfModelImporter implements ModelFormatAdapter {
                 throw construction;
             }
         }catch(Exception failure){if(!transferred)quota.close();throw error(request,failure);}
+        catch(Error failure){if(!transferred)quota.close();throw failure;}
     }
     private record Glb(byte[] json,byte[] binary){}
     private static Glb glb(byte[] bytes)throws IOException{

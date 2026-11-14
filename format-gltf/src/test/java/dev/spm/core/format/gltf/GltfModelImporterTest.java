@@ -8,6 +8,26 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 final class GltfModelImporterTest {
+    @Test void preservesAuthoredNormalsAndRejectsMismatchedCountsWithoutLeaking() throws Exception {
+        var bytes=ByteBuffer.allocate(72).order(ByteOrder.LITTLE_ENDIAN);
+        for(float v:new float[]{0,0,0,1,0,0,0,1,0, 0,1,0,0,1,0,0,1,0})bytes.putFloat(v);
+        String data=java.util.Base64.getEncoder().encodeToString(bytes.array());
+        for(int count:new int[]{3,2}) {
+            String json="""
+                {"asset":{"version":"2.0"},"meshes":[{"primitives":[{"attributes":{"POSITION":0,"NORMAL":1}}]}],
+                 "buffers":[{"byteLength":72,"uri":"data:application/octet-stream;base64,%s"}],
+                 "bufferViews":[{"buffer":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":36}],
+                 "accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},
+                              {"bufferView":1,"componentType":5126,"count":%d,"type":"VEC3"}]}
+                """.formatted(data,count);
+            var budget=new ResourceBudget(1<<20);var key=new ResourceKey("authored.gltf");
+            var req=new ImportRequest(new ModelSource("authored",key,k->new java.io.ByteArrayInputStream(json.getBytes(java.nio.charset.StandardCharsets.UTF_8))),FormatHint.GLTF,DecodePolicy.conservative(),budget,new CancellationToken());
+            if(count==3)try(var imported=new GltfModelImporter().importModel(req)) {
+                assertArrayEquals(new float[]{0,1,0,0,1,0,0,1,0},imported.models().get(0).asset().document().meshes().get(0).vertices().normals());
+            } else assertEquals(ImportErrorCode.MALFORMED_INPUT,assertThrows(ModelImportException.class,()->new GltfModelImporter().importModel(req)).diagnostic().code());
+            assertEquals(0,budget.used());
+        }
+    }
     private static byte[] glb(int[] indices) throws IOException {
         var bin=ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN);
         bin.putFloat(0).putFloat(0).putFloat(0).putFloat(1).putFloat(0).putFloat(0).putFloat(0).putFloat(1).putFloat(0);

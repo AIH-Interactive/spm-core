@@ -61,7 +61,7 @@ the exact probed root snapshot, including for one-shot sources, and pins it unti
 and streams close. Extensions return the same owned `ImportResult`; a plugin must implement the
 geometry/animation capabilities it declares. The built-in glTF 2.0 adapter reads static triangle
 geometry from `.gltf` and `.glb`, including bounded external buffers resolved relative to the logical
-entry and base64 buffer data URIs. It maps positions, optional `TEXCOORD_0`, and indices into rigid
+entry and base64 buffer data URIs. It maps positions, optional `NORMAL` and `TEXCOORD_0`, and indices into rigid
 single-root geometry. It rejects node transforms, materials/images/textures, extra vertex attributes,
 sparse or normalized accessors, skins, morphs, animations, and unsupported extensions; it does not
 silently drop these semantics. This subset does not provide glTF material resources, weighted rendering,

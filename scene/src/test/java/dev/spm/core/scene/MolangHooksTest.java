@@ -10,6 +10,13 @@ import static dev.spm.core.scene.PoseControllerTest.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MolangHooksTest {
+    @Test void suppressingExternalEffectsPreservesDeferredSimulationState() {
+        var h=hooks(scripts("ysm.defer('local',7)"),List.of(),List.of(),List.of(),scripts("v.drained=args[0]; ysm.bone_glow('root',1)"),List.of());
+        var visible=player(h).evaluate(0,0,new SceneInputs(Map.of(),MolangBindings.empty(),true),budget());
+        var preview=player(h).evaluate(0,0,new SceneInputs(Map.of(),MolangBindings.empty(),false),budget());
+        assertEquals(visible.variables(),preview.variables());assertEquals(7,preview.variables().get("drained"));assertTrue(preview.effects().isEmpty());
+        assertFalse(visible.effects().isEmpty());
+    }
     private static List<MolangProgram> scripts(String... sources) {
         return java.util.Arrays.stream(sources).map(MolangProgram::compile).toList();
     }
