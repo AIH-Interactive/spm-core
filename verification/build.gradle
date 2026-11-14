@@ -16,6 +16,11 @@ dependencies {
 // Opt-in private corpus run, mirroring parser/build.gradle: nothing here activates unless the
 // caller passes -PspmCorpusDirectory, so the default unit-test task is unchanged.
 tasks.named('test') {
+    def stability = providers.gradleProperty('spmStabilitySeconds')
+    if (stability.isPresent()) {
+        systemProperty 'spm.stability.seconds', stability.get()
+        maxHeapSize = '384m'
+    }
     def corpus = providers.gradleProperty('spmCorpusDirectory')
     if (corpus.isPresent()) {
         systemProperty 'spm.corpus.directory', corpus.get()

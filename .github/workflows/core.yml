@@ -4,6 +4,12 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      stability:
+        description: Run the 30 minute synthetic Core stability soak
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -13,6 +19,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  stability:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.stability }}
+    uses: ./.github/workflows/core-stability.yml
   candidate:
     name: ${{ matrix.label }}
     runs-on: ${{ matrix.runner }}

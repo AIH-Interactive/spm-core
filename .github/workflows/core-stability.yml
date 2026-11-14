@@ -1,0 +1,40 @@
+name: Independent Core 30 minute stability
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  stability:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Execute the bounded heap soak on this exact commit
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p build/stability-evidence
+          python3 -c 'import json,os,platform; from pathlib import Path; Path("build/stability-evidence/context.json").write_text(json.dumps(dict(sha=os.environ["GITHUB_SHA"],run=os.environ["GITHUB_RUN_ID"],platform=platform.platform(),architecture=platform.machine(),heap="384m",seconds=1800,scope="synthetic Core owner, weighted morph, cancellation, budget failure and Molang compile"),indent=2))'
+          bash ./gradlew :verification:test --tests '*CoreStabilitySoakTest' -PspmStabilitySeconds=1800 --rerun-tasks --no-build-cache --warning-mode fail --console=plain 2>&1 | tee build/stability-evidence/gradle.log
+      - name: Preserve report and failure evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: core-stability-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/stability-evidence/
+            verification/build/reports/stability/
+            verification/build/test-results/test/
+          if-no-files-found: error
+          retention-days: 14
