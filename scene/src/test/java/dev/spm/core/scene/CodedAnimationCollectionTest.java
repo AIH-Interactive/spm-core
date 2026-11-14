@@ -8,6 +8,40 @@ import static dev.spm.core.scene.PoseControllerTest.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CodedAnimationCollectionTest {
+    @Test void collectionResetStartsANewGenerationAndRetiresOldEffects() {
+        var library=library(obj("a",obj("loop",true,"animation_length",1,"sound_effects",obj("0","start.sound"))));
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),List.of(controller("main","ctrl.set_animation('a'); return 2;","a")),60,42);
+        var old=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());var cursor=new EffectCursor();
+        assertEquals(1,cursor.claim(old,owner.generation()).size());owner.reset();
+        assertTrue(cursor.claim(old,owner.generation()).isEmpty());
+        var fresh=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertEquals(old.instanceId(),fresh.instanceId());assertEquals(old.generation()+1,fresh.generation());
+        assertEquals(1,cursor.claim(fresh,owner.generation()).size());assertTrue(cursor.claim(fresh).isEmpty());
+    }
+    @Test void playOnceEmitsItsFinalCueOnceWhileHoldRetainsTheLastPose() {
+        var library=library(obj("short",obj("loop",false,"animation_length",.05,"bones",obj("root",obj("position",List.of(0,16,0))),"sound_effects",obj("0.05","final.sound"))));
+        var once=new CodedAnimationCollection(library,BonePose.identity(1),List.of(controller("main","ctrl.set_animation('short',11); return 2;","short")),60,42);
+        assertTrue(once.evaluate(0,0,new SceneInputs(Map.of()),budget()).effects().isEmpty());
+        var end=once.evaluate(1,50_000_000,new SceneInputs(Map.of()),budget());
+        assertEquals(1,end.effects().size());assertEquals("final.sound",end.effects().get(0).resource());
+        assertTrue(once.evaluate(2,66_666_667,new SceneInputs(Map.of()),budget()).effects().isEmpty());
+        var hold=new CodedAnimationCollection(library,BonePose.identity(1),List.of(controller("main","ctrl.set_animation('short',12); return 2;","short")),60,42);
+        hold.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        var held=hold.evaluate(1,500_000_000,new SceneInputs(Map.of()),budget());
+        assertEquals(.05,held.controllers().get(0).animationTimeSeconds(),1e-8);
+        assertTrue(held.controllers().get(0).contributing());assertEquals(1,held.pose().translations()[1]);
+    }
+    @Test void failingDeferredStopRollsBackAndRetriesTheCommittedQueueExactlyOnce() {
+        var library=library(obj("a",obj("loop",true,"animation_length",1,"timeline",obj("0","ysm.defer('local',1)"))));
+        var hooks=new MolangHooks(List.of(),List.of(),List.of(),List.of(),List.of(MolangProgram.compile("v.drained=(v.drained??0)+args[0]; q.fail?math.sqrt(-1):0")),List.of());
+        var definition=controller("main","q.stop?0:ctrl.set_animation('a'); return q.stop?3:2;","a");
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),List.of(definition),60,42,Map.of(),hooks);
+        var initial=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        assertThrows(MolangException.class,()->owner.evaluate(1,16_666_667,new SceneInputs(Map.of("stop",1.0,"fail",1.0)),budget()));
+        assertSame(initial,owner.evaluate(0,0,new SceneInputs(Map.of()),budget()));assertFalse(owner.typedVariables().containsKey("drained"));
+        var retried=owner.evaluate(1,16_666_667,new SceneInputs(Map.of("stop",1.0)),budget());assertEquals(1,retried.variables().get("drained"));
+        assertEquals(1,owner.evaluate(2,33_333_334,new SceneInputs(Map.of("stop",1.0)),budget()).variables().get("drained"));
+    }
     @Test void deferredCapacityIsSharedByAllMembersOfOneCandidate() {
         String source="loop(q.calls,ysm.defer('local',1)); ctrl.set_animation('a'); return 2;";
         var owner=owner(controller("first",source,"a"),controller("second",source,"a"));

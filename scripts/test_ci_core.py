@@ -3,11 +3,17 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from ci_core import candidate_inputs, diagnostics, validate_checkout, validate_java_evidence
+from ci_core import candidate_inputs, diagnostics, validate_checkout, validate_java_evidence, java_runtime_arch
 from snapshot_core import build_input_snapshot
 
 
 class CandidateChecksTest(unittest.TestCase):
+    def test_runtime_architecture_comes_from_the_jvm_and_requires_evidence(self):
+        self.assertEqual('x86', java_runtime_arch('    os.arch = x86\n'))
+        self.assertEqual('x86_64', java_runtime_arch('    os.arch = amd64\n'))
+        self.assertEqual('aarch64', java_runtime_arch('    os.arch = arm64\n'))
+        with self.assertRaises(ValueError):
+            java_runtime_arch('compiler is x64 but runtime settings are missing')
     def test_failure_diagnostics_preserve_failed_audit_without_collecting_private_models(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

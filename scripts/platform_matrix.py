@@ -20,6 +20,7 @@ from pathlib import Path
 PLATFORMS = [
     dict(id='windows-x64', os='Windows', arch='x86_64', target='x86_64-pc-windows-msvc'),
     dict(id='linux-x64', os='Linux', arch='x86_64', target='x86_64-unknown-linux-gnu'),
+    dict(id='linux-arm64', os='Linux', arch='aarch64', target='aarch64-unknown-linux-gnu'),
     dict(id='macos-arm64', os='Darwin', arch='aarch64', target='aarch64-apple-darwin'),
     dict(id='macos-x64', os='Darwin', arch='x86_64', target='x86_64-apple-darwin'),
     dict(id='android-arm64', os='Android', arch='aarch64', target='aarch64-linux-android'),
@@ -87,7 +88,8 @@ def matrix(manifests: list[dict]) -> dict:
         apply_manifest(rows, manifest)
     for identity in JAVA_ONLY_EXECUTABLE:
         if identity in rows and rows[identity]['native_execution'] == 'NOT_EXECUTED':
-            rows[identity]['note'] = (
+            rows[identity]['note'] = ('verified Java scalar on this JVM architecture; no native library is shipped'
+                if rows[identity]['java_scalar_execution'] == 'EXECUTED' else
                 'no native library is shipped for 32-bit Windows; the Java scalar path remains the '
                 'only executable option and must be verified separately on that host'
             )

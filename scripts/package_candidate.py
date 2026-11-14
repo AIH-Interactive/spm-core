@@ -130,10 +130,12 @@ def validate_native(data: bytes, target: str) -> None:
     if target == 'x86_64-pc-windows-msvc' and len(data) >= 64 and data[:2] == b'MZ':
         offset = struct.unpack_from('<I', data, 60)[0]
         valid = len(data) >= offset + 24 and data[offset:offset + 4] == b'PE\0\0' and struct.unpack_from('<H', data, offset + 4)[0] == 0x8664
-    elif target == 'x86_64-unknown-linux-gnu' and len(data) >= 20:
-        valid = data[:6] == b'\x7fELF\x02\x01' and struct.unpack_from('<HH', data, 16) == (3, 62)
-    elif target == 'aarch64-apple-darwin' and len(data) >= 16:
-        valid = struct.unpack_from('<IIII', data)[:2] == (0xFEEDFACF, 0x0100000C) and struct.unpack_from('<I', data, 12)[0] == 6
+    elif target in {'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu'} and len(data) >= 20:
+        machine = 183 if target.startswith('aarch64') else 62
+        valid = data[:6] == b'\x7fELF\x02\x01' and struct.unpack_from('<HH', data, 16) == (3, machine)
+    elif target in {'aarch64-apple-darwin', 'x86_64-apple-darwin'} and len(data) >= 16:
+        cpu = 0x0100000C if target.startswith('aarch64') else 0x01000007
+        valid = struct.unpack_from('<IIII', data)[:2] == (0xFEEDFACF, cpu) and struct.unpack_from('<I', data, 12)[0] == 6
     if not valid:
         raise ValueError('Native container/architecture mismatch: ' + target)
 

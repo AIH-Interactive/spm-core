@@ -78,6 +78,8 @@ in this repository. Recorded in `provenance/allowed-sources.json`.
 | [YesSteveModel/YesSteveModel](https://github.com/YesSteveModel/YesSteveModel) | `c0fff0bc99c58ff623e2f2acc2545521bdd8909c` | model, material, animation and runtime behavior specification |
 | [AndreaFrederica/OhMyYesSteveModel](https://github.com/AndreaFrederica/OhMyYesSteveModel) | `d2536542747a1aa5c02594827f579171c525843c` | historical formats, independent Java runtime semantics, Apache-2.0 licensed synthetic fixtures |
 | [JannisX11/blockbench](https://github.com/JannisX11/blockbench) | `ec0b2827104d0799c153bfb5f867579c0c44652f` | file-format and transform-order specification only |
+| [KhronosGroup/glTF](https://github.com/KhronosGroup/glTF) | `60d514b8079f19230a2f49ef5884dd09fa3feb6d` | CC-BY-4.0 format specification reference only; no implementation or fixtures copied |
+| [FiguraMC/Figura](https://github.com/FiguraMC/Figura) | `7afeb6a2f7635cfbad87ec65fe116cd3cfd4cdaa` | LGPL-2.1 historical avatar asset format reference only; no code or artwork copied |
 
 Blockbench is GPL-3.0 as an application. Only its documented file-format
 specification was used; this repository contains no JavaScript or TypeScript

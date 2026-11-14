@@ -46,11 +46,22 @@ jobs:
             java: '25'
             java_arch: x64
             native_target: ''
+          - label: java-17-windows-x86
+            runner: windows-2025
+            java: '17'
+            java_arch: x86
+            compiler_arch: x64
+            native_target: ''
           - label: native-25-linux-x64
             runner: ubuntu-24.04
             java: '25'
             java_arch: x64
             native_target: x86_64-unknown-linux-gnu
+          - label: native-25-linux-arm64
+            runner: ubuntu-24.04-arm
+            java: '25'
+            java_arch: aarch64
+            native_target: aarch64-unknown-linux-gnu
           - label: native-25-windows-x64
             runner: windows-2025
             java: '25'
@@ -88,7 +99,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          architecture: ${{ matrix.java_arch }}
+          architecture: ${{ matrix.compiler_arch || matrix.java_arch }}
       - name: Execute tests, audit and inspect this candidate
         shell: bash
         env:
@@ -101,11 +112,21 @@ jobs:
             args+=(--native-target "$SPM_NATIVE_TARGET")
           fi
           python scripts/ci_core.py "${args[@]}"
-      - name: Measure the committed Java scalar microbenchmark on the actual runner
+      - name: Measure committed scalar and available native kernels on the actual runner
         if: ${{ matrix.java == '25' }}
         shell: bash
         run: |
-          python scripts/measure_baseline.py --output .gradle/core-ci/artifact/baseline-metrics.json --created "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          args=()
+          target='${{ matrix.native_target }}'
+          if [[ -n "$target" ]]; then
+            case "$target" in
+              *windows*) library=spm_core_native.dll ;;
+              *darwin*) library=libspm_core_native.dylib ;;
+              *) library=libspm_core_native.so ;;
+            esac
+            args+=(--native-library "native-rust/target/$target/release/$library")
+          fi
+          python scripts/measure_baseline.py "${args[@]}" --output .gradle/core-ci/artifact/baseline-metrics.json --created "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       - name: Preserve actual logs, XML and candidate files, including on failure
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

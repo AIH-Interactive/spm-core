@@ -17,7 +17,7 @@ from validate_candidate_consumer import (consumer_build, inspect_repository, rep
 REVISION = 'a' * 40
 VERSION = version_for(REVISION)
 MODULES = ['api', 'codec', 'format-ysm', 'format-bedrock', 'format-bbmodel', 'scene',
-           'acceleration-api', 'native-jni', 'render-cpu', 'runtime', 'format-v3d', 'format-common', 'parser', 'format-gltf']
+           'acceleration-api', 'native-jni', 'render-cpu', 'runtime', 'format-v3d', 'format-common', 'parser', 'format-gltf', 'format-figura']
 
 
 def jar_bytes(extra=None):
@@ -178,6 +178,18 @@ class CandidatePublicationTest(unittest.TestCase):
                 validate_native(b'bad', target)
         with self.assertRaises(ValueError):
             validate_native(windows, 'x86_64-unknown-linux-gnu')
+
+    def test_new_native_hosts_accept_only_their_own_container_architecture(self):
+        mac_intel = struct.pack('<IIII', 0xFEEDFACF, 0x01000007, 0, 6)
+        validate_native(mac_intel, 'x86_64-apple-darwin')
+        with self.assertRaises(ValueError):
+            validate_native(mac_intel, 'aarch64-apple-darwin')
+        linux_arm = bytearray(20)
+        linux_arm[:6] = b'\x7fELF\x02\x01'
+        struct.pack_into('<HH', linux_arm, 16, 3, 183)
+        validate_native(linux_arm, 'aarch64-unknown-linux-gnu')
+        with self.assertRaises(ValueError):
+            validate_native(linux_arm, 'x86_64-unknown-linux-gnu')
 
     def test_published_jvm25_variant_is_rejected_despite_java17_bytecode(self):
         data = dict(formatVersion='1.1', component=dict(group=GROUP, module='api', version=VERSION, attributes={'org.gradle.status': 'release'}),

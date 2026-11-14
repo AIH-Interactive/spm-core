@@ -76,6 +76,7 @@ class PlatformMatrixTest(unittest.TestCase):
         manifests = [
             manifest('Windows', 'AMD64', 'x86_64-pc-windows-msvc'),
             manifest('Linux', 'x86_64', 'x86_64-unknown-linux-gnu'),
+            manifest('Linux', 'aarch64', 'aarch64-unknown-linux-gnu'),
             manifest('Darwin', 'aarch64', 'aarch64-apple-darwin'),
             manifest('Darwin', 'x86_64', 'x86_64-apple-darwin'),
             manifest('Android', 'aarch64', 'aarch64-linux-android'),

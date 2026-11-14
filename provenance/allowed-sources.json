@@ -27,8 +27,20 @@
       "commit": "60d514b8079f19230a2f49ef5884dd09fa3feb6d",
       "use": "glTF 2.0 container, accessor, buffer and static geometry specification only; independently written importer, no upstream implementation or fixtures copied",
       "topLevelLicense": "CC-BY-4.0"
+    },
+    {
+      "repository": "https://github.com/FiguraMC/Figura",
+      "commit": "7afeb6a2f7635cfbad87ec65fe116cd3cfd4cdaa",
+      "use": "Historical static avatar asset roles and container specification only; independently written ZIP adapter, no implementation, artwork or fixtures copied",
+      "topLevelLicense": "LGPL-2.1",
+      "scope": "Only the pinned historical revision; later PolyForm releases are not implementation sources."
     }
   ],
-  "exclusions": ["OpenYSM source or binaries", "OpenYSM behavior oracle", "unreviewed old SPM algorithms", "upstream model artwork"],
+  "exclusions": [
+    "OpenYSM source or binaries",
+    "OpenYSM behavior oracle",
+    "unreviewed old SPM algorithms",
+    "upstream model artwork"
+  ],
   "reviewScope": "Component-scoped reference investigations; no claim that every upstream repository file has been source-certified"
 }

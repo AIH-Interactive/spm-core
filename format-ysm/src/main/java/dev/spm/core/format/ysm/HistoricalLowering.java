@@ -124,8 +124,11 @@ final class HistoricalLowering {
         // Every charge must reach the budget before anything is retired, because a budget failure here
         // is recoverable: the caller still owns the historical model and may retry with a larger budget.
         flushPending();
+        // Construct the new owner before retiring the input: even a constructor allocation failure
+        // must leave the caller's historical model available for retry.
+        var result=new YsmImportResult(variants,resources,reservations);
         historical.close();
-        var result=new YsmImportResult(variants,resources,reservations);reservations.clear();return result;
+        reservations.clear();return result;
     }
     /** Legacy functions are text; modern common functions wrap that same text with its source hash. */
     private void functions(Struct root)throws IOException {

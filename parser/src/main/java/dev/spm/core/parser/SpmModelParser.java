@@ -4,6 +4,7 @@ import dev.spm.core.api.*;
 import dev.spm.core.format.bedrock.BedrockJsonImporter;
 import dev.spm.core.format.bbmodel.BbmodelJsonImporter;
 import dev.spm.core.format.gltf.GltfModelImporter;
+import dev.spm.core.format.figura.FiguraAssetImporter;
 import dev.spm.core.format.common.BoundedJson;
 import dev.spm.core.format.ysm.*;
 import java.io.IOException;
@@ -23,6 +24,7 @@ public final class SpmModelParser implements ModelImporter {
         var registered=new java.util.ArrayList<>(List.copyOf(extensions));var ids=new HashSet<String>();
         ids.addAll(Set.of("ysm","ysm-payload","bedrock","bbmodel"));
         if(!registered.stream().anyMatch(a->a instanceof GltfModelImporter))registered.add(new GltfModelImporter());
+        if(!registered.stream().anyMatch(a->a instanceof FiguraAssetImporter))registered.add(new FiguraAssetImporter());
         for(var adapter:registered)if(!adapter.formatId().matches("[a-z][a-z0-9-]{0,63}")||!ids.add(adapter.formatId()))
             throw new IllegalArgumentException("Duplicate or invalid format adapter id");
         if(!ids.contains("v3d"))registered.add(new V3dModelAdapter());

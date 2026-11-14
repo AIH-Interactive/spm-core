@@ -67,6 +67,14 @@ sparse or normalized accessors, skins, morphs, animations, and unsupported exten
 silently drop these semantics. This subset does not provide glTF material resources, weighted rendering,
 or Lua execution.
 
+The static Figura adapter accepts an explicit `FIGURA` hint, or AUTO entries named `*.figura.zip`.
+It requires a root `avatar.json` marker and imports supported free Blockbench cube projects with
+their hierarchy and authored pose. Literal archive texture paths remain authorized resource keys;
+PNG contents are opaque resource bytes. Open streams and model leases pin their archive budget.
+Lua, native NBT, nested archives, behavioral avatar metadata, animation projects, embedded texture
+data, unsupported project formats and paths outside the archive are rejected. This is a static asset
+subset, not a Figura runtime or a Lua interpreter.
+
 V3D sources use a logical `v3d.json` entry and authorized sibling resources. Admission checks the
 actual decrypted source against the declared wire, in addition to hashes and bounded paths. Edited
 decoded workspaces do not replace the executable wire. Filesystem cache publication remains Host-owned.

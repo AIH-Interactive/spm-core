@@ -19,10 +19,19 @@ from snapshot_core import validate_dependency_inventory
 RUST_VERSION = '1.98.1'
 NATIVE_TARGETS = {
     'x86_64-unknown-linux-gnu': ('Linux', {'x86_64', 'amd64'}, 'libspm_core_native.so'),
+    'aarch64-unknown-linux-gnu': ('Linux', {'aarch64', 'arm64'}, 'libspm_core_native.so'),
     'x86_64-pc-windows-msvc': ('Windows', {'x86_64', 'amd64'}, 'spm_core_native.dll'),
     'aarch64-apple-darwin': ('Darwin', {'aarch64', 'arm64'}, 'libspm_core_native.dylib'),
     'x86_64-apple-darwin': ('Darwin', {'x86_64', 'amd64'}, 'libspm_core_native.dylib'),
 }
+
+
+def java_runtime_arch(settings: str) -> str:
+    match = re.search(r'^\s*os\.arch\s*=\s*(\S+)\s*$', settings, re.MULTILINE)
+    if not match:
+        raise ValueError('Actual test JVM architecture evidence is missing')
+    value = match.group(1).lower()
+    return {'amd64': 'x86_64', 'arm64': 'aarch64', 'i386': 'x86', 'i686': 'x86'}.get(value, value)
 
 
 def validate_checkout(expected: str, actual: str, dirty: str) -> None:
@@ -206,7 +215,8 @@ def build(args: argparse.Namespace) -> None:
         test_home = Path(os.environ['SPM_TEST_JAVA_HOME'])
         suffix = '.exe' if os.name == 'nt' else ''
         run(root, output, 'compiler-java', [str(compiler / 'bin' / ('java' + suffix)), '-version'])
-        run(root, output, 'test-java', [str(test_home / 'bin' / ('java' + suffix)), '-version'])
+        test_settings = run(root, output, 'test-java', [str(test_home / 'bin' / ('java' + suffix)), '-XshowSettings:properties', '-version'])
+        runtime_arch = java_runtime_arch(test_settings)
         init = output / 'evidence.init.gradle'
         init.write_text(INIT_SCRIPT, encoding='utf-8')
         native, native_record = None, None
@@ -280,7 +290,7 @@ def build(args: argparse.Namespace) -> None:
         manifest_record = dict(schema=1, status='VERIFIED_CANDIDATE_NOT_RELEASE_CERTIFIED', checkout=revision,
                               expectedCheckout=args.expected_sha, runId=os.environ.get('GITHUB_RUN_ID'),
                               runAttempt=os.environ.get('GITHUB_RUN_ATTEMPT'), os=platform.system(),
-                              architecture=platform.machine(), native=native_record, java=evidence,
+                              architecture=runtime_arch, runnerArchitecture=platform.machine(), native=native_record, java=evidence,
                               sourceCertification='Q', licenseClosureCertification='Q',
                               dependencyInventoryScope='Resolved dependency hashes and build inputs; not a certified SBOM', files=records)
         (artifact / 'candidate.json').write_text(json.dumps(manifest_record, indent=2) + '\n', encoding='utf-8')

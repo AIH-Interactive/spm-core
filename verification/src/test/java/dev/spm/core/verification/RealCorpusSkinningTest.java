@@ -206,6 +206,9 @@ class RealCorpusSkinningTest {
                     Posed posedFrame = posedFrame(document, label);
                     if (posedFrame.fromClip()) run.posedFromOwnClip++;
                     if (posedFrame.authoredInvalid()) run.authoredInvalidVariants++;
+                    System.out.println("REAL_VARIANT " + label + " ownClip=" + posedFrame.clipName()
+                            + " authoredInvalid=" + posedFrame.authoredInvalid() + " geometrySha256=" + geometryDigest(document)
+                            + " importUsed=" + importBudget.used() + " importPeak=" + importBudget.peakUsed());
                     BonePose pose = posedFrame.pose();
                     assertEquals(document.skeleton().boneCount(), pose.boneCount(), label + " pose size");
                     var posedBudget = new ResourceBudget(budgetBytes);
@@ -234,6 +237,7 @@ class RealCorpusSkinningTest {
             }
         }
         assertAll("Every corpus file must complete",failures.stream().map(failure -> (org.junit.jupiter.api.function.Executable) () -> {throw failure;}));
+        System.out.println("REAL_AVAILABLE_CORPUS models="+run.models+" variants="+run.variants+" ownClip="+run.posedFromOwnClip+" authoredInvalid="+run.authoredInvalidVariants+" posedCompleted="+run.posedRenderedVariants);
         if (!run.nonIdentityBindModels.isEmpty()) {
             System.out.println("REAL_SKINNING_NON_IDENTITY_BIND count=" + run.nonIdentityBindModels.size());
             for (String label : run.nonIdentityBindModels)
@@ -300,7 +304,7 @@ class RealCorpusSkinningTest {
     }
 
     /** A posed frame plus where it came from, so the report can state the split honestly. */
-    private record Posed(BonePose pose, boolean fromClip, boolean authoredInvalid) { }
+    private record Posed(BonePose pose, boolean fromClip, boolean authoredInvalid, String clipName) { }
 
     /** A posed frame: the document's own first clip when it decodes, otherwise a deterministic tilt. */
     private static Posed posedFrame(ModelDocument document, String label) {
@@ -312,7 +316,7 @@ class RealCorpusSkinningTest {
         } catch (MolangException invalid) {
             if (!authoredInvalid(invalid)) throw invalid;
             System.out.println("REAL_AUTHORED_INVALID_CLIP " + label + " :: " + invalid.reason() + " :: " + invalid.getMessage());
-            return new Posed(tilted(document.bindPose()), false, true);
+            return new Posed(tilted(document.bindPose()), false, true, "");
         }
         var names = new TreeSet<>(library.names());
         if (!names.isEmpty()) {
@@ -328,9 +332,26 @@ class RealCorpusSkinningTest {
             var context = new MolangContext(new SceneInputs(Map.of(),bindings,false),Map.of(),Map.of(),budget);
             BonePose sampled = library.sample(names.first(), 0.4, context, document.bindPose());
             assertEquals(document.skeleton().boneCount(),sampled.boneCount(),label+" sampled pose size");
-            return new Posed(sampled, true, false);
+            return new Posed(sampled, true, false, names.first());
         }
-        return new Posed(tilted(document.bindPose()), false, false);
+        return new Posed(tilted(document.bindPose()), false, false, "");
+    }
+
+    /** Geometry-only digest, independent of Java collection toString and animation metadata. */
+    private static String geometryDigest(ModelDocument document) throws java.security.NoSuchAlgorithmException {
+        var digest=java.security.MessageDigest.getInstance("SHA-256");
+        var word=java.nio.ByteBuffer.allocate(4);
+        for(var mesh:document.meshes()) {
+            for(float[] values:List.of(mesh.vertices().positions(),mesh.vertices().normals(),mesh.uvs())) {
+                digest.update(word.clear().putInt(values.length).array());
+                for(float value:values)digest.update(word.clear().putInt(Float.floatToRawIntBits(value)).array());
+            }
+            for(int[] values:List.of(mesh.vertices().boneIndices(),mesh.indices())) {
+                digest.update(word.clear().putInt(values.length).array());
+                for(int value:values)digest.update(word.clear().putInt(value).array());
+            }
+        }
+        return java.util.HexFormat.of().formatHex(digest.digest());
     }
 
     private static long stringCharacters(ModelDocument.JsonValue value) {
