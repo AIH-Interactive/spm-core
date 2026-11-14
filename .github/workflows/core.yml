@@ -92,6 +92,11 @@ jobs:
             args+=(--native-target "$SPM_NATIVE_TARGET")
           fi
           python scripts/ci_core.py "${args[@]}"
+      - name: Measure the committed Java scalar microbenchmark on the actual runner
+        if: ${{ matrix.java == '25' }}
+        shell: bash
+        run: |
+          python scripts/measure_baseline.py --output .gradle/core-ci/artifact/baseline-metrics.json --created "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       - name: Preserve actual logs, XML and candidate files, including on failure
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
