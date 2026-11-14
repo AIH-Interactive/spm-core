@@ -50,6 +50,7 @@ public final class CodedAnimationCollection {
         var nextMixer=mixer.copy();
         var nextMembers=members.stream().map(CodedPlayback::copy).toList();
         var context=new MolangContext(inputs,scripts,functions,budget,random,hooks);
+        for(var member:nextMembers)context.retainedDeferred(member.deferred.size());
         if(lastFrame==null){context.initializeHooks();pulse(0,nextMembers,context,inputs.effectsAllowed(),nextMixer);}
         for(int offset=advance.executedSteps()-1;offset>=0;offset--)pulse(advance.totalSteps()-offset,nextMembers,context,inputs.effectsAllowed(),nextMixer);
         var finalContext=context.overlay(Map.of("life_time",advance.totalSteps()/60.0));finalContext.afterFrameHooks();finalContext.flushDeferred();

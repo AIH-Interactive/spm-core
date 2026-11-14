@@ -8,6 +8,19 @@ import static dev.spm.core.scene.PoseControllerTest.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CodedAnimationCollectionTest {
+    @Test void deferredCapacityIsSharedByAllMembersOfOneCandidate() {
+        String source="loop(q.calls,ysm.defer('local',1)); ctrl.set_animation('a'); return 2;";
+        var owner=owner(controller("first",source,"a"),controller("second",source,"a"));
+        var initial=owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        var generous=new ScriptBudget(1_000_000,128,new dev.spm.core.api.CancellationToken());
+        var failure=assertThrows(MolangException.class,()->owner.evaluate(1,16_666_667,new SceneInputs(Map.of("calls",3000.0)),generous));
+        assertEquals(MolangException.Reason.CAPACITY,failure.reason());
+        assertSame(initial,owner.evaluate(0,0,new SceneInputs(Map.of()),budget()));
+        assertDoesNotThrow(()->owner.evaluate(1,16_666_667,new SceneInputs(Map.of("calls",1500.0)),new ScriptBudget(1_000_000,128,new dev.spm.core.api.CancellationToken())));
+        var retainedFailure=assertThrows(MolangException.class,()->owner.evaluate(2,33_333_334,new SceneInputs(Map.of("calls",1000.0)),new ScriptBudget(1_000_000,128,new dev.spm.core.api.CancellationToken())));
+        assertEquals(MolangException.Reason.CAPACITY,retainedFailure.reason());
+        assertDoesNotThrow(()->owner.evaluate(2,33_333_334,new SceneInputs(Map.of()),budget()));
+    }
     private static PoseAnimationLibrary clips() {
         return library(obj("a",obj("loop",true,"animation_length",1,"bones",obj("root",obj("position",List.of(0,16,0)))),
                 "b",obj("loop",true,"animation_length",1,"bones",obj("root",obj("position",List.of(0,32,0))))));

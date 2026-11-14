@@ -46,6 +46,11 @@ public final class MolangContext {
     private final ScriptBudget budget;
     private final RandomState random;
     private HookState hookState=new HookState(MolangHooks.empty(),SceneInputs.SyncMode.HOST);
+    private int[] deferredCount={0};
+    void retainedDeferred(int count) {
+        if(count<0||count>4096-deferredCount[0])throw new MolangException(MolangException.Reason.CAPACITY,"Aggregate deferred capacity exceeded");
+        deferredCount[0]+=count;
+    }
     private static final class HookState {
         final MolangHooks handlers;
         Map<MolangHooks.Phase,java.util.List<MolangValue>> phaseArguments=Map.of();
@@ -57,7 +62,7 @@ public final class MolangContext {
     private CodedControl codedControl;
     private String controllerScope="";
     private Map<String,MolangValue> contextVariables;
-    private MolangContext shareHooks(MolangContext child) {child.hookState=hookState;child.codedControl=codedControl;child.controllerScope=controllerScope;child.contextVariables=contextVariables;return child;}
+    private MolangContext shareHooks(MolangContext child) {child.hookState=hookState;child.deferredCount=deferredCount;child.codedControl=codedControl;child.controllerScope=controllerScope;child.contextVariables=contextVariables;return child;}
     MolangContext memberScope(String name,Map<String,MolangValue> contextState,java.util.List<java.util.List<MolangValue>> deferred) {
         MolangContext child=child(queries);child.controllerScope=name;child.contextVariables=contextState;child.hookState=new HookState(hookState.handlers,hookState.syncMode,deferred);child.hookState.phaseArguments=hookState.phaseArguments;return child;
     }
@@ -135,12 +140,12 @@ public final class MolangContext {
         }
     }
     void flushDeferred() {
-        var initial=java.util.List.copyOf(hookState.deferred);hookState.deferred.clear();
+        var initial=java.util.List.copyOf(hookState.deferred);hookState.deferred.clear();deferredCount[0]-=initial.size();
         try {
             for(int index=initial.size()-1;index>=0;index--) {
                 budget.step();invokeHooks(hookState.handlers.defer(),initial.get(index));
             }
-        } finally {hookState.deferred.clear();}
+        } finally {deferredCount[0]-=hookState.deferred.size();hookState.deferred.clear();}
     }
     MolangState snapshot() { return new MolangState(variables,physics); }
     private static Map<String,MolangValue> typedNumeric(Map<String,Double> source) {
@@ -277,6 +282,7 @@ public final class MolangContext {
             if(arguments.isEmpty() || !(arguments.get(0) instanceof MolangValue.TextValue text) || text.value().isEmpty())return MolangValue.missing();
             budget.step();
             if(hookState.deferred.size()>=4096)throw new MolangException(MolangException.Reason.CAPACITY,"Deferred call capacity exceeded");
+            retainedDeferred(1);
             hookState.deferred.add(java.util.List.copyOf(arguments.subList(1,arguments.size())));
             return MolangValue.missing();
         }
