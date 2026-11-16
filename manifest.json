@@ -1,0 +1,991 @@
+{
+  "files": [
+    {
+      "bytes": 4161342,
+      "path": "dev/spm/core/acceleration-api/1.0.0/acceleration-api-1.0.0-javadoc.jar",
+      "sha256": "c324d1cf178b96256f026c26f03b74d03faaabba8ef9b4f7c44ef4a84fc6f62c"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/acceleration-api/1.0.0/acceleration-api-1.0.0-javadoc.jar.sha256",
+      "sha256": "494472711f533c4e6587cd17044ab5726956f2e7a5b72cd64e39682b66ffbafa"
+    },
+    {
+      "bytes": 2904,
+      "path": "dev/spm/core/acceleration-api/1.0.0/acceleration-api-1.0.0-sources.jar",
+      "sha256": "f542f884e9b0d720db070848d287b6f1cf5b3e823087166b907f6292123fdf6b"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/acceleration-api/1.0.0/acceleration-api-1.0.0-sources.jar.sha256",
+      "sha256": "d5a33ba57f0d325062ade8220c5c013f900e341aee9e3d81d49a0227918721cc"
+    },
+    {
+      "bytes": 10438,
+      "path": "dev/spm/core/acceleration-api/1.0.0/acceleration-api-1.0.0.jar",
+      "sha256": "03a4f23aa6700818d25e063ec265690e3dfa4b835a0b1352e33a60a6adb92fc8"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/acceleration-api/1.0.0/acceleration-api-1.0.0.jar.sha256",
+      "sha256": "33f219fae4fad17d58cbd48eb6c07bdf34ddb675b632008f163cc318d398de0c"
+    },
+    {
+      "bytes": 3881,
+      "path": "dev/spm/core/acceleration-api/1.0.0/acceleration-api-1.0.0.module",
+      "sha256": "856aaa5db9481fd51d362d212ba1f3b14b1abe4662b1d0a1a737eddf3e3cfd4a"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/acceleration-api/1.0.0/acceleration-api-1.0.0.module.sha256",
+      "sha256": "aacf0820503bcfae84ef98f009ea08cce8d8c3452ae677b35544937e77488711"
+    },
+    {
+      "bytes": 1271,
+      "path": "dev/spm/core/acceleration-api/1.0.0/acceleration-api-1.0.0.pom",
+      "sha256": "2535156e58c637f2f68074f4a37be8f8315209274455947e1d4552bf41f65268"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/acceleration-api/1.0.0/acceleration-api-1.0.0.pom.sha256",
+      "sha256": "b5a4136ef971c855bfaed43343e23d6b51ab2bf8c3477011e9ff42760f04ee91"
+    },
+    {
+      "bytes": 4421550,
+      "path": "dev/spm/core/api/1.0.0/api-1.0.0-javadoc.jar",
+      "sha256": "2d142a352662f4a95f232e9eb066d209d1f66518b304a440d0deb6aa6c6f86a7"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/api/1.0.0/api-1.0.0-javadoc.jar.sha256",
+      "sha256": "34164e96b4ac9423c0780bb3958cb18bc269921ca2cfd27e2d7c9637b388db11"
+    },
+    {
+      "bytes": 43106,
+      "path": "dev/spm/core/api/1.0.0/api-1.0.0-sources.jar",
+      "sha256": "c97a94ccbf61a397c5be069a778f367860110da6b8f7bbca533c451178c2e44d"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/api/1.0.0/api-1.0.0-sources.jar.sha256",
+      "sha256": "5d77fb8941b362454fcd8babd6f65125922371b42df437d0b049f0d01099a818"
+    },
+    {
+      "bytes": 94315,
+      "path": "dev/spm/core/api/1.0.0/api-1.0.0.jar",
+      "sha256": "3a2c098023d3e5ea175f66282333201f5f852ed13be9e8f93e77f89c59fe819d"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/api/1.0.0/api-1.0.0.jar.sha256",
+      "sha256": "50ea650ad84436414e4ffe3ace610bf638290f6d96e675cc14232a6504f9b238"
+    },
+    {
+      "bytes": 3401,
+      "path": "dev/spm/core/api/1.0.0/api-1.0.0.module",
+      "sha256": "6779e00707d0faa70d21bf9b70103aa94e623e380546a3b34ebba2c1b1a8a4e4"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/api/1.0.0/api-1.0.0.module.sha256",
+      "sha256": "784551a544e0682ec6e6b4cbc957960a8c9f2ff06ab10b6ebbf9126815ea7b67"
+    },
+    {
+      "bytes": 1034,
+      "path": "dev/spm/core/api/1.0.0/api-1.0.0.pom",
+      "sha256": "526269e6f88467910e11eaf59d2f72ddfdedd13344e0911e928a3461d597f3e9"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/api/1.0.0/api-1.0.0.pom.sha256",
+      "sha256": "fb370936ae761df7a46bade0d70a1205f1934921796ec24a398dae2c07ed6591"
+    },
+    {
+      "bytes": 4169191,
+      "path": "dev/spm/core/codec/1.0.0/codec-1.0.0-javadoc.jar",
+      "sha256": "e29934232c465e1ef71c7fd4d95a319df8e83ba3c644c966f2c0289be7f7a3bd"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/codec/1.0.0/codec-1.0.0-javadoc.jar.sha256",
+      "sha256": "b725393bfd593c714fb98bb374723cdb14ccf269ba9a3b32062d99dfe9380288"
+    },
+    {
+      "bytes": 8644,
+      "path": "dev/spm/core/codec/1.0.0/codec-1.0.0-sources.jar",
+      "sha256": "bbc25ba3717b5cb6538e8ca043f1b84199148e390d3c6d5519c045b9fd7950d6"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/codec/1.0.0/codec-1.0.0-sources.jar.sha256",
+      "sha256": "92a07bb6448434d61a349590eba7f1a0e091f580c5a8688caa9ceaf6bc97898f"
+    },
+    {
+      "bytes": 21493,
+      "path": "dev/spm/core/codec/1.0.0/codec-1.0.0.jar",
+      "sha256": "498a04601872f1acf6a92c8f08724c0d0329080ded73a1b76e3c0a033ad58035"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/codec/1.0.0/codec-1.0.0.jar.sha256",
+      "sha256": "3b67c38ad8031ffe16cdc53efbf34e7ca37397f454e0e2f8b897b23fd27d3c99"
+    },
+    {
+      "bytes": 3782,
+      "path": "dev/spm/core/codec/1.0.0/codec-1.0.0.module",
+      "sha256": "2d01f7f5d7ff8c52eb57fff822ffac7ea77d7f49c1996a01bab74ad91c909a6d"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/codec/1.0.0/codec-1.0.0.module.sha256",
+      "sha256": "bbdfcf1b4be5709bf0a8c67b82cb572657e8b3cce55f35d6b6d7035b3f86bddc"
+    },
+    {
+      "bytes": 1249,
+      "path": "dev/spm/core/codec/1.0.0/codec-1.0.0.pom",
+      "sha256": "c39e6420a85283fedf95ee84e0c6828e1a3055f17121b7cf1d47dbaf27d8026a"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/codec/1.0.0/codec-1.0.0.pom.sha256",
+      "sha256": "7d5b841eac928f5bc92f611ed70d992a2acd0e32aebd713c56f6134d994e625b"
+    },
+    {
+      "bytes": 4154291,
+      "path": "dev/spm/core/format-bbmodel/1.0.0/format-bbmodel-1.0.0-javadoc.jar",
+      "sha256": "67062adf7e47f0ed8dc6b0001697fb590dda8d88b33bac269f2d343424a785ec"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-bbmodel/1.0.0/format-bbmodel-1.0.0-javadoc.jar.sha256",
+      "sha256": "39ca14ee93257f27c84caec34d7b87986a8d185b728c145da3a2b9bf00146da6"
+    },
+    {
+      "bytes": 7412,
+      "path": "dev/spm/core/format-bbmodel/1.0.0/format-bbmodel-1.0.0-sources.jar",
+      "sha256": "091cd4f935975277a0c30fe4399edfbe703ad59dcfe88707ad70752d91bcb3db"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-bbmodel/1.0.0/format-bbmodel-1.0.0-sources.jar.sha256",
+      "sha256": "f757bbcd918deca1882824d6a59f653bbc2e348db21ee8befe4ec845ca74a6a9"
+    },
+    {
+      "bytes": 24885,
+      "path": "dev/spm/core/format-bbmodel/1.0.0/format-bbmodel-1.0.0.jar",
+      "sha256": "9cd0d0232b878a5cd072a214f2e47861aec91d0cf00a782177ac4932332ee142"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-bbmodel/1.0.0/format-bbmodel-1.0.0.jar.sha256",
+      "sha256": "c52b5bae00810248af4609c4f8cf122e88793c7aff619d66e2ec2ed9d71fc994"
+    },
+    {
+      "bytes": 4023,
+      "path": "dev/spm/core/format-bbmodel/1.0.0/format-bbmodel-1.0.0.module",
+      "sha256": "daa4a8a6bb0d3d2ce279948c33813d3142020d14b80fdc81ad7b6a46e3b27d96"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-bbmodel/1.0.0/format-bbmodel-1.0.0.module.sha256",
+      "sha256": "84778d8a85ff0c7f6b4f144e23ed02063aefb52dcad7716aac92b9afc52a1954"
+    },
+    {
+      "bytes": 1451,
+      "path": "dev/spm/core/format-bbmodel/1.0.0/format-bbmodel-1.0.0.pom",
+      "sha256": "7eceda7e6e2b59540cc493c3aa986beee0e184113725e98b1a6e693d8e52bbf1"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-bbmodel/1.0.0/format-bbmodel-1.0.0.pom.sha256",
+      "sha256": "aef6b226be118c56086dbdcbb32c992db4cfb1ea958087afa79e0a301e47c45a"
+    },
+    {
+      "bytes": 4148827,
+      "path": "dev/spm/core/format-bedrock/1.0.0/format-bedrock-1.0.0-javadoc.jar",
+      "sha256": "e02b2bc954d5494cadb5aeae92388c27e25b95947325a26dc8e5c62712059c12"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-bedrock/1.0.0/format-bedrock-1.0.0-javadoc.jar.sha256",
+      "sha256": "56e09093ff3d88cfd8f72ca2333d2859936f074ee26a114a106bd626e6a916de"
+    },
+    {
+      "bytes": 5986,
+      "path": "dev/spm/core/format-bedrock/1.0.0/format-bedrock-1.0.0-sources.jar",
+      "sha256": "e9f4fbaf334faf9c8e67cbf2f95a4ec89038f7e9319a64951b53ed7dc18ba6f9"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-bedrock/1.0.0/format-bedrock-1.0.0-sources.jar.sha256",
+      "sha256": "3562f8ec125c8b5c0a1474410fcd099fdc7843198a990d54f3c8ee6614595a31"
+    },
+    {
+      "bytes": 18662,
+      "path": "dev/spm/core/format-bedrock/1.0.0/format-bedrock-1.0.0.jar",
+      "sha256": "a43b339ed7343d5d3e006f2f586f7735e3b194671cd667f334766bd5ba8790d9"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-bedrock/1.0.0/format-bedrock-1.0.0.jar.sha256",
+      "sha256": "f5401f381194f08cc78c16bc542863f429f08d517583be906d33407a8a830593"
+    },
+    {
+      "bytes": 4023,
+      "path": "dev/spm/core/format-bedrock/1.0.0/format-bedrock-1.0.0.module",
+      "sha256": "8a97ed31476ae95b330b56f6eb0aeee839dd30c0876afd0b0eee831ad5ca6947"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-bedrock/1.0.0/format-bedrock-1.0.0.module.sha256",
+      "sha256": "cb14ed1660b72261b2a752d093967372e5b0bbf565aa5bfa9aa39f93c66239c7"
+    },
+    {
+      "bytes": 1451,
+      "path": "dev/spm/core/format-bedrock/1.0.0/format-bedrock-1.0.0.pom",
+      "sha256": "4e66eb2899f10ef1e96324e768364390492b0dc79fcbff7bf601c09408b3eaff"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-bedrock/1.0.0/format-bedrock-1.0.0.pom.sha256",
+      "sha256": "04ac5b4cc5c55531e3ba334ef94658e823aca9b12ce107fa11f2deb193770eb4"
+    },
+    {
+      "bytes": 4152664,
+      "path": "dev/spm/core/format-common/1.0.0/format-common-1.0.0-javadoc.jar",
+      "sha256": "d75d9848e697bf91d22a2173e6ae82eddaedc321e20f88eb14981c8ba7c9f8c4"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-common/1.0.0/format-common-1.0.0-javadoc.jar.sha256",
+      "sha256": "08d4eae9d0ed1d4b8a284dc98c3622e4e6a4149a24603369e187f5c2657b0f0b"
+    },
+    {
+      "bytes": 4252,
+      "path": "dev/spm/core/format-common/1.0.0/format-common-1.0.0-sources.jar",
+      "sha256": "9d21654d9aa1d0e4e36e0fb927cf04fa613197030fb20865ce607628866a786a"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-common/1.0.0/format-common-1.0.0-sources.jar.sha256",
+      "sha256": "8bdc9c44aae82ffab7ed4f9bf98eed37783d707e1efd1daad7be7017e95b25ff"
+    },
+    {
+      "bytes": 14072,
+      "path": "dev/spm/core/format-common/1.0.0/format-common-1.0.0.jar",
+      "sha256": "22e8367333cd7c27a74416206a80e423a3c40b900491f26aba94aec9032d8598"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-common/1.0.0/format-common-1.0.0.jar.sha256",
+      "sha256": "9fcd034881d1d8119186daba259b1ac85acc0d799e88c65f472e8eeb3b600f38"
+    },
+    {
+      "bytes": 4014,
+      "path": "dev/spm/core/format-common/1.0.0/format-common-1.0.0.module",
+      "sha256": "010bf639756fc26dd2993e762515630469f108f0342a9561432b311daa4cf7bc"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-common/1.0.0/format-common-1.0.0.module.sha256",
+      "sha256": "e52bc79288fd26539ea825d926f3933a26889838fdad9c2b95bca727c3e941ab"
+    },
+    {
+      "bytes": 1449,
+      "path": "dev/spm/core/format-common/1.0.0/format-common-1.0.0.pom",
+      "sha256": "a094fcf769c866b60fba4dde70cc999b539b5df259619a707ef645217906f331"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-common/1.0.0/format-common-1.0.0.pom.sha256",
+      "sha256": "d37dfb7feee2b770f1d81dbd4268accf97db537a7f69e3c496af96d954bbc810"
+    },
+    {
+      "bytes": 4174000,
+      "path": "dev/spm/core/format-figura/1.0.0/format-figura-1.0.0-javadoc.jar",
+      "sha256": "a0119f5fc31c7108c8712821be0c8ae970d567c68a86e5e66c7bb5d94d92cf65"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-figura/1.0.0/format-figura-1.0.0-javadoc.jar.sha256",
+      "sha256": "82bd40c181aa4482f92247fc6bce5e250ba0c4b0730acb06cad0477ab33568c8"
+    },
+    {
+      "bytes": 26282,
+      "path": "dev/spm/core/format-figura/1.0.0/format-figura-1.0.0-sources.jar",
+      "sha256": "624195bc1865c0b9056d65bdf04520c468eb686c6bcfb00c6af09c0e6aec39f0"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-figura/1.0.0/format-figura-1.0.0-sources.jar.sha256",
+      "sha256": "0f9738ee200639246986ab27fb1a6c39aa1bb3af69e9397c1d1baac487f6b9b0"
+    },
+    {
+      "bytes": 89871,
+      "path": "dev/spm/core/format-figura/1.0.0/format-figura-1.0.0.jar",
+      "sha256": "5a18cb6c999b6fba5ceefa9c80ede8a6258d728970c522fd2fc121a90ed15df9"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-figura/1.0.0/format-figura-1.0.0.jar.sha256",
+      "sha256": "5a6bc14f9490ecc0e5eead9af4d24498bdad268b2571be3374238506367ce85a"
+    },
+    {
+      "bytes": 4794,
+      "path": "dev/spm/core/format-figura/1.0.0/format-figura-1.0.0.module",
+      "sha256": "c754ee6dde58fdcf2c5095319ea597d573b666cdd01fb45c8370f1a8afc3193e"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-figura/1.0.0/format-figura-1.0.0.module.sha256",
+      "sha256": "591d5819718f5008c15aad0685167d81ac4d9dec7833a04c66411bed8860aa3f"
+    },
+    {
+      "bytes": 1991,
+      "path": "dev/spm/core/format-figura/1.0.0/format-figura-1.0.0.pom",
+      "sha256": "17e811291cc0f2d29802704790ca3137fa8a076cda2515c26b92a184055a793b"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-figura/1.0.0/format-figura-1.0.0.pom.sha256",
+      "sha256": "184423e042ebf5ea1cff73f6defd8e0c9b601ea6f1a6c779843f9548d9512b9b"
+    },
+    {
+      "bytes": 4149546,
+      "path": "dev/spm/core/format-gltf/1.0.0/format-gltf-1.0.0-javadoc.jar",
+      "sha256": "6c5bcf4b30a22a571d081e558ab20c7b46f24a83195a0b801ec7b41ce6cb041e"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-gltf/1.0.0/format-gltf-1.0.0-javadoc.jar.sha256",
+      "sha256": "a6c62f40488f269ea5194a0e8826751dd8a50cb0d703e5fa72751cd8f2b093c7"
+    },
+    {
+      "bytes": 18791,
+      "path": "dev/spm/core/format-gltf/1.0.0/format-gltf-1.0.0-sources.jar",
+      "sha256": "8a7fb4694a4a40ebd5209aa9725ed4fadb6aeb3d7f071bcf350a29748e148f94"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-gltf/1.0.0/format-gltf-1.0.0-sources.jar.sha256",
+      "sha256": "d15e37c1155a09255c24a996109bfcdd808c0f78887ab6d5335d42e33e7289d3"
+    },
+    {
+      "bytes": 52182,
+      "path": "dev/spm/core/format-gltf/1.0.0/format-gltf-1.0.0.jar",
+      "sha256": "779361e5aabf8b846d34b4f7ba99c8b5d011b280aa8b68d522ab17dba9eb8898"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-gltf/1.0.0/format-gltf-1.0.0.jar.sha256",
+      "sha256": "3996f276092a684d36a30e1bac8d381d6c3d911cd47e28bfde30b54ef5464b78"
+    },
+    {
+      "bytes": 3997,
+      "path": "dev/spm/core/format-gltf/1.0.0/format-gltf-1.0.0.module",
+      "sha256": "9046806e50296280451bdccb1ae29013f67a377e972597084b992406b4cd282a"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-gltf/1.0.0/format-gltf-1.0.0.module.sha256",
+      "sha256": "ec9827ada5b0042a6fbbc7510c516aa669527f117752e5ee3b824411edc181dd"
+    },
+    {
+      "bytes": 1445,
+      "path": "dev/spm/core/format-gltf/1.0.0/format-gltf-1.0.0.pom",
+      "sha256": "27c48a68bf510dbc1218a804e4cc1167b402b1a003c79b33e6838135ca17f56d"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-gltf/1.0.0/format-gltf-1.0.0.pom.sha256",
+      "sha256": "3747253af6b1cec7d45f6eff6cff286511ecf7997d729ae721432eb0505aeb85"
+    },
+    {
+      "bytes": 4182693,
+      "path": "dev/spm/core/format-v3d/1.0.0/format-v3d-1.0.0-javadoc.jar",
+      "sha256": "938063e32cab27eb7e5589e72d65d572cf23c646a527189c8d1f48a207b1721d"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-v3d/1.0.0/format-v3d-1.0.0-javadoc.jar.sha256",
+      "sha256": "cee699f639c156e4e148068fa9ec8da604caddd164014eff689a31c180bcddce"
+    },
+    {
+      "bytes": 8128,
+      "path": "dev/spm/core/format-v3d/1.0.0/format-v3d-1.0.0-sources.jar",
+      "sha256": "89bb154298af9b1cd6f39f053f6aeb6a82599740e129e0dfdacfe08b254decad"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-v3d/1.0.0/format-v3d-1.0.0-sources.jar.sha256",
+      "sha256": "ab70c3cef5dea807fd68f9d784a81be8a095033ec44085b5990ce4af989c8c6e"
+    },
+    {
+      "bytes": 28529,
+      "path": "dev/spm/core/format-v3d/1.0.0/format-v3d-1.0.0.jar",
+      "sha256": "f3f710cc6a907d83c53d7d12b51d77d5576f6338933cce1dc00435cd182345d8"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-v3d/1.0.0/format-v3d-1.0.0.jar.sha256",
+      "sha256": "468f9c912109c063c3a886cc37a32ef09ba843f72e9df2edb461042b5ff2efec"
+    },
+    {
+      "bytes": 4144,
+      "path": "dev/spm/core/format-v3d/1.0.0/format-v3d-1.0.0.module",
+      "sha256": "a07b8dcf2fbfa743bfea4a3a0de0de8a4993c7d6ab52a85a47d2401997145fba"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-v3d/1.0.0/format-v3d-1.0.0.module.sha256",
+      "sha256": "4bce2616c29925e769368733bef6bf4388ae9fe059f3d23b0185f53dd91fd4cd"
+    },
+    {
+      "bytes": 1624,
+      "path": "dev/spm/core/format-v3d/1.0.0/format-v3d-1.0.0.pom",
+      "sha256": "dcead5e4e2a679a9d6b921a09b1187696cedfa24ba0f2fcb8d6369d7ae32981c"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-v3d/1.0.0/format-v3d-1.0.0.pom.sha256",
+      "sha256": "853274fbe8ad8baf9f9cede9146ee55b830061ad566263708e7752332f9918a9"
+    },
+    {
+      "bytes": 4227620,
+      "path": "dev/spm/core/format-ysm/1.0.0/format-ysm-1.0.0-javadoc.jar",
+      "sha256": "901500287bd7c837c4916dbdadfcda16b3fc183dec91b8bec066c1bcb207907d"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-ysm/1.0.0/format-ysm-1.0.0-javadoc.jar.sha256",
+      "sha256": "0565b05b44c8587384745fc179057cb7b9c36afe2cd6312893015377e029dff6"
+    },
+    {
+      "bytes": 53105,
+      "path": "dev/spm/core/format-ysm/1.0.0/format-ysm-1.0.0-sources.jar",
+      "sha256": "7da89d50b66df32ceea4fdc9bc91c1db6e2ecae7f544099c0b84c5eefe6c3b28"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-ysm/1.0.0/format-ysm-1.0.0-sources.jar.sha256",
+      "sha256": "6283f7566eb2d93c53e2951fd6a8be96fa53450757be4948aaee41604c77dfe3"
+    },
+    {
+      "bytes": 116311,
+      "path": "dev/spm/core/format-ysm/1.0.0/format-ysm-1.0.0.jar",
+      "sha256": "0eec5f9ec65f4f8bc0c3885c51d735542a1fb252ff3dfafbbcc0680fd5a01af2"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-ysm/1.0.0/format-ysm-1.0.0.jar.sha256",
+      "sha256": "fa7432de43a56d4807f8ca18e909c5ee655c3c55715e4f219e0cec7c3d490cde"
+    },
+    {
+      "bytes": 4139,
+      "path": "dev/spm/core/format-ysm/1.0.0/format-ysm-1.0.0.module",
+      "sha256": "63a747f0aeb19aba330d889a922bc049452ccbcdbfe46a9bd0d38d2644630d50"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-ysm/1.0.0/format-ysm-1.0.0.module.sha256",
+      "sha256": "2c5b29ab09af6973edec4bd222d37e87456ea6b77ea087db5649495dcf528b5e"
+    },
+    {
+      "bytes": 1616,
+      "path": "dev/spm/core/format-ysm/1.0.0/format-ysm-1.0.0.pom",
+      "sha256": "b1fab53ebd014eac86a3f77d2ef6847d199a38c81c6ef76b9d555ceeeb625596"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/format-ysm/1.0.0/format-ysm-1.0.0.pom.sha256",
+      "sha256": "73cb4468e351200e9d56ea444d9ebe06b6576324c2979bac58cc740704bf0a66"
+    },
+    {
+      "bytes": 4161729,
+      "path": "dev/spm/core/native-jni/1.0.0/native-jni-1.0.0-javadoc.jar",
+      "sha256": "4ad30fb851249dd0b27d3a36c6c6d7f457545920fa8a64a8c22e008f437a21a7"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/native-jni/1.0.0/native-jni-1.0.0-javadoc.jar.sha256",
+      "sha256": "eec3b95b3f9e95655f623d139ca92b2a845f5ce5d1dfb70cb778640a81be558c"
+    },
+    {
+      "bytes": 7689,
+      "path": "dev/spm/core/native-jni/1.0.0/native-jni-1.0.0-sources.jar",
+      "sha256": "aba2f7911d4609e4fcaa6a9b322977bd9cf0baa1f76a9e750f15904e9e715b96"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/native-jni/1.0.0/native-jni-1.0.0-sources.jar.sha256",
+      "sha256": "f72e2cdbc6ed8d49402fe472c5f563ae3780fe3577f206e12addba3665d25deb"
+    },
+    {
+      "bytes": 18887,
+      "path": "dev/spm/core/native-jni/1.0.0/native-jni-1.0.0.jar",
+      "sha256": "54dd6eff3c91615461169f851fb20b047911a01c07974bd12b79a612ce985ba6"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/native-jni/1.0.0/native-jni-1.0.0.jar.sha256",
+      "sha256": "612ca492e253d10feddee354c0c9a04877fac70fdb363fbb9924922009ebfa6b"
+    },
+    {
+      "bytes": 3853,
+      "path": "dev/spm/core/native-jni/1.0.0/native-jni-1.0.0.module",
+      "sha256": "2ea428ad3b0029bc6ebbbc1a36c1fe41bb27d27c8e0e96faffdb10fbe973bdfd"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/native-jni/1.0.0/native-jni-1.0.0.module.sha256",
+      "sha256": "4172e11a46102c46e559b5f96f26d6b0e5175a4cae5aaf14c334b2e60033dc57"
+    },
+    {
+      "bytes": 1272,
+      "path": "dev/spm/core/native-jni/1.0.0/native-jni-1.0.0.pom",
+      "sha256": "99f8dbe27e17fbb3d055464b82e001ae1c8f5260dee35fc6b78cc2031f51c6b9"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/native-jni/1.0.0/native-jni-1.0.0.pom.sha256",
+      "sha256": "5759dbb0f1eb6085f3352915019bd1fa8f5c5c42170d7591f026640c6cef7118"
+    },
+    {
+      "bytes": 4152131,
+      "path": "dev/spm/core/parser/1.0.0/parser-1.0.0-javadoc.jar",
+      "sha256": "75366b2fb0f3c5a628aef3a2763a8595bbf39e38ba1d8836a00cca348ebf8949"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/parser/1.0.0/parser-1.0.0-javadoc.jar.sha256",
+      "sha256": "5ccff9b421c717a2130eb4f37082db69182a6a6067827ba93fc5810a7f80b373"
+    },
+    {
+      "bytes": 17267,
+      "path": "dev/spm/core/parser/1.0.0/parser-1.0.0-sources.jar",
+      "sha256": "c6a8bd82d5a014334dbd033bf0a19556e0ed7d4124c2036f34a7d5663d99bf26"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/parser/1.0.0/parser-1.0.0-sources.jar.sha256",
+      "sha256": "e29df3f346ef2d17c926e141ccf8436c717020a102bc0fa41335f03acd252326"
+    },
+    {
+      "bytes": 48084,
+      "path": "dev/spm/core/parser/1.0.0/parser-1.0.0.jar",
+      "sha256": "6f7fb5c37dc5c26ee22a9b15d3dace08d63588c97cdc2d7d61b8a94b45339522"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/parser/1.0.0/parser-1.0.0.jar.sha256",
+      "sha256": "fd29a4413c885389df31f63cfd65861f2cf8b4a8f81f7e67469e559441b66e54"
+    },
+    {
+      "bytes": 4906,
+      "path": "dev/spm/core/parser/1.0.0/parser-1.0.0.module",
+      "sha256": "1014bd4a94d70550c396f6e4fca86c5cef034502a22f413cb6b641f92622b385"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/parser/1.0.0/parser-1.0.0.module.sha256",
+      "sha256": "af9c4687b9b88b3ea1c4f9d2d2625a0e11578ec032a7ff37bc65ba94b2ae9d34"
+    },
+    {
+      "bytes": 2533,
+      "path": "dev/spm/core/parser/1.0.0/parser-1.0.0.pom",
+      "sha256": "6b5e12accbd3bdfeab12a3a503c0e3d653c02d4c228843eb9db19bbf54e59f3e"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/parser/1.0.0/parser-1.0.0.pom.sha256",
+      "sha256": "6e1ba789fd5df9bde8e93e294be46f21c9667313ab41140d00b72825436e8464"
+    },
+    {
+      "bytes": 4174596,
+      "path": "dev/spm/core/render-cpu/1.0.0/render-cpu-1.0.0-javadoc.jar",
+      "sha256": "36385d1462943ec05dfc1f4a7f596151588fe0e4d415c1b47e8065e0fe715f59"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/render-cpu/1.0.0/render-cpu-1.0.0-javadoc.jar.sha256",
+      "sha256": "4684df5c0087f3282972cf23251367a2f064828c7c1a392eb0a8373f5a2c3370"
+    },
+    {
+      "bytes": 15505,
+      "path": "dev/spm/core/render-cpu/1.0.0/render-cpu-1.0.0-sources.jar",
+      "sha256": "8fbbeb8c6fe20dee53c9236bb8d947857d5c3b7438f65697403985b6b8315e06"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/render-cpu/1.0.0/render-cpu-1.0.0-sources.jar.sha256",
+      "sha256": "e1f7dfe3f807fa6ce5dee2a3c7d91d0110c35196e8c9561f505f73fda4c332b0"
+    },
+    {
+      "bytes": 31983,
+      "path": "dev/spm/core/render-cpu/1.0.0/render-cpu-1.0.0.jar",
+      "sha256": "47beba46922f446cefb723bdb2fc9603aaa07382638b5e8088c351f709b11a9e"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/render-cpu/1.0.0/render-cpu-1.0.0.jar.sha256",
+      "sha256": "ed44bfadf6774f7e5d8845783db7e25aa223a624d745ba4108eb88bddb9b6a26"
+    },
+    {
+      "bytes": 4154,
+      "path": "dev/spm/core/render-cpu/1.0.0/render-cpu-1.0.0.module",
+      "sha256": "26e4487a91434f43c6f60bbc9c4c9c86601124c0bd496dcac77eb511869154d3"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/render-cpu/1.0.0/render-cpu-1.0.0.module.sha256",
+      "sha256": "93f661a78bd1a22b17e7f0ef386da73030fa643bde193733ab4c0618ef8407a5"
+    },
+    {
+      "bytes": 1446,
+      "path": "dev/spm/core/render-cpu/1.0.0/render-cpu-1.0.0.pom",
+      "sha256": "20584d51dbbe0bfdb480d5b34032b9732bad7927d92b861134548f149bfb3024"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/render-cpu/1.0.0/render-cpu-1.0.0.pom.sha256",
+      "sha256": "2070a58da07850d46d99d3c1bcc99bffed0f71976bfef9d033547b0c89dea8f3"
+    },
+    {
+      "bytes": 4169881,
+      "path": "dev/spm/core/runtime/1.0.0/runtime-1.0.0-javadoc.jar",
+      "sha256": "25236dfdb44526033f066405627604d81a03e9f6a3e33938b8db459715c03905"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/runtime/1.0.0/runtime-1.0.0-javadoc.jar.sha256",
+      "sha256": "5c68156fdfa14bfcc961f468ca4aef7e7bd26082dc316453407a08b6f20dfd99"
+    },
+    {
+      "bytes": 9348,
+      "path": "dev/spm/core/runtime/1.0.0/runtime-1.0.0-sources.jar",
+      "sha256": "ee0e08fdd6de86070715778ded2b99f00fd0c1d72b7c2f3a35b1cf70a382fbc1"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/runtime/1.0.0/runtime-1.0.0-sources.jar.sha256",
+      "sha256": "6d9a3276d59a7f94ebdb0ff66bcfba8f6ce13e28af81669de8e474f21cfe6272"
+    },
+    {
+      "bytes": 24927,
+      "path": "dev/spm/core/runtime/1.0.0/runtime-1.0.0.jar",
+      "sha256": "bfae10da933f853ce848825a0a7a4b2443c7fcbb7f09da19b7b34fbbdb4ee156"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/runtime/1.0.0/runtime-1.0.0.jar.sha256",
+      "sha256": "7b6dfbd777b36547b73b73d9ff328c8597ec10f1db68cf14e69d8e8419a236e6"
+    },
+    {
+      "bytes": 4905,
+      "path": "dev/spm/core/runtime/1.0.0/runtime-1.0.0.module",
+      "sha256": "1ef0bd5c3e99fdfd3c5cd4b257abaeb45ebd8648ffbe88d82a8aab1a6f8f6778"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/runtime/1.0.0/runtime-1.0.0.module.sha256",
+      "sha256": "e916f499a91dca4071cbddf4985f4c2db529c6a333e1793c93088b2d2d867696"
+    },
+    {
+      "bytes": 2163,
+      "path": "dev/spm/core/runtime/1.0.0/runtime-1.0.0.pom",
+      "sha256": "550b14588261e402f6e143aacad71020c98edbf0fe50a3825c77135d1375c90d"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/runtime/1.0.0/runtime-1.0.0.pom.sha256",
+      "sha256": "e9089a05d29b5f9f4ceb6dbfc627a1147a974760bf6f627bb8b0129312e8f2f8"
+    },
+    {
+      "bytes": 4392964,
+      "path": "dev/spm/core/scene/1.0.0/scene-1.0.0-javadoc.jar",
+      "sha256": "a50eb5d118968e241d909a62a760f55ec3cb0d9d7f8a3da50d2382fb035dd022"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/scene/1.0.0/scene-1.0.0-javadoc.jar.sha256",
+      "sha256": "aad7cefb691d5ff72dd30105898fbe81b1a905b9124864621c805a3525f8350e"
+    },
+    {
+      "bytes": 73436,
+      "path": "dev/spm/core/scene/1.0.0/scene-1.0.0-sources.jar",
+      "sha256": "893f739ec8e2850914dc202d09b9f457e3b02f197f255dc1f0880baf55d5fa9d"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/scene/1.0.0/scene-1.0.0-sources.jar.sha256",
+      "sha256": "c7dabbd4c50caef5581149cba1d71fec4d59207db0f302da096d2b063931b62d"
+    },
+    {
+      "bytes": 221921,
+      "path": "dev/spm/core/scene/1.0.0/scene-1.0.0.jar",
+      "sha256": "84590d54ea4adb08e8f94cdde0e44d32ade0c6ca384816bdadf7cdf4ed68ba9e"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/scene/1.0.0/scene-1.0.0.jar.sha256",
+      "sha256": "bd9f4a98376de08a588972ad91315221ed064c96b6881a55f89bd000949e5582"
+    },
+    {
+      "bytes": 3785,
+      "path": "dev/spm/core/scene/1.0.0/scene-1.0.0.module",
+      "sha256": "d55e1755e3261de25b2ececaf256e8eb1149f904bd4c70f3b538701fc22d9513"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/scene/1.0.0/scene-1.0.0.module.sha256",
+      "sha256": "6c2abdb572fa1f4fe37b229e6dc7723ecc9274f298d8140efb8195fde332cf69"
+    },
+    {
+      "bytes": 1249,
+      "path": "dev/spm/core/scene/1.0.0/scene-1.0.0.pom",
+      "sha256": "5b105fe8075f768ed437ed056906ddc9ae7a4ae10f2ae016928974892ca95dd3"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/scene/1.0.0/scene-1.0.0.pom.sha256",
+      "sha256": "e1f10d96d89ac0b147249c5c837683a86d5f1cf471a9b83695fc590197499188"
+    },
+    {
+      "bytes": 4206336,
+      "path": "dev/spm/core/script-lua/1.0.0/script-lua-1.0.0-javadoc.jar",
+      "sha256": "377a64641ad63c8e2a431e9cf226002cde6fd0abd7f25ee0405097fe9213d65f"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/script-lua/1.0.0/script-lua-1.0.0-javadoc.jar.sha256",
+      "sha256": "629b0c44544541ab20f76b96697544bbd98f2e5fc39b467a4a47495e465b1347"
+    },
+    {
+      "bytes": 32168,
+      "path": "dev/spm/core/script-lua/1.0.0/script-lua-1.0.0-sources.jar",
+      "sha256": "91322ee4aca099f91c29492ca4bef0aa07eb9bff6ef600e0460ad99f3a8375dd"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/script-lua/1.0.0/script-lua-1.0.0-sources.jar.sha256",
+      "sha256": "276c77a5deb064785927091f072097170be3fb63f9575ee23931ced1cc944c59"
+    },
+    {
+      "bytes": 122921,
+      "path": "dev/spm/core/script-lua/1.0.0/script-lua-1.0.0.jar",
+      "sha256": "feb6ba198ffc7d639d046d32573dcd725e29d1bca89e37da4303a481f349f3bd"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/script-lua/1.0.0/script-lua-1.0.0.jar.sha256",
+      "sha256": "81049d75afae0d155b92571907eed92cf26c13688458e3887526dc34fef1c991"
+    },
+    {
+      "bytes": 4134,
+      "path": "dev/spm/core/script-lua/1.0.0/script-lua-1.0.0.module",
+      "sha256": "70edb0fba1bb8f61e02c3369ff160963cc1222a7a4cacaa3d43d1651b453c887"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/script-lua/1.0.0/script-lua-1.0.0.module.sha256",
+      "sha256": "d5a7f46475ec2bd5ad41095c8f7f878fdc2f88c222f61375c3a178d655154b3a"
+    },
+    {
+      "bytes": 1435,
+      "path": "dev/spm/core/script-lua/1.0.0/script-lua-1.0.0.pom",
+      "sha256": "bdaf9441921c85eb18b0a148eacbdde82e7152c6cfa881a121f74c28b54f9c8b"
+    },
+    {
+      "bytes": 65,
+      "path": "dev/spm/core/script-lua/1.0.0/script-lua-1.0.0.pom.sha256",
+      "sha256": "46a71df6c240fb93f7a91d74fe5efb73486cbb03a512ed974bb27f5ee8ad502e"
+    },
+    {
+      "bytes": 149866,
+      "path": "inventory.json",
+      "sha256": "1fbdfe7f9d7781407e590b19d2b8f29302825c7e8be1aee96500ba4f6332ce28"
+    },
+    {
+      "bytes": 1078,
+      "path": "licenses/LICENSE",
+      "sha256": "5c5624c816b532cc84b18f71b17758399c2a893aa44d0d0737a5d4112135d84d"
+    },
+    {
+      "bytes": 1528,
+      "path": "licenses/NOTICE",
+      "sha256": "fcd3ea4340f442532f9665962571b4c47836225f1ae00eb8a170084865ceace0"
+    },
+    {
+      "bytes": 5228,
+      "path": "licenses/THIRD_PARTY_NOTICES.md",
+      "sha256": "8715949c7e87d1cbde4a8cda589a44c22ef99750cde24ee97cf79da21e72122f"
+    },
+    {
+      "bytes": 12245,
+      "path": "licenses/upstream-fixtures-Apache-2.0.txt",
+      "sha256": "a337972c561485cc0da11a8051e5ed7dfba810212bfbfe87a6ff3ce7b11b0168"
+    },
+    {
+      "bytes": 1093,
+      "path": "locks/acceleration-api/gradle.lockfile",
+      "sha256": "0c370dd44e6fe7fb6eb25c85491836d944c82521dbbd8a1c91658b157e1babe6"
+    },
+    {
+      "bytes": 1080,
+      "path": "locks/api/gradle.lockfile",
+      "sha256": "54c01e87c18659aa614af6b293df903e894b073aeae4263d0d13b6faa540379d"
+    },
+    {
+      "bytes": 1082,
+      "path": "locks/codec/gradle.lockfile",
+      "sha256": "1aac0d8eb191abb4597034c4d5f88f30b5daad687d68e2e4b7bce68bb387c9bf"
+    },
+    {
+      "bytes": 1145,
+      "path": "locks/format-bbmodel/gradle.lockfile",
+      "sha256": "dcd2333f0989ae6bd8868431d5616ecf8e9b17dd0f23a611efc7d86d109b6b5c"
+    },
+    {
+      "bytes": 1145,
+      "path": "locks/format-bedrock/gradle.lockfile",
+      "sha256": "3929beddcdb63463184ebde1b32836a82bb398ebee5d7714afdaa00ef018c142"
+    },
+    {
+      "bytes": 1165,
+      "path": "locks/format-common/gradle.lockfile",
+      "sha256": "e6ef33e634fba312dd8c8c6e7eb6637ddd5a98c8b8013d3de7cddc19a2840c5d"
+    },
+    {
+      "bytes": 1144,
+      "path": "locks/format-figura/gradle.lockfile",
+      "sha256": "33b84b645208df864628afad8a48464f23983b467f8d2aada50e260ca3cd57ef"
+    },
+    {
+      "bytes": 1142,
+      "path": "locks/format-gltf/gradle.lockfile",
+      "sha256": "28e06f80214d8682640527177d4576a290f9ee0990b0c2d41f9a47098681c2a8"
+    },
+    {
+      "bytes": 1209,
+      "path": "locks/format-v3d/gradle.lockfile",
+      "sha256": "1199a3465e244df127f2a2dd104613807d907b9c27a4af1911050fc16a4231e9"
+    },
+    {
+      "bytes": 1159,
+      "path": "locks/format-ysm/gradle.lockfile",
+      "sha256": "304820ceab7580aaeffbfb542ad114946dd526ba0c4391ee9e2391a8a4789b4b"
+    },
+    {
+      "bytes": 7865,
+      "path": "locks/gradle/verification-metadata.xml",
+      "sha256": "0985aa160be6b7b2dadfd2aa923109b5fa4849324c2491d905cf933620d2a975"
+    },
+    {
+      "bytes": 1199,
+      "path": "locks/integration-tests/gradle.lockfile",
+      "sha256": "c40faf559ec37fad661dd3601d19938a47010100b0cd6b4fc4acf677e551d2cf"
+    },
+    {
+      "bytes": 1087,
+      "path": "locks/native-jni/gradle.lockfile",
+      "sha256": "8de4fd8d046bd46ccff7c46ab600a4f01c9b81662669b19ac57bb6b461ffb88d"
+    },
+    {
+      "bytes": 7219,
+      "path": "locks/native-rust/Cargo.lock",
+      "sha256": "7ac745da977ab7748c209a02b75ed202e99526b42972f2f8e5cfe5ddecb496fa"
+    },
+    {
+      "bytes": 1205,
+      "path": "locks/parser/gradle.lockfile",
+      "sha256": "8736bc0c4e0d4b3bd59562e20dfba154edf08ecd727c79e061ccd94a636100b4"
+    },
+    {
+      "bytes": 1087,
+      "path": "locks/render-cpu/gradle.lockfile",
+      "sha256": "2615378227c6c444e39cde7ea89ab9aa13aad470880a372b9ecd44529fd2ad47"
+    },
+    {
+      "bytes": 1206,
+      "path": "locks/runtime/gradle.lockfile",
+      "sha256": "40f8b916a15d9c6015eebe806c3f983bb0c128691da2ce61c5b880baed85da61"
+    },
+    {
+      "bytes": 1082,
+      "path": "locks/scene/gradle.lockfile",
+      "sha256": "8d76d3f8450d0f1d590be957440ce60dc4162b878b543702801e9c0550bd0a19"
+    },
+    {
+      "bytes": 1087,
+      "path": "locks/script-lua/gradle.lockfile",
+      "sha256": "704504f5bdbc06c5a973f0cb1d343a5ca3c7962742722c2f3db8c44cd73e6a8f"
+    },
+    {
+      "bytes": 1194,
+      "path": "locks/verification/gradle.lockfile",
+      "sha256": "6ac08bf3096a47dbd7eae9d9707a29f28272d8107e597a1fd559b7087ac9a114"
+    },
+    {
+      "bytes": 505984,
+      "path": "native/aarch64-apple-darwin/libspm_core_native.dylib",
+      "sha256": "eece73913c8b02b9e8793eff445b98ae39f0d2bfcf8176103565b862d4cef3b0"
+    },
+    {
+      "bytes": 618736,
+      "path": "native/aarch64-unknown-linux-gnu/libspm_core_native.so",
+      "sha256": "fef3797e4964aff198e228fb15320bb79a949bd58de9d73519e2ab759ba052cc"
+    },
+    {
+      "bytes": 223232,
+      "path": "native/i686-pc-windows-msvc/spm_core_native.dll",
+      "sha256": "6e91b6560e465afe540b090167259e63b6a8075f80e9439cea3e3153b2420690"
+    },
+    {
+      "bytes": 510240,
+      "path": "native/x86_64-apple-darwin/libspm_core_native.dylib",
+      "sha256": "619da06023bf393fb1acadced860f67a18566a2892e79ed9079b68188a2e4e75"
+    },
+    {
+      "bytes": 260096,
+      "path": "native/x86_64-pc-windows-msvc/spm_core_native.dll",
+      "sha256": "0f399a91aecc0a201d6ce26d6e9bb6727ba26d33c9d2daa906d2bcee7923c087"
+    },
+    {
+      "bytes": 582080,
+      "path": "native/x86_64-unknown-linux-gnu/libspm_core_native.so",
+      "sha256": "24c85d286f59deda33e91ad3bf9383743d745236f734b2bc5c67fd128424156d"
+    },
+    {
+      "bytes": 2429,
+      "path": "provenance/allowed-sources.json",
+      "sha256": "982e33daa097aa53e03bf87319c51c6d965ab4cf2dbe84f9727b6ca75d748024"
+    }
+  ],
+  "group": "dev.spm.core",
+  "modules": [
+    "acceleration-api",
+    "api",
+    "codec",
+    "format-bbmodel",
+    "format-bedrock",
+    "format-common",
+    "format-figura",
+    "format-gltf",
+    "format-v3d",
+    "format-ysm",
+    "native-jni",
+    "parser",
+    "render-cpu",
+    "runtime",
+    "scene",
+    "script-lua"
+  ],
+  "schema": "spm-core-candidate/1",
+  "scope": "LOCAL_RESOLVED_INVENTORY; preview only; full dependency licensing and source origin certification remain pending",
+  "source": {
+    "repository": "https://github.com/AIH-Interactive/spm-core",
+    "revision": "166402d4707e01b17a9b87a8631e18768eb3c1eb"
+  },
+  "status": "PREVIEW",
+  "version": "1.0.0"
+}

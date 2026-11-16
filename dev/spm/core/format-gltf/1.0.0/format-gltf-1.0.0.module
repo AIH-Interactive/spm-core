@@ -1,0 +1,125 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "format-gltf",
+    "version": "1.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.0.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-gltf-1.0.0.jar",
+          "url": "format-gltf-1.0.0.jar",
+          "size": 52182,
+          "sha512": "5e62286b946220a7361869775a369213d587cf66f2f66f8c2cb2ecdc9c48b4ffe238b8c30d8a36480781aef769ee256a2bd8627103eb6affb4a21a3cddd46573",
+          "sha256": "779361e5aabf8b846d34b4f7ba99c8b5d011b280aa8b68d522ab17dba9eb8898",
+          "sha1": "82d52983d98b7cd24420719592b8070e3ee5a1c1",
+          "md5": "9fa35f21d7c15c19a6bc018323f26b44"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "format-common",
+          "version": {
+            "requires": "1.0.0"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.0.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-gltf-1.0.0.jar",
+          "url": "format-gltf-1.0.0.jar",
+          "size": 52182,
+          "sha512": "5e62286b946220a7361869775a369213d587cf66f2f66f8c2cb2ecdc9c48b4ffe238b8c30d8a36480781aef769ee256a2bd8627103eb6affb4a21a3cddd46573",
+          "sha256": "779361e5aabf8b846d34b4f7ba99c8b5d011b280aa8b68d522ab17dba9eb8898",
+          "sha1": "82d52983d98b7cd24420719592b8070e3ee5a1c1",
+          "md5": "9fa35f21d7c15c19a6bc018323f26b44"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-gltf-1.0.0-sources.jar",
+          "url": "format-gltf-1.0.0-sources.jar",
+          "size": 18791,
+          "sha512": "0ef700c0cc2d2f6c81dedc26275243fdc68025061ec4575c4be63ae44eb39bed6b184bb3f8fdca94f335e0756ab07cc38af0f25601ffe33089b4456967000197",
+          "sha256": "8a7fb4694a4a40ebd5209aa9725ed4fadb6aeb3d7f071bcf350a29748e148f94",
+          "sha1": "0e8c1d3d9b431bba3a6215d875a0074ee4568c88",
+          "md5": "7bdbdc64c48d8e7528e29961549dd414"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-gltf-1.0.0-javadoc.jar",
+          "url": "format-gltf-1.0.0-javadoc.jar",
+          "size": 4149546,
+          "sha512": "a13ca5d9dd90c11e197b2d73e6b99e647090aa466a37ca67b390e32cf293742180def5838264a63827e507e72d8a22747df1d5b3c6fc70a04ce6dc81d51bebe8",
+          "sha256": "6c5bcf4b30a22a571d081e558ab20c7b46f24a83195a0b801ec7b41ce6cb041e",
+          "sha1": "8829ecd97dea2df595493d23efc520b14e231575",
+          "md5": "c148195bd9e80a49f69bd5ceb2769214"
+        }
+      ]
+    }
+  ]
+}

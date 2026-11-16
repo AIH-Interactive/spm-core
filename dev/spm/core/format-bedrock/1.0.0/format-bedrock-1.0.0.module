@@ -1,0 +1,125 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "format-bedrock",
+    "version": "1.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.0.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-bedrock-1.0.0.jar",
+          "url": "format-bedrock-1.0.0.jar",
+          "size": 18662,
+          "sha512": "0c2ea0afc76d78d916dee2c64113c2ea9b48d1e1f0e9f8d6c4f46d30ca777bc8a58c6138f3d13415336036cc7cb5393bf833c86833c01cf6e864d856cfbb8ac5",
+          "sha256": "a43b339ed7343d5d3e006f2f586f7735e3b194671cd667f334766bd5ba8790d9",
+          "sha1": "dedcce5deba8938fc153eb6a9f949016952f58b4",
+          "md5": "2fe9913e694bad1fa8d0993a22360066"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "format-common",
+          "version": {
+            "requires": "1.0.0"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.0.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-bedrock-1.0.0.jar",
+          "url": "format-bedrock-1.0.0.jar",
+          "size": 18662,
+          "sha512": "0c2ea0afc76d78d916dee2c64113c2ea9b48d1e1f0e9f8d6c4f46d30ca777bc8a58c6138f3d13415336036cc7cb5393bf833c86833c01cf6e864d856cfbb8ac5",
+          "sha256": "a43b339ed7343d5d3e006f2f586f7735e3b194671cd667f334766bd5ba8790d9",
+          "sha1": "dedcce5deba8938fc153eb6a9f949016952f58b4",
+          "md5": "2fe9913e694bad1fa8d0993a22360066"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-bedrock-1.0.0-sources.jar",
+          "url": "format-bedrock-1.0.0-sources.jar",
+          "size": 5986,
+          "sha512": "1817e75bbbd22c59deaf5a3fea39a8514488355d91646417f14e40e6b7ae3c6cd4f95b90e0047c1825a0e340a4f05f2629c0af5acfcc09775dbdbab3385751a9",
+          "sha256": "e9f4fbaf334faf9c8e67cbf2f95a4ec89038f7e9319a64951b53ed7dc18ba6f9",
+          "sha1": "8a1ad060c912fe93eca93bec65b9d5a2021449ad",
+          "md5": "46ff1c81b979542f9ef5ef70a8202ced"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-bedrock-1.0.0-javadoc.jar",
+          "url": "format-bedrock-1.0.0-javadoc.jar",
+          "size": 4148827,
+          "sha512": "c2c8fea5bafdaf6a4b4155079617e78557ae1609633c0fbddcdff5e72e950e4676bcfd90416b4f422a12290e704884c81614a31c8316021bf784afbba56a6f55",
+          "sha256": "e02b2bc954d5494cadb5aeae92388c27e25b95947325a26dc8e5c62712059c12",
+          "sha1": "d445651654d6ccd73941bf6f8326d327229e1187",
+          "md5": "d0b22e26d507cfb001229b6a87e20038"
+        }
+      ]
+    }
+  ]
+}

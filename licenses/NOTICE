@@ -1,0 +1,29 @@
+SPM Core — independent host-neutral model runtime
+Copyright 2026 SPM Core contributors
+
+This product is mixed-license. The independently written sources are released
+under the MIT License (see LICENSE). Material redistributed under other terms
+is listed below and mapped component-by-component in THIRD_PARTY_NOTICES.md,
+which is the authoritative split.
+
+Redistributed Apache-2.0 material:
+- Historical wire/envelope test fixtures under verification/src/test/resources/
+  ysm/ are verbatim copies from AndreaFrederica/OhMyYesSteveModel
+  d2536542747a1aa5c02594827f579171c525843c and remain Apache-2.0. Their
+  license text and per-file digests are in that directory.
+- gradle/wrapper/gradle-wrapper.jar and gradlew are unmodified Gradle
+  artifacts, Apache-2.0 build tooling, not part of the product license.
+
+Behavior and format references (fixed commits), no source incorporated:
+YesSteveModel/YesSteveModel c0fff0bc99c58ff623e2f2acc2545521bdd8909c
+AndreaFrederica/OhMyYesSteveModel d2536542747a1aa5c02594827f579171c525843c
+JannisX11/blockbench ec0b2827104d0799c153bfb5f867579c0c44652f
+
+Historical CityHash and ChaCha notices ship as a product resource at
+META-INF/spm-core/legacy-third-party.txt. External dependencies are consumed as
+ordinary artifacts and are not relicensed here.
+
+No upstream artwork, application source or bundled third-party runtime tree is
+incorporated. Per-component dependencies and sources are recorded in
+provenance/. No OpenYSM implementation, binary, behavior oracle or fallback is
+permitted.

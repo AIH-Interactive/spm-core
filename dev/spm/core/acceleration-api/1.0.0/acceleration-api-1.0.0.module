@@ -1,0 +1,118 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "acceleration-api",
+    "version": "1.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.0.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "acceleration-api-1.0.0.jar",
+          "url": "acceleration-api-1.0.0.jar",
+          "size": 10438,
+          "sha512": "767b04d75a120cf2d89506ae0956be30a09ea5ac2ff5d359ed814362d9d71d32b814f6eb6d26034515c9e5e3d9d3892f3501dc8a04aef5fba045bbdbe62ed61f",
+          "sha256": "03a4f23aa6700818d25e063ec265690e3dfa4b835a0b1352e33a60a6adb92fc8",
+          "sha1": "a5394a11ab75355b35d79f37c0b93d78bd3e4d95",
+          "md5": "39288eece886964eaf523d00297bf32f"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.0.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "acceleration-api-1.0.0.jar",
+          "url": "acceleration-api-1.0.0.jar",
+          "size": 10438,
+          "sha512": "767b04d75a120cf2d89506ae0956be30a09ea5ac2ff5d359ed814362d9d71d32b814f6eb6d26034515c9e5e3d9d3892f3501dc8a04aef5fba045bbdbe62ed61f",
+          "sha256": "03a4f23aa6700818d25e063ec265690e3dfa4b835a0b1352e33a60a6adb92fc8",
+          "sha1": "a5394a11ab75355b35d79f37c0b93d78bd3e4d95",
+          "md5": "39288eece886964eaf523d00297bf32f"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "acceleration-api-1.0.0-sources.jar",
+          "url": "acceleration-api-1.0.0-sources.jar",
+          "size": 2904,
+          "sha512": "6eeb91f99d0244db51a2e5b487c8636b32b155e156f2ec2cd3238a94f0c295f0cdaac24fe2bb4f37e5aefeb8956cd0c3860c814115cdc7e81b32aca355f6b8c6",
+          "sha256": "f542f884e9b0d720db070848d287b6f1cf5b3e823087166b907f6292123fdf6b",
+          "sha1": "34c6ee390d4d71df3d0fd61e589ac8f81de0c80b",
+          "md5": "13b1b2ac4f26e2a20d53dd16fe2b7a9e"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "acceleration-api-1.0.0-javadoc.jar",
+          "url": "acceleration-api-1.0.0-javadoc.jar",
+          "size": 4161342,
+          "sha512": "213ac5f51fd6201ee602869c03916f2dd62b4fa4c59f5269b6aa520b09841cf27b43e8ae4202d6c04d24202d8de750f3b32ee30d53f4186e647ebdd5b476eb36",
+          "sha256": "c324d1cf178b96256f026c26f03b74d03faaabba8ef9b4f7c44ef4a84fc6f62c",
+          "sha1": "5f731e4eaf16f1970ef21dfebf874b0b50fa71e8",
+          "md5": "78e2412d258daa7d50eaa35ee768ea9c"
+        }
+      ]
+    }
+  ]
+}
