@@ -146,10 +146,20 @@ def cpu_model() -> str:
     return platform.processor() or "unknown"
 
 
+def configured_version(root: Path) -> str:
+    props = root / "gradle.properties"
+    if props.is_file():
+        for line in props.read_text(encoding="utf-8").splitlines():
+            if line.startswith("spmCoreVersion="):
+                return line.split("=", 1)[1].strip()
+    return "0.1.0-dev"
+
+
 def classpath(root: Path) -> str:
+    ver = configured_version(root)
     jars = sorted(root.glob("*/build/libs/*.jar"))
     relevant = [j for j in jars if "-sources" not in j.name and "-javadoc" not in j.name
-                and "preview" not in j.name and j.name.endswith("-0.1.0-dev.jar")]
+                and "preview" not in j.name and j.name.endswith(f"-{ver}.jar")]
     return os.pathsep.join(str(j) for j in relevant)
 
 

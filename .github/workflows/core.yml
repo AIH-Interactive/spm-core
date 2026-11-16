@@ -204,7 +204,7 @@ jobs:
           fi
           LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
           AR="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-          rustup toolchain install 1.98.1 --profile minimal --target aarch64-linux-android
+          rustup toolchain install 1.98.1 --profile minimal --component clippy --target aarch64-linux-android
           export CARGO_TARGET_DIR="$PWD/native-rust/target"
           export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$LINKER"
           export CARGO_TARGET_AARCH64_LINUX_ANDROID_AR="$AR"
