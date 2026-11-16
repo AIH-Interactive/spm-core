@@ -59,21 +59,9 @@ Additional formats register through `new SpmModelParser(List<ModelFormatAdapter>
 a unique `formatId`, a read-only bounded probe and the same request budget/token. The parser replays
 the exact probed root snapshot, including for one-shot sources, and pins it until dependent assets
 and streams close. Extensions return the same owned `ImportResult`; a plugin must implement the
-geometry/animation capabilities it declares. The built-in glTF 2.0 adapter reads static triangle
-geometry from `.gltf` and `.glb`, including bounded external buffers resolved relative to the logical
-entry and base64 buffer data URIs. It maps positions, optional `NORMAL` and `TEXCOORD_0`, and indices into rigid
-single-root geometry. It rejects node transforms, materials/images/textures, extra vertex attributes,
-sparse or normalized accessors, skins, morphs, animations, and unsupported extensions; it does not
-silently drop these semantics. This subset does not provide glTF material resources, weighted rendering,
-or Lua execution.
+geometry/animation capabilities it declares. The built-in glTF 2.0 adapter (`gltf2`) reads `.gltf` and `.glb` scenes, including bounded external buffers/images resolved relative to the logical entry and base64 data URIs. It maps node hierarchy & transforms (`translation`/`rotation`/`scale`/`matrix`), skeletal skinning (`JOINTS_0`/`WEIGHTS_0`/`inverseBindMatrices`), morph targets & weights, PBR materials & texture references, and `animations` (`LINEAR`/`STEP`/`CUBICSPLINE`) evaluated by `GltfAnimationLibrary` in `scene`. Sparse accessors and unsupported required extensions remain explicitly rejected.
 
-The static Figura adapter accepts an explicit `FIGURA` hint, or AUTO entries named `*.figura.zip`.
-It requires a root `avatar.json` marker and imports supported free Blockbench cube projects with
-their hierarchy and authored pose. Literal archive texture paths remain authorized resource keys;
-PNG contents are opaque resource bytes. Open streams and model leases pin their archive budget.
-Lua, native NBT, nested archives, behavioral avatar metadata, animation projects, embedded texture
-data, unsupported project formats and paths outside the archive are rejected. This is a static asset
-subset, not a Figura runtime or a Lua interpreter.
+The Figura adapter (`figura`) accepts `.figura.zip` / `.figura` archives and `avatar.nbt` bundles, importing Blockbench models with animations, embedded base64/archive PNG textures, `.ogg` sound resources, and `.lua` scripts executed inside the pure-Java MIT-clean bounded Lua 5.3 runtime (`script-lua`) via `FiguraAvatarRuntime`. Nested archives and unsafe paths outside the archive remain rejected.
 
 V3D sources use a logical `v3d.json` entry and authorized sibling resources. Admission checks the
 actual decrypted source against the declared wire, in addition to hashes and bounded paths. Edited

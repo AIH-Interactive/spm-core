@@ -22,12 +22,13 @@ from __future__ import annotations
 import json
 import os
 import platform
-import statistics
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
+
+from snapshot_core import clean_revision
 
 PROBE = r"""
 import dev.spm.core.acceleration.Isa;
@@ -133,10 +134,6 @@ public final class BaselineProbe {
 """
 
 
-def git_revision(root: Path) -> str:
-    return subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"]).decode().strip()
-
-
 def cpu_model() -> str:
     if platform.system() == "Windows":
         try:
@@ -169,6 +166,10 @@ def main() -> int:
     java_home = os.environ.get("JAVA_HOME")
     if not java_home:
         raise SystemExit("JAVA_HOME must point at an actual JDK (the default is JDK 8 and is wrong)")
+    try:
+        revision = clean_revision(root)
+    except ValueError as failure:
+        raise SystemExit(str(failure)) from failure
     java = Path(java_home) / "bin" / ("java.exe" if os.name == "nt" else "java")
     javac = Path(java_home) / "bin" / ("javac.exe" if os.name == "nt" else "javac")
 
@@ -194,7 +195,8 @@ def main() -> int:
         "schema": 1,
         "status": "MEASURED",
         "created": args.created,
-        "source_revision": git_revision(root),
+        "source_revision": revision,
+        "source_worktree_clean": True,
         "environment": {
             "platform": platform.platform(),
             "machine": platform.machine(),

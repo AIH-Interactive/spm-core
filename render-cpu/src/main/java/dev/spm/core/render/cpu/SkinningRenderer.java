@@ -50,7 +50,8 @@ public final class SkinningRenderer {
 
         // Resolve and validate every referenced bone before allocating output, so a failure here
         // cannot leave a partially written batch behind.
-        SkinTransforms transforms = new SkinTransforms(pose, bind, weights, skin.method());
+        SkinTransforms transforms = new SkinTransforms(pose, bind, weights, skin.method(),
+                skin.hasInverseBindMatrices() ? skin.inverseBindMatrices() : null);
         for (int bone : batch.boneIndices())
             if (bone < 0 || bone >= boneCount) throw new IllegalArgumentException("Vertex bone index out of range");
 
@@ -202,21 +203,47 @@ public final class SkinningRenderer {
      * the offset from the centre to the vertex is only rotated, so the sphere keeps its radius under
      * twisting where BDEF would collapse it.
      *
-     * <p>A centre on the vertex makes the offset vanish, so a zero offset reduces SDEF to a pure
-     * rotational blend around that vertex; the authored centres are what buy the volume behaviour.
-     * The authored radii are never applied — see {@link SdefParameters} for why.</p>
+     * <p>When 3D {@code R0}/{@code R1} anchors are supplied, each influence carries an adjusted centre
+     * {@code C + rw_i} whose weighted average under identical transforms still equals {@code C}.</p>
      */
     private static double[] sphericalBlend(SkinTransforms t, SkinWeights w, boolean[] visible, int vertex,
                                            double[] position, double sum, SdefParameters sdef) {
         double[] centre = {sdef.centre(vertex, 0), sdef.centre(vertex, 1), sdef.centre(vertex, 2)};
+        boolean hasAnchors = sdef.hasAnchors();
+        double dx = 0, dy = 0, dz = 0;
+        double primaryWeight = 0;
+        int firstVisibleSlot = -1;
+        if (hasAnchors) {
+            dx = sdef.anchorR0(vertex, 0) - sdef.anchorR1(vertex, 0);
+            dy = sdef.anchorR0(vertex, 1) - sdef.anchorR1(vertex, 1);
+            dz = sdef.anchorR0(vertex, 2) - sdef.anchorR1(vertex, 2);
+            for (int slot = 0, used = w.influenceCount(vertex); slot < used; slot++) {
+                int bone = w.boneIndex(vertex, slot);
+                if (!visible[bone]) continue;
+                if (firstVisibleSlot < 0) {
+                    firstVisibleSlot = slot;
+                    primaryWeight = w.weight(vertex, slot) / sum;
+                    break;
+                }
+            }
+        }
         double[] carried = new double[3];
         for (int slot = 0, used = w.influenceCount(vertex); slot < used; slot++) {
             int bone = w.boneIndex(vertex, slot);
             if (!visible[bone]) continue;
             double weight = w.weight(vertex, slot) / sum;
+            double cx = centre[0], cy = centre[1], cz = centre[2];
+            if (hasAnchors && firstVisibleSlot >= 0) {
+                double factor = slot == firstVisibleSlot ? (1.0 - primaryWeight) : -primaryWeight;
+                cx += factor * dx;
+                cy += factor * dy;
+                cz += factor * dz;
+            }
             for (int row = 0; row < 3; row++) {
-                double value = t.matrix(bone, 12 + row);
-                for (int axis = 0; axis < 3; axis++) value += (double) t.matrix(bone, axis * 4 + row) * centre[axis];
+                double value = t.matrix(bone, 12 + row)
+                        + (double) t.matrix(bone, row) * cx
+                        + (double) t.matrix(bone, 4 + row) * cy
+                        + (double) t.matrix(bone, 8 + row) * cz;
                 carried[row] += weight * value;
             }
         }
@@ -314,7 +341,8 @@ public final class SkinningRenderer {
         private final double[][] quaternion;
         private final double[][] dual;
 
-        SkinTransforms(BoneMatrices pose, BoneMatrices bind, SkinWeights weights, SkinningMethod method) {
+        SkinTransforms(BoneMatrices pose, BoneMatrices bind, SkinWeights weights, SkinningMethod method,
+                       float[] explicitInverseBindMatrices) {
             int boneCount = pose.boneCount();
             boolean rigid = method != SkinningMethod.BDEF;
             skin = new float[Math.multiplyExact(boneCount, 16)];
@@ -328,10 +356,16 @@ public final class SkinningRenderer {
                     needed[weights.boneIndex(vertex, slot)] = true;
             for (int bone = 0; bone < boneCount; bone++) {
                 if (!needed[bone]) continue;
-                float[] bindTransform = new float[16];
-                for (int element = 0; element < 16; element++) bindTransform[element] = bind.matrix(bone, element);
-                float[] inverse = SkinMath.invertAffine(bindTransform);
-                if (inverse == null) continue;
+                float[] inverse;
+                if (explicitInverseBindMatrices != null) {
+                    inverse = new float[16];
+                    System.arraycopy(explicitInverseBindMatrices, bone * 16, inverse, 0, 16);
+                } else {
+                    float[] bindTransform = new float[16];
+                    for (int element = 0; element < 16; element++) bindTransform[element] = bind.matrix(bone, element);
+                    inverse = SkinMath.invertAffine(bindTransform);
+                    if (inverse == null) continue;
+                }
                 float[] poseTransform = new float[16];
                 for (int element = 0; element < 16; element++) poseTransform[element] = pose.matrix(bone, element);
                 float[] product = SkinMath.multiply(poseTransform, inverse);

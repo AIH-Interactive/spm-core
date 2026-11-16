@@ -115,5 +115,23 @@ class PlatformMatrixTest(unittest.TestCase):
                 sys.argv = saved
 
 
+    def test_cross_compile_manifest_records_built_without_promoting_execution_and_tracks_avx512(self) -> None:
+        cross_android = dict(
+            status='CROSS_COMPILED_NOT_EXECUTED',
+            os='Android',
+            architecture='aarch64',
+            checkout='a' * 40,
+            native=dict(target='aarch64-linux-android', crossCompileOnly=True),
+        )
+        avx_linux = manifest('Linux', 'x86_64', 'x86_64-unknown-linux-gnu')
+        avx_linux['native']['supportedIsas'] = ['SCALAR', 'SSE2', 'AVX', 'AVX2', 'AVX512']
+        result = matrix([cross_android, avx_linux])
+        android_row = next(r for r in result['platforms'] if r['id'] == 'android-arm64')
+        self.assertEqual('BUILT', android_row['cross_build'])
+        self.assertEqual('NOT_EXECUTED', android_row['native_execution'])
+        self.assertTrue(result['avx512_executed'])
+        self.assertEqual(['linux-x64'], result['avx512_platforms'])
+
+
 if __name__ == '__main__':
     unittest.main()

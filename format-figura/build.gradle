@@ -1,5 +1,7 @@
 dependencies {
     api project(':api')
+    api project(':scene')
+    api project(':script-lua')
     implementation project(':format-common')
     implementation project(':format-bbmodel')
 }

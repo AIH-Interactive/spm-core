@@ -113,4 +113,34 @@ final class CacheWireCompatibilityTest {
         assertEquals(1, DecodeProfile.LOCAL_MODEL.revision());
         assertEquals(CacheWire.CURRENT_SCHEMA_VERSION, CacheWire.of(WIRE, 1, DecodeProfile.LOCAL_MODEL, SHA_A, 1).schemaVersion());
     }
+
+    @Test void cacheEnvelopeCodecRoundTripsPayloadAndRejectsTamperingWithoutLeakingBudget() throws Exception {
+        byte[] payload = "compiled-ir-cache-payload-v1".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String sha = dev.spm.core.codec.CacheEnvelopeCodec.sha256Hex(payload);
+        var wire = CacheWire.of("spm.cache", 1, DecodeProfile.LOCAL_MODEL, sha, payload.length);
+        var budget = new dev.spm.core.api.ResourceBudget(1 << 20);
+        var policy = DecodePolicy.localModel();
+        var token = new dev.spm.core.api.CancellationToken();
+
+        var encoded = dev.spm.core.codec.CacheEnvelopeCodec.encode(wire, payload, policy, budget, token);
+        assertEquals(0, budget.used());
+        var decoded = dev.spm.core.codec.CacheEnvelopeCodec.decode(encoded.encoded(), policy, budget, token);
+        assertEquals(wire, decoded.descriptor());
+        assertArrayEquals(payload, decoded.payload());
+        decoded.descriptor().requireReusable("spm.cache", 1, CacheWire.CURRENT_SCHEMA_VERSION,
+                DecodeProfile.LOCAL_MODEL.fingerprint(), sha);
+        assertEquals(0, budget.used());
+
+        // Tamper the compressed payload -> SHA-256 verification fails and budget returns to zero.
+        byte[] tampered = encoded.encoded();
+        tampered[tampered.length - 3] ^= 0x5a;
+        assertThrows(java.io.IOException.class,
+                () -> dev.spm.core.codec.CacheEnvelopeCodec.decode(tampered, policy, budget, token));
+        assertEquals(0, budget.used());
+
+        // Truncated input fails cleanly.
+        assertThrows(java.io.IOException.class,
+                () -> dev.spm.core.codec.CacheEnvelopeCodec.decode(java.util.Arrays.copyOf(encoded.encoded(), 40), policy, budget, token));
+        assertEquals(0, budget.used());
+    }
 }

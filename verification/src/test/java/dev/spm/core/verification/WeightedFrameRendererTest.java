@@ -3,14 +3,20 @@ package dev.spm.core.verification;
 import dev.spm.core.api.BonePose;
 import dev.spm.core.api.CancellationToken;
 import dev.spm.core.api.MeshSkin;
+import dev.spm.core.api.ModelAsset;
 import dev.spm.core.api.ModelDocument;
 import dev.spm.core.api.ModelDocument.Bounds;
+import dev.spm.core.api.ModelDocument.JsonArray;
+import dev.spm.core.api.ModelDocument.JsonBoolean;
+import dev.spm.core.api.ModelDocument.JsonNumber;
 import dev.spm.core.api.ModelDocument.JsonObject;
+import dev.spm.core.api.ModelDocument.JsonVector3;
 import dev.spm.core.api.ModelDocument.Material;
 import dev.spm.core.api.MorphTarget;
 import dev.spm.core.api.MorphWeights;
 import dev.spm.core.api.ResourceBudget;
 import dev.spm.core.api.ResourceBudgetExceededException;
+import dev.spm.core.api.SdefParameters;
 import dev.spm.core.api.SkinWeights;
 import dev.spm.core.api.Skeleton;
 import dev.spm.core.api.SkinState;
@@ -19,6 +25,10 @@ import dev.spm.core.api.SkinningRig;
 import dev.spm.core.api.VertexBatch;
 import dev.spm.core.runtime.CpuFrame;
 import dev.spm.core.runtime.ModelFrameRenderer;
+import dev.spm.core.scene.PoseAnimationLibrary;
+import dev.spm.core.scene.PoseAnimationPlayer;
+import dev.spm.core.scene.SceneInputs;
+import dev.spm.core.scene.ScriptBudget;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -233,6 +243,100 @@ class WeightedFrameRendererTest {
             assertEquals(0, output.indices().length, "the triangle references a hidden vertex");
             // Vertices 1 and 2 survive, keeping their own UVs in source order.
             assertArrayEquals(new float[] {1, 0, 0, 1}, output.uvs());
+        }
+        assertEquals(0, budget.used());
+    }
+
+    @Test void nonIdentityBindAnimatedPoseSkinsEndToEndAcrossBdefQdefAndSdef() {
+        // Non-identity bind: root shifted +1 on X, child rotated 90 deg around Z relative to root.
+        var bindPose = new BonePose(
+                new float[] {0, 0, 0, 0, 0, HALF_PI},
+                new float[] {1, 0, 0, 0, 0, 0},
+                new float[] {1, 1, 1, 1, 1, 1},
+                new boolean[2], new boolean[2], new int[] {15, 255}, new int[] {0xffffffff, 0xffffffff});
+        var clip = new JsonObject(Map.of("animations", new JsonObject(Map.of("turn", new JsonObject(Map.of(
+                "loop", new JsonBoolean(true),
+                "animation_length", new JsonNumber(1),
+                "bones", new JsonObject(Map.of(
+                        "other", new JsonObject(Map.of("rotation", new JsonVector3(0, 0, 90))),
+                        "root", new JsonObject(Map.of("position", new JsonVector3(0, 16, 0)))))))))));
+        var skeleton = new Skeleton(List.of("root", "other"), new int[] {-1, 0}, new float[6]);
+        var batch = new VertexBatch(
+                new float[] {2, 0, 0, 2, 1, 0, 1, 1, 0},
+                new float[] {1, 0, 0, 1, 0, 0, 1, 0, 0},
+                new int[] {0, 1, 1});
+        var mesh = new ModelDocument.Mesh("mesh", batch, new float[] {0, 0, 1, 0, 0, 1}, new int[] {0, 1, 2},
+                List.of(), new Bounds(0, 0, 0, 3, 2, 0), 0);
+        var document = new ModelDocument("animated-nonbind", "synthetic", skeleton, List.of(mesh), bindPose,
+                List.of(new Material("skin", 1, 1, List.of())), List.of(), clip);
+
+        var token = new CancellationToken();
+        var library = PoseAnimationLibrary.fromModel(document, new ScriptBudget(100_000, 128, token));
+        var player = new PoseAnimationPlayer(library, bindPose, 60, 0, 1);
+        player.play("turn");
+        var animatedPose = player.evaluate(0, 0, new SceneInputs(Map.of()), new ScriptBudget(100_000, 128, token)).pose();
+
+        var weights = SkinWeights.of(2, new int[][] {{0, 1}, {0, 1}, {1}}, new float[][] {{0.5f, 0.5f}, {0.5f, 0.5f}, {1f}});
+        var target = new MorphTarget("lift", new float[] {0, 0, 1, 0, 0, 1, 0, 0, 1});
+        var state = SkinState.of(Map.of("mesh", new MorphWeights(new float[] {0.5f})));
+        var sdefParams = new SdefParameters(new float[] {1, 0, 0, 1, 0, 0, 1, 0, 0}, new float[] {2, 3, 2, 3, 2, 3});
+        var sdefNoRadii = new SdefParameters(new float[] {1, 0, 0, 1, 0, 0, 1, 0, 0}, new float[0]);
+
+        var budget = new ResourceBudget(16L << 20);
+        try (var asset = new ModelAsset(document, List.of(budget.reserve(1024)))) {
+            for (SkinningMethod method : SkinningMethod.values()) {
+                var skin = method == SkinningMethod.SDEF
+                        ? new MeshSkin.Weighted(weights, method, List.of(target), sdefParams)
+                        : new MeshSkin.Weighted(weights, method, List.of(target));
+                var rig = SkinningRig.of(document, Map.of("mesh", skin));
+                try (CpuFrame frame = ModelFrameRenderer.render(asset, animatedPose, rig, state, budget, token)) {
+                    assertEquals("JAVA_SCALAR", frame.backend());
+                    var out = frame.meshes().get(0);
+                    assertEquals(3, out.vertices().vertexCount());
+                    assertArrayEquals(new int[] {0, 1, 2}, out.indices());
+                    for (float v : out.vertices().positions()) assertTrue(Float.isFinite(v));
+                    for (float n : out.vertices().normals()) assertTrue(Float.isFinite(n));
+                    if (method == SkinningMethod.SDEF) {
+                        var rigNoRadii = SkinningRig.of(document, Map.of("mesh",
+                                new MeshSkin.Weighted(weights, SkinningMethod.SDEF, List.of(target), sdefNoRadii)));
+                        try (CpuFrame noRadiiFrame = ModelFrameRenderer.render(asset, animatedPose, rigNoRadii, state, budget, token)) {
+                            assertArrayEquals(out.vertices().positions(), noRadiiFrame.meshes().get(0).vertices().positions(), 0f);
+                            assertArrayEquals(new float[] {2, 3, 2, 3, 2, 3}, sdefParams.radii());
+                        }
+                    }
+                }
+            }
+        }
+        assertEquals(0, budget.used());
+    }
+
+    @Test void weightedFramePropagatesChildrenHiddenGlowAndBoneRgbaTint() {
+        var skeleton = new Skeleton(List.of("root", "child"), new int[] {-1, 0}, new float[6]);
+        var batch = new VertexBatch(
+                new float[] {0, 0, 0, 1, 0, 0},
+                new float[] {0, 0, 1, 0, 0, 1},
+                new int[] {0, 1},
+                new int[] {255, 255},
+                new int[] {0xff808080, 0xffffffff});
+        var mesh = new ModelDocument.Mesh("mesh", batch, new float[] {0, 0, 1, 0}, new int[0], List.of(),
+                new Bounds(0, 0, 0, 1, 0, 0), 0);
+        var document = new ModelDocument("channels", "synthetic", skeleton, List.of(mesh), BonePose.identity(2),
+                List.of(new Material("mat", 1, 1, List.of())), List.of(), new JsonObject(Map.of()));
+        var weights = SkinWeights.of(2, new int[][] {{0, 1}, {1}}, new float[][] {{0.75f, 0.25f}, {1f}});
+        var rig = SkinningRig.of(document, Map.of("mesh", new MeshSkin.Weighted(weights, SkinningMethod.BDEF)));
+        // Hide child via root's childrenHidden flag; root stays visible with glow 15 and RGBA tint 0xff8040ff.
+        var pose = new BonePose(
+                new float[6], new float[6], new float[] {1, 1, 1, 1, 1, 1},
+                new boolean[] {false, false}, new boolean[] {true, false},
+                new int[] {15, 255}, new int[] {0xff8040ff, 0xffffffff});
+        var budget = new ResourceBudget(1 << 20);
+        try (CpuFrame frame = ModelFrameRenderer.render(document, pose, rig, SkinState.rest(), budget, new CancellationToken())) {
+            var out = frame.meshes().get(0);
+            assertEquals(1, out.vertices().vertexCount(), "vertex 1 is owned only by hidden child");
+            assertEquals(15, out.vertices().glow()[0], "surviving vertex inherits dominant visible bone glow");
+            // 0xff808080 * 0xff8040ff -> A=255, B=128*128/255=64, G=128*64/255=32, R=128*255/255=128 -> 0xff402080
+            assertEquals(0xff402080, out.vertices().colorsRgba()[0]);
+            assertArrayEquals(new float[] {0, 0}, out.uvs());
         }
         assertEquals(0, budget.used());
     }

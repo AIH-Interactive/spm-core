@@ -238,4 +238,76 @@ class CodedAnimationCollectionTest {
         assertEquals(8.0/9,first.pose().translations()[1],1e-6);
         assertEquals(7.0/9,owner.evaluate(2,33_333_334,new SceneInputs(Map.of("reset",1.0)),budget()).pose().translations()[1],1e-6);
     }
+    @Test void negativeAndNonFiniteTransitionLengthsAreIgnoredWhilePreservingPriorValue() {
+        var definition=new CodedControllerDefinition("main",MolangProgram.compile(
+                "ctrl.set_beginning_transition_length(-5); ctrl.set_animation('a'); return 2;"),
+                fallback("b"),1);
+        var owner=owner(definition);
+        assertEquals(0,owner.evaluate(0,0,new SceneInputs(Map.of()),budget()).pose().translations()[1]);
+        // Preserves the 1-tick (1/20s = 3 steps at 60Hz) transition despite negative call.
+        assertEquals(1.0/3,owner.evaluate(1,16_666_667,new SceneInputs(Map.of()),budget()).pose().translations()[1],1e-6);
+        var playback=new CodedPlayback(clips(),1,1);
+        playback.transition(-5);
+        playback.transition(Double.NaN);
+        playback.transition(Double.POSITIVE_INFINITY);
+        assertEquals(1.0,playback.transitionTicks);
+    }
+    @Test void codedPredicatesObserveAnimTimeFinishedQueriesAndBeforeStepHookArguments() {
+        var library=library(obj("short",obj("loop",false,"animation_length",0.05,"bones",obj("root",obj("position",List.of(0,16,0))))));
+        var hooks=new MolangHooks(List.of(),List.of(MolangProgram.compile("v.tickcalls=(v.tickcalls??0)+1; v.lastshouldtick=args[0];")),
+                List.of(),List.of(),List.of(),List.of());
+        var definition=controller("main","v.seentime=q.anim_time; v.allfin=q.all_animations_finished; v.anyfin=q.any_animation_finished; ctrl.set_animation('short',11); return 2;","short");
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),List.of(definition),60,42,Map.of(),hooks);
+        var inputs=new SceneInputs(Map.of(),MolangBindings.empty(),true,SceneInputs.SyncMode.HOST,
+                Map.of(MolangHooks.Phase.BEFORE_STEP,List.of(MolangValue.bool(true))));
+        var f0=owner.evaluate(0,0,inputs,budget());
+        assertEquals(1,f0.variables().get("tickcalls"));
+        assertEquals(1,f0.variables().get("lastshouldtick"));
+        assertEquals(1,f0.variables().get("allfin"));
+        assertEquals(1,f0.variables().get("anyfin"));
+        // Zero-step frame does not re-run BEFORE_STEP hooks.
+        var zero=owner.evaluate(1,1,inputs,budget());
+        assertEquals(1,zero.variables().get("tickcalls"));
+        // Step 1 (1/60s < 0.05s): clip is actively running so finished queries are false; snapshot advances to 1/60s.
+        var playing=owner.evaluate(2,16_666_667,inputs,budget());
+        assertEquals(0,playing.variables().get("allfin"));
+        assertEquals(0,playing.variables().get("anyfin"));
+        assertEquals(1.0/60,playing.controllers().get(0).animationTimeSeconds(),1e-6);
+        // Step 2 predicate sees the prior step's localTime (1/60s).
+        var second=owner.evaluate(3,33_333_334,inputs,budget());
+        assertEquals(1.0/60,second.variables().get("seentime"),1e-6);
+        owner.evaluate(4,50_000_000,inputs,budget());
+        var after=owner.evaluate(5,66_666_667,inputs,budget());
+        assertEquals(1,after.variables().get("allfin"));
+        assertEquals(1,after.variables().get("anyfin"));
+        assertEquals(1.0/30,after.variables().get("seentime"),1e-6);
+    }
+    @Test void pauseSuppressesTimelineAndScriptEffectsAndDoesNotReplayOnResume() {
+        var library=library(obj("a",obj("loop",true,"animation_length",1,
+                "timeline",obj("0.01","v.cuehit=(v.cuehit??0)+1;"),
+                "sound_effects",obj("0.01","cue.sound"))));
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),
+                List.of(controller("main","ctrl.set_animation('a'); return q.pause ? 4 : 2;","a")),60,42);
+        owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        var paused=owner.evaluate(1,16_666_667,new SceneInputs(Map.of("pause",1.0)),budget());
+        assertFalse(paused.controllers().get(0).contributing());
+        // PAUSE suppresses timeline cues and instructions while advancing playback time past 0.01s.
+        assertFalse(paused.variables().containsKey("cuehit"));
+        assertTrue(paused.effects().stream().noneMatch(e->e.resource().equals("cue.sound")));
+        var resumed=owner.evaluate(2,33_333_334,new SceneInputs(Map.of()),budget());
+        assertTrue(resumed.controllers().get(0).contributing());
+        assertFalse(resumed.variables().containsKey("cuehit"));
+        assertTrue(resumed.effects().stream().noneMatch(e->e.resource().equals("cue.sound")));
+    }
+    @Test void ctrlResetDrainsMemberDeferredCallsBeforeClearingContext() {
+        var library=library(obj("a",obj("loop",true,"animation_length",1,"timeline",obj("0","c.marker=9; ysm.defer('local',c.marker)"))));
+        var hooks=new MolangHooks(List.of(),List.of(),List.of(),List.of(),List.of(MolangProgram.compile("v.drained=args[0]; v.contextatdrain=c.marker")),List.of());
+        var definition=controller("main","q.reset ? ctrl.reset() : ctrl.set_animation('a'); return 2;","a");
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),List.of(definition),60,42,Map.of(),hooks);
+        owner.evaluate(0,0,new SceneInputs(Map.of()),budget());
+        var afterReset=owner.evaluate(1,16_666_667,new SceneInputs(Map.of("reset",1.0)),budget());
+        assertEquals(9,afterReset.variables().get("drained"));
+        assertEquals(9,afterReset.variables().get("contextatdrain"));
+        assertFalse(afterReset.controllers().get(0).contributing());
+    }
 }

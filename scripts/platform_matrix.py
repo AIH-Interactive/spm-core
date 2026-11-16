@@ -43,6 +43,8 @@ def blank_row(platform: dict) -> dict:
         target=platform['target'],
         native_execution='NOT_EXECUTED',
         java_scalar_execution='NOT_EXECUTED',
+        cross_build='NOT_BUILT',
+        supported_isas=[],
         evidence=None,
         note='no candidate manifest supplied for this platform',
     )
@@ -50,14 +52,20 @@ def blank_row(platform: dict) -> dict:
 
 def apply_manifest(rows: dict[str, dict], manifest: dict) -> None:
     """Promote a row only from a real candidate manifest, never from configuration."""
-    if manifest.get('status') != 'VERIFIED_CANDIDATE_NOT_RELEASE_CERTIFIED':
+    if manifest.get('status') not in {'VERIFIED_CANDIDATE_NOT_RELEASE_CERTIFIED', 'CROSS_COMPILED_NOT_EXECUTED'}:
         return
     os_name = str(manifest.get('os', ''))
     arch = str(manifest.get('architecture', '')).lower()
     native = manifest.get('native') or {}
     target = native.get('target')
+    cross_only = bool(native.get('crossCompileOnly')) or manifest.get('status') == 'CROSS_COMPILED_NOT_EXECUTED'
     matched = None
     for row in rows.values():
+        if cross_only and target:
+            if row['target'] == target:
+                matched = row
+                break
+            continue
         if row['os'] != os_name:
             continue
         if arch == row['arch'] or (arch in {'amd64', 'x86_64'} and row['arch'] == 'x86_64') \
@@ -68,8 +76,18 @@ def apply_manifest(rows: dict[str, dict], manifest: dict) -> None:
     if matched is None:
         return
     checkout = manifest.get('checkout')
+    if cross_only:
+        if target:
+            matched['cross_build'] = 'BUILT'
+            if matched['native_execution'] == 'NOT_EXECUTED':
+                matched['note'] = 'cross-compiled native library built in CI; native host execution not verified'
+        return
     if target:
         matched['native_execution'] = 'EXECUTED'
+        matched['cross_build'] = 'BUILT'
+        isas = native.get('supportedIsas') or []
+        if isas:
+            matched['supported_isas'] = sorted(set(matched['supported_isas']) | set(isas))
     matched['java_scalar_execution'] = 'EXECUTED'
     matched['evidence'] = dict(
         checkout=checkout,
@@ -95,11 +113,14 @@ def matrix(manifests: list[dict]) -> dict:
             )
     executed = sorted(name for name, row in rows.items() if row['native_execution'] == 'EXECUTED')
     missing = sorted(name for name, row in rows.items() if row['native_execution'] != 'EXECUTED')
+    avx512_platforms = sorted(name for name, row in rows.items() if 'AVX512' in (row.get('supported_isas') or []))
     return dict(
         schema=1,
         status='PARTIAL' if missing else 'COMPLETE',
         native_executed=executed,
         native_not_executed=missing,
+        avx512_executed=bool(avx512_platforms),
+        avx512_platforms=avx512_platforms,
         policy=('A row is EXECUTED only when a real candidate manifest from that platform is'
                 ' supplied. Cross-compilation, source inspection and CI configuration do not'
                 ' count and cannot promote a row.'),

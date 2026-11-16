@@ -19,6 +19,8 @@ public final class SkinState {
     /** No morph influence anywhere; valid only for rigs whose meshes carry no targets. */
     public static SkinState rest() { return new SkinState(Map.of()); }
 
+    public boolean isEmpty() { return morph.isEmpty(); }
+
     public static SkinState of(Map<String, MorphWeights> morph) {
         Objects.requireNonNull(morph);
         var copy = new LinkedHashMap<String, MorphWeights>();

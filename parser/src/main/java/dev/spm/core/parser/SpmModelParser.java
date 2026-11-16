@@ -53,7 +53,7 @@ public final class SpmModelParser implements ModelImporter {
                             var source=new ModelSource(request.source().identity(),request.source().entry(),replay);
                             var replayRequest=new ImportRequest(source,request.hint()==FormatHint.AUTO?hint:request.hint(),request.policy(),request.budget(),request.cancellation(),request.sourceProfile(),request.actionProfile());
                             var imported=adapter.importModel(replayRequest);builder.retain(imported);
-                            for(var model:imported.models())builder.add(model.key(),model.asset().document());
+                            for(var model:imported.models())builder.add(model.key(),model.asset());
                             for(var diagnostic:imported.diagnostics())builder.diagnostic(diagnostic);
                             builder.resources(imported.resources());request.cancellation().check();return builder.finish();
                         }
@@ -68,7 +68,7 @@ public final class SpmModelParser implements ModelImporter {
                         var source=new ModelSource(request.source().identity(),request.source().entry(),replay);
                         var replayRequest=new ImportRequest(source,probeHint,request.policy(),request.budget(),request.cancellation(),request.sourceProfile(),request.actionProfile());
                         var imported=adapter.importModel(replayRequest);builder.retain(imported);
-                        for(var model:imported.models())builder.add(model.key(),model.asset().document());
+                        for(var model:imported.models())builder.add(model.key(),model.asset());
                         for(var diagnostic:imported.diagnostics())builder.diagnostic(diagnostic);
                         builder.resources(imported.resources());request.cancellation().check();return builder.finish();
                     }

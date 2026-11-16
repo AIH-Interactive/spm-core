@@ -24,6 +24,51 @@ BRANCHES = [('1.21.1', '1.21.1'), ('26.1.2', '26.1.2'),
             ('26.2', 'main'), ('26.3', '26.3')]
 
 
+def branch_ci_matrix(repo: Path, expected_branch: str) -> tuple[list[dict], list[str]]:
+    """Read and validate the two loader rows declared by a merged version repository."""
+    path = repo / '.github/ci-matrix.json'
+    try:
+        rows = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as failure:
+        return [], [f'{repo.name}: unreadable CI matrix: {failure}']
+    errors = []
+    if not isinstance(rows, list):
+        return [], [f'{repo.name}: CI matrix must be a list']
+    roots = [row.get('build_root') for row in rows if isinstance(row, dict)]
+    if roots != ['fabric', 'neoforge']:
+        errors.append(f'{repo.name}: CI matrix loader rows are {roots}, expected fabric/neoforge')
+    for row in rows:
+        if not isinstance(row, dict):
+            errors.append(f'{repo.name}: CI matrix row is not an object')
+            continue
+        root = row.get('build_root')
+        if row.get('branch') != expected_branch:
+            errors.append(f'{repo.name}: CI matrix branch {row.get("branch")} != {expected_branch}')
+        if row.get('compile_task') != f':{root}:compileJava':
+            errors.append(f'{repo.name}: invalid compile task for {root}')
+        if row.get('gradle_task') != 'build':
+            errors.append(f'{repo.name}: invalid build task for {root}')
+        if not row.get('java') or not row.get('jar_glob'):
+            errors.append(f'{repo.name}: incomplete CI matrix row for {root}')
+    return rows, errors
+
+
+def core_consumption(repo: Path, tracked_files: list[str]) -> tuple[str, list[str]]:
+    """Detect actual Core imports/coordinates; a comment saying "future spm-core" is not integration."""
+    consumers = []
+    for relative in tracked_files:
+        path = repo / relative
+        if path.suffix not in {'.java', '.gradle', '.kts'} or not path.is_file():
+            continue
+        try:
+            if b'dev.spm.core' in path.read_bytes():
+                consumers.append(relative)
+        except OSError:
+            continue
+    consumers.sort()
+    return ('INTEGRATED' if consumers else 'NOT_INTEGRATED'), consumers
+
+
 def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -135,6 +180,15 @@ def git(root: Path, *args: str, binary=False):
     return result.stdout if binary else result.stdout.decode('utf-8').strip()
 
 
+def clean_revision(root: Path) -> str:
+    """Return HEAD only when the evidence describes its exact committed bytes."""
+    revision = git(root, 'rev-parse', 'HEAD')
+    dirty = git(root, 'status', '--porcelain=v1', '--untracked-files=all')
+    if dirty:
+        raise ValueError('Cannot capture revision evidence from a dirty worktree')
+    return revision
+
+
 def write_json(output: Path, name: str, content):
     (output / name).write_text(json.dumps(content, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
@@ -148,11 +202,13 @@ def write_csv(output: Path, name: str, rows: list[dict]):
 def capture(root: Path, output: Path, workspace: Path):
     if output == root or root in output.parents:
         raise ValueError('Evidence must be outside the product tree to avoid self-referential digests')
+    revision = clean_revision(root)
     output.mkdir(parents=True, exist_ok=True)
     rows = source_inventory(root)
     write_csv(output, 'origin-ledger.csv', rows)
     allow = json.loads((root / 'provenance/allowed-sources.json').read_text(encoding='utf-8'))
-    write_json(output, 'origin-attestations.json', dict(schema=1, status='INCOMPLETE', references=allow['references'],
+    write_json(output, 'origin-attestations.json', dict(schema=1, status='INCOMPLETE',
+        source_revision=revision, source_worktree_clean=True, references=allow['references'],
         scope='All current Core input paths and exact bytes inventoried; not a certification of algorithm origin.',
         policy='No excluded implementation, binary, expected-output generator or behavior oracle was used.',
         open_items=['Per-file/fragment human source review remains Q; no automatic allowlist promotion.',
@@ -196,17 +252,30 @@ def capture(root: Path, output: Path, workspace: Path):
                  'Full transitive licensing and SBOM release attestation remain pending.']))
 
     branch_rows = []
+    branch_errors = []
     for suffix, expected in BRANCHES:
         repo = workspace / ('Sparkle-Morpher-' + suffix)
         files = git(repo, 'ls-files').splitlines()
         descriptors = [p for p in files if p.endswith(('.gradle', '.gradle.kts', 'gradle.properties'))]
-        branch_rows.append(dict(directory=repo.name, expected_branch=expected, branch=git(repo, 'branch', '--show-current'),
-            head=git(repo, 'rev-parse', 'HEAD'), dirty=bool(git(repo, 'status', '--porcelain=v1')),
-            core_consumption='NOT_INTEGRATED', task_resolution='NOT_RUN',
-            build_inputs=[dict(path=p, sha256=sha((repo / p).read_bytes())) for p in descriptors if (repo / p).is_file()],
+        matrix, matrix_errors = branch_ci_matrix(repo, expected)
+        consumption, consumer_files = core_consumption(repo, files)
+        actual_branch = git(repo, 'branch', '--show-current')
+        dirty = bool(git(repo, 'status', '--porcelain=v1', '--untracked-files=all'))
+        if actual_branch != expected:
+            branch_errors.append(f'{repo.name}: branch {actual_branch} != {expected}')
+        if dirty:
+            branch_errors.append(f'{repo.name}: dirty worktree')
+        branch_errors.extend(matrix_errors)
+        build_inputs = descriptors + ['.github/ci-matrix.json']
+        branch_rows.append(dict(directory=repo.name, expected_branch=expected, branch=actual_branch,
+            head=git(repo, 'rev-parse', 'HEAD'), dirty=dirty,
+            core_consumption=consumption, core_consumer_files=consumer_files,
+            task_resolution='DECLARED_IN_CI_MATRIX', ci_matrix=matrix,
+            build_inputs=[dict(path=p, sha256=sha((repo / p).read_bytes())) for p in build_inputs if (repo / p).is_file()],
             native_and_variant_paths=[p for p in files if any(x in p.lower() for x in ['caustica', '/native', 'distribution.gradle', 'source-set'])]))
-    write_json(output, 'branch-task-map.json', dict(schema=1, status='HEAD_AND_INPUT_SNAPSHOT_ONLY', branches=branch_rows,
-        pending=['Resolve exact tasks/sourceSets and distribution/native closures per branch without using old algorithms as an oracle.']))
+    write_json(output, 'branch-task-map.json', dict(schema=2, status='DECLARED_TASK_AND_INPUT_SNAPSHOT_ONLY',
+        errors=branch_errors, branches=branch_rows,
+        pending=['Execute each declared task and resolve sourceSets/distribution/native closures at the frozen candidate revision.']))
 
     features = []
     for kernel in ['position_transform', 'hierarchical_bones', 'rigid_vertices_normals_color_visibility',
@@ -275,7 +344,8 @@ def capture(root: Path, output: Path, workspace: Path):
         ('ctrl/ysm/fn/tlm', 'Host extensions', 'NOT_COMPLETE', 'no acceptance evidence'),
         ('Cloud/Peer identity or filesystem access', 'Host policy', 'OUTSIDE_CORE', 'explicit resolver/budget required')]])
     return dict(inputs=len(rows), fixtures=len(fixture_rows), fixtures_matching=sum(f['exact_upstream_bytes'] for f in fixture_rows),
-                dependency_modules=len(inventories), branches=len(branch_rows), errors=verify_snapshot(root, output)+dependency_errors)
+                dependency_modules=len(inventories), branches=len(branch_rows),
+                errors=verify_snapshot(root, output)+dependency_errors+branch_errors)
 
 
 def main():

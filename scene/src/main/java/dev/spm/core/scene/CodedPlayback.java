@@ -48,7 +48,7 @@ final class CodedPlayback implements CodedControl {
                 switch(override){case LOOP->PoseAnimationLibrary.Loop.LOOP;case PLAY_ONCE->PoseAnimationLibrary.Loop.ONCE;case HOLD_ON_LAST_FRAME->PoseAnimationLibrary.Loop.HOLD;default->clip.loop();},
                 clip.blendWeight(),clip.startDelay(),clip.loopDelay(),clip.overridePrevious(),clip.bones(),clip.events());
     }
-    @Override public void transition(double ticks) {transitionTicks=ticks;}
+    @Override public void transition(double ticks) {if(Double.isFinite(ticks)&&ticks>=0)transitionTicks=ticks;}
     @Override public void resetPlayback() {selected="";clip=null;changed=true;phase=Phase.IDLE;finished=true;localTime=0;}
     @Override public void reload() {selected="";}
     private void stop(long step) {phase=Phase.ENDING;endingStep=step;transitionFrom=contribution;finished=true;}

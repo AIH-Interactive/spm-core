@@ -3,8 +3,11 @@ package dev.spm.core.render.cpu;
 import dev.spm.core.api.BoneMatrices;
 import dev.spm.core.api.BonePose;
 import dev.spm.core.api.CancellationToken;
+import dev.spm.core.api.ModelDocument;
 import dev.spm.core.api.ResourceBudget;
 import dev.spm.core.api.Skeleton;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /** Scalar bone extraction in normalized Core coordinates. */
@@ -148,5 +151,75 @@ public final class BoneEvaluator {
 
     private static float[] identity() {
         return new float[] {1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
+    }
+
+    /** Evaluated attachment transform and world position of a {@link ModelDocument.Locator}. */
+    public record LocatorPose(String name, int boneIndex, float[] transform, float[] position, boolean visible) {
+        public LocatorPose {
+            Objects.requireNonNull(name);
+            transform = transform.clone();
+            position = position.clone();
+            if (transform.length != 16 || position.length != 3) {
+                throw new IllegalArgumentException("Invalid locator pose sizes");
+            }
+        }
+        @Override public float[] transform() { return transform.clone(); }
+        @Override public float[] position() { return position.clone(); }
+    }
+
+    /** Evaluates each locator's 4x4 model-space transform against already-evaluated {@link BoneMatrices}. */
+    public static List<LocatorPose> evaluateLocators(List<ModelDocument.Locator> locators, BoneMatrices matrices) {
+        Objects.requireNonNull(locators);
+        Objects.requireNonNull(matrices);
+        int bones = matrices.boneCount();
+        var result = new ArrayList<LocatorPose>(locators.size());
+        for (ModelDocument.Locator locator : locators) {
+            int bone = locator.boneIndex();
+            Objects.checkIndex(bone, bones);
+            boolean visible = matrices.visible()[bone];
+            float[] boneTransform = new float[16];
+            for (int i = 0; i < 16; i++) boneTransform[i] = matrices.matrix(bone, i);
+            float[] offset = locator.offset();
+            float[] rotation = locator.rotation();
+            float[] local = localTransform(offset, rotation);
+            float[] world = SkinMath.multiply(boneTransform, local);
+            if (locator.ignoreInheritedScale() && visible) {
+                for (int col = 0; col < 3; col++) {
+                    double sx = world[col * 4], sy = world[col * 4 + 1], sz = world[col * 4 + 2];
+                    double len = Math.hypot(Math.hypot(sx, sy), sz);
+                    if (len > 0) {
+                        world[col * 4] = finite(sx / len);
+                        world[col * 4 + 1] = finite(sy / len);
+                        world[col * 4 + 2] = finite(sz / len);
+                    }
+                }
+            }
+            float[] pos = {world[12], world[13], world[14]};
+            result.add(new LocatorPose(locator.name(), bone, world, pos, visible));
+        }
+        return List.copyOf(result);
+    }
+
+    private static float[] localTransform(float[] offset, float[] rotationDegrees) {
+        double rx = Math.toRadians(rotationDegrees[0]);
+        double ry = Math.toRadians(rotationDegrees[1]);
+        double rz = Math.toRadians(rotationDegrees[2]);
+        double cx = Math.cos(rx), sx = Math.sin(rx);
+        double cy = Math.cos(ry), sy = Math.sin(ry);
+        double cz = Math.cos(rz), sz = Math.sin(rz);
+        float[] m = identity();
+        m[0] = finite(cz * cy);
+        m[1] = finite(sz * cy);
+        m[2] = finite(-sy);
+        m[4] = finite(cz * sy * sx - sz * cx);
+        m[5] = finite(sz * sy * sx + cz * cx);
+        m[6] = finite(cy * sx);
+        m[8] = finite(cz * sy * cx + sz * sx);
+        m[9] = finite(sz * sy * cx - cz * sx);
+        m[10] = finite(cy * cx);
+        m[12] = offset[0];
+        m[13] = offset[1];
+        m[14] = offset[2];
+        return m;
     }
 }

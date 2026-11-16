@@ -9,12 +9,31 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+import unittest.mock as mock
 from pathlib import Path
 
 import measure_baseline
 
 
 class BaselineDocumentTest(unittest.TestCase):
+    def test_a_dirty_worktree_is_rejected_before_measurement(self) -> None:
+        import os
+        import sys
+        with tempfile.TemporaryDirectory() as directory:
+            saved_argv = sys.argv
+            try:
+                sys.argv = ["measure_baseline.py", "--root", directory,
+                            "--output", str(Path(directory) / "baseline.json"),
+                            "--created", "now"]
+                with mock.patch.dict(os.environ, {"JAVA_HOME": directory}, clear=False), \
+                     mock.patch("measure_baseline.clean_revision", create=True,
+                                side_effect=ValueError("dirty worktree")):
+                    with self.assertRaises(SystemExit) as raised:
+                        measure_baseline.main()
+                self.assertIn("dirty", str(raised.exception))
+            finally:
+                sys.argv = saved_argv
+
     def test_the_probe_source_declares_every_type_it_uses(self) -> None:
         # A missing import compiles fine as a string but fails at javac time; catch it here.
         for symbol in ["ScalarTransforms", "BoneEvaluator", "JavaCpuRenderer", "VertexBatch",

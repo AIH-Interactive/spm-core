@@ -21,6 +21,7 @@ NATIVE_TARGETS = {
     'x86_64-unknown-linux-gnu': ('Linux', {'x86_64', 'amd64'}, 'libspm_core_native.so'),
     'aarch64-unknown-linux-gnu': ('Linux', {'aarch64', 'arm64'}, 'libspm_core_native.so'),
     'x86_64-pc-windows-msvc': ('Windows', {'x86_64', 'amd64'}, 'spm_core_native.dll'),
+    'i686-pc-windows-msvc': ('Windows', {'x86', 'i686', 'amd64', 'x86_64'}, 'spm_core_native.dll'),
     'aarch64-apple-darwin': ('Darwin', {'aarch64', 'arm64'}, 'libspm_core_native.dylib'),
     'x86_64-apple-darwin': ('Darwin', {'x86_64', 'amd64'}, 'libspm_core_native.dylib'),
 }
@@ -239,7 +240,10 @@ def build(args: argparse.Namespace) -> None:
             run(root, output, 'rust-install', ['rustup', 'toolchain', 'install', RUST_VERSION, '--profile', 'minimal',
                                              '--component', 'rustfmt', '--component', 'clippy', '--target', args.native_target])
             version = run(root, output, 'rust-version', ['rustc', '+' + RUST_VERSION, '-vV'])
-            if 'host: ' + args.native_target not in version:
+            valid_wow64_x86 = (args.native_target == 'i686-pc-windows-msvc'
+                               and ('host: x86_64-pc-windows-msvc' in version or 'host: i686-pc-windows-msvc' in version)
+                               and runtime_arch == 'x86')
+            if not valid_wow64_x86 and 'host: ' + args.native_target not in version:
                 raise ValueError('Rust host does not match the executed native target')
             cargo = ['cargo', '+' + RUST_VERSION]
             manifest = ['--manifest-path', str(root / 'native-rust/Cargo.toml')]
@@ -268,6 +272,14 @@ def build(args: argparse.Namespace) -> None:
         if native:
             gradle.append('-PspmNativeLibrary=' + str(native))
         log = run(root, output, 'gradle', gradle)
+        if native_record is not None:
+            combined_out = log
+            for xml_path in (root / 'integration-tests/build/test-results/test').glob('TEST-*.xml'):
+                combined_out += '\n' + xml_path.read_text(encoding='utf-8', errors='replace')
+            match = re.search(r'NativeComputeProvider[^\n<]*supported=\[([^\]]*)\]', combined_out)
+            isas = [item.strip() for item in match.group(1).split(',') if item.strip()] if match else []
+            native_record['supportedIsas'] = isas
+            native_record['avx512Executed'] = 'AVX512' in isas
         evidence = validate_java_evidence(root, log, args.test_java, native is not None)
         audit_path = output / 'core-audit.json'
         run(root, output, 'core-audit', [sys.executable, 'scripts/audit_core.py', '--root', str(root),

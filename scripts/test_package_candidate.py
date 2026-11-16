@@ -16,7 +16,7 @@ from validate_candidate_consumer import (consumer_build, inspect_repository, rep
 
 REVISION = 'a' * 40
 VERSION = version_for(REVISION)
-MODULES = ['api', 'codec', 'format-ysm', 'format-bedrock', 'format-bbmodel', 'scene',
+MODULES = ['api', 'codec', 'format-ysm', 'format-bedrock', 'format-bbmodel', 'scene', 'script-lua',
            'acceleration-api', 'native-jni', 'render-cpu', 'runtime', 'format-v3d', 'format-common', 'parser', 'format-gltf', 'format-figura']
 
 

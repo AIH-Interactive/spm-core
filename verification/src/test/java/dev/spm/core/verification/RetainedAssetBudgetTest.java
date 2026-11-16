@@ -74,4 +74,28 @@ final class RetainedAssetBudgetTest {
         assertThrows(IOException.class,()->BbmodelJsonImporter.importAsset(bytes("{}"),DecodePolicy.conservative(),budget,new CancellationToken()));
         assertEquals(0,budget.used());
     }
+
+    @Test void transientWorkingPeakExceedsRetainedChargeAndReturnsToZeroOnClose() throws Exception {
+        var budget=new ResourceBudget(1<<24);
+        long retainedBeforeClose;
+        try(ModelAsset asset=BedrockJsonImporter.importAsset(bytes(BEDROCK),DecodePolicy.conservative(),budget,new CancellationToken())) {
+            retainedBeforeClose=budget.used();
+            long importPeak=budget.peakUsed();
+            assertTrue(retainedBeforeClose>0);
+            assertTrue(importPeak>=retainedBeforeClose,"import peak must never be lower than retained charge");
+            try(var frame=dev.spm.core.runtime.ModelFrameRenderer.render(asset,asset.document().bindPose(),budget,new CancellationToken())) {
+                assertTrue(budget.used()>retainedBeforeClose,"live frame adds working credits on top of retained asset");
+                assertTrue(budget.peakUsed()>=budget.used());
+                assertFalse(frame.meshes().isEmpty());
+            }
+            assertEquals(retainedBeforeClose,budget.used(),"closing frame restores exact retained asset charge");
+        }
+        assertEquals(0,budget.used());
+        // Characterizing defensive-clone constructors: getters return fresh array copies while keeping retained size invariant.
+        var vertices=new VertexBatch(new float[]{0,0,0,1,0,0},new float[]{0,0,1,0,0,1},new int[]{0,1});
+        float[] copyA=vertices.positions(), copyB=vertices.positions();
+        assertNotSame(copyA,copyB);
+        copyA[0]=99f;
+        assertEquals(0f,vertices.positions()[0]);
+    }
 }

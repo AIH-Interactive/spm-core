@@ -234,7 +234,7 @@ tasks.withType(JavaCompile).configureEach {
             compiler_record['release'] = 17
             runtime_record['consumer_result'] = execution.stdout.strip()
     return dict(schema=1, status='STANDALONE_MAVEN_RESOLUTION_VERIFIED', source_revision=revision,
-                version=version_for(revision), repository=repository_url(repository), manifest_sha256=manifest_sha256,
+                version=manifest['version'], repository=repository_url(repository), manifest_sha256=manifest_sha256,
                 metadata='POM-only secondary check' if pom_only else 'Default Gradle module metadata',
                 modules=manifest['modules'], resolved=records, native_loading='Not exercised; remains an explicit host operation',
                 compiler=compiler_record, runtime=runtime_record,

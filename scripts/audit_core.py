@@ -47,7 +47,7 @@ def audit(root: Path, require_jars: bool = False) -> dict:
     runtime_jars = [p for p in jars if not p.name.endswith(('-sources.jar', '-javadoc.jar'))
                     and p.parent.parent.parent.name not in {'verification', 'integration-tests'}]
     if require_jars:
-        expected = {'api', 'codec', 'format-ysm', 'format-bedrock', 'format-bbmodel', 'scene',
+        expected = {'api', 'codec', 'format-ysm', 'format-bedrock', 'format-bbmodel', 'scene', 'script-lua',
                     'acceleration-api', 'native-jni', 'render-cpu', 'runtime', 'format-v3d', 'format-common', 'parser', 'format-gltf', 'format-figura'}
         built = {p.parent.parent.parent.name for p in runtime_jars}
         for missing in sorted(expected - built):

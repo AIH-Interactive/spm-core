@@ -98,9 +98,11 @@ subprojects {
         }
     }
     tasks.withType(org.gradle.api.publish.maven.tasks.PublishToMavenRepository).configureEach {
+        def repoName = repository.name
+        def publishedVersion = project.version.toString()
         doFirst {
-            if (repository.name == 'candidate' && !(project.version.toString() ==~ /0\.1\.0-preview\.[0-9a-f]{12}/)) {
-                throw new GradleException('Candidate publication requires -PspmCoreVersion=0.1.0-preview.<source SHA12>')
+            if (repoName == 'candidate' && !(publishedVersion ==~ /(0\.1\.0-preview\.[0-9a-f]{12}|1\.0\.0)/)) {
+                throw new GradleException('Candidate publication requires 1.0.0 or -PspmCoreVersion=0.1.0-preview.<source SHA12>')
             }
         }
     }
@@ -156,9 +158,10 @@ tasks.register('sbom') {
 tasks.register('publishCandidate') {
     group = 'publishing'
     description = 'Publish product modules to build/candidate-maven for an immutable preview package.'
+    def publishedVersion = project.version.toString()
     doFirst {
-        if (!(project.version.toString() ==~ /0\.1\.0-preview\.[0-9a-f]{12}/)) {
-            throw new GradleException('Use -PspmCoreVersion=0.1.0-preview.<exact source commit first 12 hex digits>')
+        if (!(publishedVersion ==~ /(0\.1\.0-preview\.[0-9a-f]{12}|1\.0\.0)/)) {
+            throw new GradleException('Use 1.0.0 or -PspmCoreVersion=0.1.0-preview.<exact source commit first 12 hex digits>')
         }
     }
     dependsOn subprojects.findAll { !(it.name in ['verification', 'integration-tests']) }.collect { p ->

@@ -51,8 +51,8 @@ jobs:
         env:
           CONSUMER_RUNTIME_HOME: ${{ steps.consumer_runtime.outputs.path }}
         run: |
-          bash ./gradlew clean publishCandidate -PspmCoreVersion="0.1.0-preview.${GITHUB_SHA:0:12}" --no-build-cache --rerun-tasks --console=plain
-          python scripts/package_candidate.py --revision "$GITHUB_SHA"
+          bash ./gradlew clean publishCandidate -PspmCoreVersion="1.0.0" --no-build-cache --rerun-tasks --console=plain
+          python scripts/package_candidate.py --revision "$GITHUB_SHA" --version "1.0.0"
           python -c 'import hashlib,os,subprocess,sys; from pathlib import Path; p=Path("build/candidate-dist").resolve(); subprocess.run([sys.executable,"scripts/validate_candidate_consumer.py","--repository",p.as_uri(),"--revision",os.environ["GITHUB_SHA"],"--manifest-sha256",hashlib.sha256((p/"manifest.json").read_bytes()).hexdigest(),"--gradle",str(Path("gradlew").resolve()),"--compiler-home",os.environ["JAVA_HOME"],"--runtime-home",os.environ["CONSUMER_RUNTIME_HOME"],"--output","build/consumer-evidence.json"],check=True)'
       - name: Preserve the preview and consumer result
         if: ${{ always() }}
@@ -90,12 +90,12 @@ jobs:
             java: '25'
             java_arch: x64
             native_target: ''
-          - label: java-17-windows-x86
+          - label: native-17-windows-x86
             runner: windows-2025
             java: '17'
             java_arch: x86
             compiler_arch: x64
-            native_target: ''
+            native_target: i686-pc-windows-msvc
           - label: native-25-linux-x64
             runner: ubuntu-24.04
             java: '25'
@@ -181,9 +181,51 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  android-arm64:
+    name: native-cross-android-arm64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Cross-compile and inspect Android ARM64 native shared library
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}"
+          if [[ -z "$NDK" || ! -d "$NDK" ]]; then
+            echo "ANDROID_NDK_LATEST_HOME not found on runner" >&2
+            exit 1
+          fi
+          LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
+          AR="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          rustup toolchain install 1.98.1 --profile minimal --target aarch64-linux-android
+          export CARGO_TARGET_DIR="$PWD/native-rust/target"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$LINKER"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_AR="$AR"
+          cargo +1.98.1 clippy --manifest-path native-rust/Cargo.toml --workspace --locked --target aarch64-linux-android -- -D warnings
+          cargo +1.98.1 build --manifest-path native-rust/Cargo.toml --release --locked --target aarch64-linux-android
+          LIB="native-rust/target/aarch64-linux-android/release/libspm_core_native.so"
+          test -f "$LIB"
+          readelf -h "$LIB"
+          mkdir -p .gradle/android-ci/artifact
+          cp "$LIB" .gradle/android-ci/artifact/libspm_core_native.so
+          python -c 'import hashlib,json,os; p=".gradle/android-ci/artifact/libspm_core_native.so"; rec=dict(schema=1,status="CROSS_COMPILED_NOT_EXECUTED",checkout=os.environ["GITHUB_SHA"],runId=os.environ.get("GITHUB_RUN_ID"),runAttempt=os.environ.get("GITHUB_RUN_ATTEMPT"),os="Android",architecture="aarch64",native=dict(target="aarch64-linux-android",crossCompileOnly=True,sha256=hashlib.sha256(open(p,"rb").read()).hexdigest())); open(".gradle/android-ci/artifact/candidate.json","w",encoding="utf-8").write(json.dumps(rec,indent=2)+"\n")'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: core-android-arm64-${{ github.sha }}-${{ github.run_attempt }}
+          path: .gradle/android-ci/artifact/
+          if-no-files-found: error
+          retention-days: 14
+
   core-ci:
     name: Core CI
-    needs: candidate
+    needs: [candidate, android-arm64]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -192,7 +234,8 @@ jobs:
         shell: bash
         env:
           MATRIX_RESULT: ${{ needs.candidate.result }}
-        run: test "$MATRIX_RESULT" = success
+          ANDROID_RESULT: ${{ needs.android-arm64.result }}
+        run: test "$MATRIX_RESULT" = success && test "$ANDROID_RESULT" = success
       - name: Check out the same exact SHA to assemble the platform matrix
         if: ${{ always() }}
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5

@@ -371,6 +371,85 @@ class SkinningMathTest {
         assertArrayEquals(new float[] {0, 0, 1}, output.normals(), EPS);
     }
 
+    @Test void skinWeightsRejectsUnnormalizedZeroAndNegativeWeightsWhileHonouringTolerance() {
+        var accepted = SkinWeights.of(2, new int[][] {{0, 1}}, new float[][] {{0.5f, 0.50005f}});
+        assertEquals(2, accepted.influenceCount(0));
+        assertThrows(IllegalArgumentException.class,
+                () -> SkinWeights.of(2, new int[][] {{0, 1}}, new float[][] {{0.5f, 0.501f}}));
+        assertThrows(IllegalArgumentException.class,
+                () -> SkinWeights.of(2, new int[][] {{0}}, new float[][] {{0f}}));
+        assertThrows(IllegalArgumentException.class,
+                () -> SkinWeights.of(2, new int[][] {{0, 1}}, new float[][] {{-0.2f, 1.2f}}));
+    }
+
+    @Test void offOriginSdefSphereCentrePreservesRadiusUnderTwistWhileArchivalRadiiStayUnapplied() {
+        var skeleton = new Skeleton(List.of("a", "b"), new int[] {-1, -1}, new float[6]);
+        var pose = new BonePose(new float[] {0, 0, 0, 0, 0, (float) (2 * Math.PI / 3)}, new float[] {0, 0, 0, 0, 5, 0},
+                new float[] {1, 1, 1, 1, 1, 1}, new boolean[2], new boolean[2], BonePose.identity(2).glow());
+        var posed = BoneEvaluator.evaluate(skeleton, pose);
+        var bind = BoneEvaluator.evaluate(skeleton, BonePose.identity(2));
+        var weights = SkinWeights.of(2, new int[][] {{0, 1}}, new float[][] {{0.5f, 0.5f}});
+        var batch = new VertexBatch(new float[] {1, 5, 0}, new float[] {1, 0, 0}, new int[] {0});
+        var sdefWithRadii = new MeshSkin.Weighted(weights, SkinningMethod.SDEF, List.of(),
+                new SdefParameters(new float[] {0, 5, 0}, new float[] {1.5f, 2.5f}));
+        var sdefNoRadii = new MeshSkin.Weighted(weights, SkinningMethod.SDEF, List.of(),
+                new SdefParameters(new float[] {0, 5, 0}, new float[0]));
+        var outWithRadii = SkinningRenderer.transform(batch, sdefWithRadii, posed, bind, MorphWeights.none(0));
+        var outNoRadii = SkinningRenderer.transform(batch, sdefNoRadii, posed, bind, MorphWeights.none(0));
+        assertArrayEquals(outNoRadii.positions(), outWithRadii.positions(), 0f);
+        assertArrayEquals(new float[] {1.5f, 2.5f}, sdefWithRadii.sdef().radii());
+        // Carried centre: 0.5*(0,5,0) + 0.5*(Rz120*(0,5,0)+(0,5,0)) = 0.5*(0,5,0) + 0.5*(-4.330127, 2.5, 0) = (-2.1650635, 3.75, 0)
+        // Rotated offset (1,0,0) by 60 deg = (0.5, 0.8660254, 0) -> sum preserves unit offset radius around carried centre.
+        float[] p = outWithRadii.positions();
+        double carriedX = -2.1650635, carriedY = 3.75;
+        assertEquals(1.0, Math.hypot(p[0] - carriedX, p[1] - carriedY), 0.0002);
+    }
+
+    @Test void sdef3dAnchorsSatisfyRigidAgreementAndEndpointLimits() {
+        var weights = SkinWeights.of(2, new int[][] {{0, 1}}, new float[][] {{0.5f, 0.5f}});
+        var batch = new VertexBatch(new float[] {1, 2, 0}, new float[] {1, 0, 0}, new int[] {0});
+        var sdefAnchors = new MeshSkin.Weighted(weights, SkinningMethod.SDEF, List.of(),
+                new SdefParameters(new float[] {0, 2, 0}, new float[0], new float[] {0, 1, 0}, new float[] {0, 3, 0}));
+        var sdefCentreOnly = new MeshSkin.Weighted(weights, SkinningMethod.SDEF, List.of(),
+                new SdefParameters(new float[] {0, 2, 0}, new float[0]));
+        // Rigid agreement: when both bones share the exact same transform, R0/R1 offsets cancel so output equals C-only.
+        var skeleton = twoBones();
+        var samePose = BoneEvaluator.evaluate(skeleton, new BonePose(
+                new float[] {0, 0, HALF_PI, 0, 0, HALF_PI}, new float[] {1, 0, 0, 1, 0, 0},
+                new float[] {1, 1, 1, 1, 1, 1}, new boolean[2], new boolean[2], BonePose.identity(2).glow()));
+        var bind = identityPose(2);
+        assertArrayEquals(
+                SkinningRenderer.transform(batch, sdefCentreOnly, samePose, bind, MorphWeights.none(0)).positions(),
+                SkinningRenderer.transform(batch, sdefAnchors, samePose, bind, MorphWeights.none(0)).positions(), EPS);
+        // Endpoint: 100% on bone 1 reduces to bone 1 transform regardless of R0/R1.
+        var onlyBone1 = new MeshSkin.Weighted(SkinWeights.rigid(2, new int[] {1}), SkinningMethod.SDEF, List.of(),
+                new SdefParameters(new float[] {0, 2, 0}, new float[0], new float[] {0, 1, 0}, new float[] {0, 3, 0}));
+        assertArrayEquals(new float[] {0, -1, 0},
+                SkinningRenderer.transform(batch, onlyBone1, posedTwoBones(), bind, MorphWeights.none(0)).positions(), EPS);
+        // Differential under two distinct bone transforms: anchors shift the carried sphere centre along M0*d - M1*d.
+        var diffAnchors = SkinningRenderer.transform(batch, sdefAnchors, posedTwoBones(), bind, MorphWeights.none(0));
+        var diffCentre = SkinningRenderer.transform(batch, sdefCentreOnly, posedTwoBones(), bind, MorphWeights.none(0));
+        assertNotEquals(diffCentre.positions()[0], diffAnchors.positions()[0], 1e-3f);
+    }
+
+    @Test void explicitInverseBindMatricesOverrideSkeletonBindPose() {
+        var skeleton = twoBones();
+        // Translate bone 0 in pose to (5,0,0), while providing an explicit IBM that translates by (-1,0,0).
+        var pose = BoneEvaluator.evaluate(skeleton, new BonePose(
+                new float[6], new float[] {5, 0, 0, 0, 0, 0}, new float[] {1, 1, 1, 1, 1, 1},
+                new boolean[2], new boolean[2], BonePose.identity(2).glow()));
+        float[] ibm = {
+                1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  -1, 0, 0, 1,
+                1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,   0, 0, 0, 1
+        };
+        var skin = new MeshSkin.Weighted(SkinWeights.rigid(2, new int[] {0}), SkinningMethod.BDEF,
+                List.of(), SdefParameters.none(), ibm);
+        var batch = new VertexBatch(new float[] {2, 3, 4}, new float[] {0, 0, 1}, new int[] {0});
+        // (2-1 + 5, 3, 4) = (6, 3, 4)
+        var out = SkinningRenderer.transform(batch, skin, pose, identityPose(2), MorphWeights.none(0));
+        assertArrayEquals(new float[] {6, 3, 4}, out.positions(), EPS);
+    }
+
     private static final float[] IDENTITY_4X4 = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
 
     /**

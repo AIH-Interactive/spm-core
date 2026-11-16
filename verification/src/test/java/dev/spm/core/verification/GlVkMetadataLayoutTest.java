@@ -161,4 +161,57 @@ final class GlVkMetadataLayoutTest {
         assertFalse(boneWire().id().toLowerCase(java.util.Locale.ROOT).contains("gpu"),
                 "the Core wire must not claim to be a GPU layout");
     }
+
+    @Test void boneWirePackerWritesLogicalAndFloatMetadataLayoutsAndEvaluatesLocators() {
+        var skeleton = new dev.spm.core.api.Skeleton(
+                java.util.List.of("root", "child"), new int[] {-1, 0}, new float[] {0, 0, 0, 1, 0, 0});
+        var pose = new dev.spm.core.api.BonePose(
+                new float[] {0, 0, (float) (Math.PI / 2), 0, 0, 0},
+                new float[6], new float[] {2, 2, 2, 1, 1, 1},
+                new boolean[] {false, false}, new boolean[] {false, false},
+                new int[] {15, 255}, new int[] {0xffffffff, 0xff112233});
+        var matrices = dev.spm.core.render.cpu.BoneEvaluator.evaluate(skeleton, pose);
+
+        // Logical U32 packing
+        ByteBuffer u32Buf = ByteBuffer.allocateDirect(2 * 128).order(ByteOrder.LITTLE_ENDIAN);
+        assertEquals(256, dev.spm.core.runtime.BoneWirePacker.packLogicalV1(matrices, u32Buf));
+        assertEquals(256, u32Buf.position());
+        assertEquals(1, u32Buf.getInt(112));
+        assertEquals(15, u32Buf.getInt(120));
+        assertEquals(0xff112233, u32Buf.getInt(128 + 124));
+
+        // Numeric F32 metadata packing (used by Host layouts that declare float metadata fields)
+        var f32Layout = new LayoutDescriptor("host.numeric-f32", 1, 128, 4, ByteOrder.LITTLE_ENDIAN,
+                java.util.List.of(
+                        new LayoutDescriptor.Field("transform", 0, LayoutDescriptor.Scalar.F32, 16),
+                        new LayoutDescriptor.Field("normal", 64, LayoutDescriptor.Scalar.F32, 9),
+                        new LayoutDescriptor.Field("locator", 100, LayoutDescriptor.Scalar.F32, 3),
+                        new LayoutDescriptor.Field("visible", 112, LayoutDescriptor.Scalar.F32, 1),
+                        new LayoutDescriptor.Field("descendantVisible", 116, LayoutDescriptor.Scalar.F32, 1),
+                        new LayoutDescriptor.Field("glow", 120, LayoutDescriptor.Scalar.F32, 1),
+                        new LayoutDescriptor.Field("rgba", 124, LayoutDescriptor.Scalar.F32, 1)));
+        ByteBuffer f32Buf = ByteBuffer.allocateDirect(2 * 128).order(ByteOrder.LITTLE_ENDIAN);
+        dev.spm.core.runtime.BoneWirePacker.pack(matrices, f32Layout, f32Buf);
+        assertEquals(1.0f, f32Buf.getFloat(112));
+        assertEquals(15.0f, f32Buf.getFloat(120));
+
+        // Reject wrong byte order, read-only, or short buffers.
+        assertThrows(IllegalArgumentException.class,
+                () -> dev.spm.core.runtime.BoneWirePacker.packLogicalV1(matrices, u32Buf.asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN)));
+        assertThrows(IllegalArgumentException.class,
+                () -> dev.spm.core.runtime.BoneWirePacker.packLogicalV1(matrices, ByteBuffer.allocate(256).order(ByteOrder.BIG_ENDIAN)));
+        assertThrows(IllegalArgumentException.class,
+                () -> dev.spm.core.runtime.BoneWirePacker.packLogicalV1(matrices, ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN)));
+
+        // Locator evaluation with and without inherited scale stripping.
+        var locators = java.util.List.of(
+                new dev.spm.core.api.ModelDocument.Locator("scaled", 0, new float[] {1, 0, 0}, new float[] {0, 0, 0}, false),
+                new dev.spm.core.api.ModelDocument.Locator("unscaled", 0, new float[] {1, 0, 0}, new float[] {0, 0, 0}, true));
+        var evaluated = dev.spm.core.render.cpu.BoneEvaluator.evaluateLocators(locators, matrices);
+        assertEquals(2, evaluated.size());
+        assertArrayEquals(new float[] {0, 2, 0}, evaluated.get(0).position(), 1e-5f);
+        assertEquals(2.0f, evaluated.get(0).transform()[1], 1e-5f);
+        assertEquals(1.0f, evaluated.get(1).transform()[1], 1e-5f);
+        assertTrue(evaluated.get(0).visible());
+    }
 }

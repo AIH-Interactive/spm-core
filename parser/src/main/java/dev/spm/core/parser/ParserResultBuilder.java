@@ -23,8 +23,14 @@ final class ParserResultBuilder implements AutoCloseable {
         }
     }
     void add(String key,ModelDocument document){
+        add(key,document,null,SkinState.rest());
+    }
+    void add(String key,ModelAsset asset){
+        add(key,asset.document(),asset.skinningRig().orElse(null),asset.defaultSkinState());
+    }
+    private void add(String key,ModelDocument document,SkinningRig rig,SkinState defaultState){
         Runnable release=state.pin();
-        try{models.add(new ImportResult.Model(key,new ModelAsset(document,List.of(),release)));}
+        try{models.add(new ImportResult.Model(key,new ModelAsset(document,rig,defaultState,List.of(),release)));}
         catch(RuntimeException|Error failure){release.run();throw failure;}
     }
     void diagnostic(ImportDiagnostic value){diagnostics.add(Objects.requireNonNull(value));}

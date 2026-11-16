@@ -49,8 +49,9 @@ def safe_path(value: str) -> str:
 def validate_manifest(manifest: dict, revision: str) -> None:
     if manifest.get('schema') != SCHEMA or manifest.get('source') != {'repository': SOURCE, 'revision': revision}:
         raise ValueError('Unsupported schema or incompatible source revision')
-    version = version_for(revision)
-    if manifest.get('version') != version or manifest.get('group') != GROUP:
+    version = manifest.get('version')
+    allowed_versions = {version_for(revision), '1.0.0'}
+    if version not in allowed_versions or manifest.get('group') != GROUP:
         raise ValueError('Immutable candidate GAV mismatch')
     if manifest.get('status') != 'PREVIEW' or manifest.get('scope') != SCOPE:
         raise ValueError('Missing preview evidence limitations')
@@ -127,10 +128,11 @@ def validate_module(data: bytes, module: str, version: str, artifacts: dict[str,
 def validate_native(data: bytes, target: str) -> None:
     """Check container architecture, not execution or instruction-set compatibility."""
     valid = False
-    if target == 'x86_64-pc-windows-msvc' and len(data) >= 64 and data[:2] == b'MZ':
+    if target in {'x86_64-pc-windows-msvc', 'i686-pc-windows-msvc'} and len(data) >= 64 and data[:2] == b'MZ':
         offset = struct.unpack_from('<I', data, 60)[0]
-        valid = len(data) >= offset + 24 and data[offset:offset + 4] == b'PE\0\0' and struct.unpack_from('<H', data, offset + 4)[0] == 0x8664
-    elif target in {'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu'} and len(data) >= 20:
+        expected_machine = 0x8664 if target == 'x86_64-pc-windows-msvc' else 0x014C
+        valid = len(data) >= offset + 24 and data[offset:offset + 4] == b'PE\0\0' and struct.unpack_from('<H', data, offset + 4)[0] == expected_machine
+    elif target in {'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu', 'aarch64-linux-android'} and len(data) >= 20:
         machine = 183 if target.startswith('aarch64') else 62
         valid = data[:6] == b'\x7fELF\x02\x01' and struct.unpack_from('<HH', data, 16) == (3, machine)
     elif target in {'aarch64-apple-darwin', 'x86_64-apple-darwin'} and len(data) >= 16:
@@ -144,8 +146,11 @@ def git(root: Path, *args: str) -> str:
     return subprocess.check_output(['git', '-C', str(root), *args], text=True, encoding='utf-8').strip()
 
 
-def package(root: Path, repository: Path, output: Path, revision: str, natives: list[str]) -> dict:
-    version = version_for(revision)
+def package(root: Path, repository: Path, output: Path, revision: str, natives: list[str],
+            explicit_version: str | None = None) -> dict:
+    version = explicit_version or version_for(revision)
+    if version not in {version_for(revision), '1.0.0'}:
+        raise ValueError('Unsupported release/preview version: ' + version)
     validate_checkout(revision, git(root, 'rev-parse', 'HEAD'), git(root, 'status', '--porcelain=v1'))
     if output.exists():
         raise ValueError('Immutable candidate output already exists; choose a new output directory')
@@ -243,11 +248,12 @@ def main() -> int:
     parser.add_argument('--repository', type=Path, help='Default: <root>/build/candidate-maven')
     parser.add_argument('--output', type=Path, help='Default: <root>/build/candidate-dist')
     parser.add_argument('--revision', required=True)
+    parser.add_argument('--version', help='Explicit release version (e.g. 1.0.0); defaults to 0.1.0-preview.<sha12>')
     parser.add_argument('--native', action='append', default=[], help='Explicit supported-target=library path; repeat for multiple targets')
     args = parser.parse_args()
     root = args.root.resolve()
     result = package(root, (args.repository or root / 'build/candidate-maven').resolve(),
-                     (args.output or root / 'build/candidate-dist').resolve(), args.revision, args.native)
+                     (args.output or root / 'build/candidate-dist').resolve(), args.revision, args.native, args.version)
     print(json.dumps(result, sort_keys=True))
     return 0
 
