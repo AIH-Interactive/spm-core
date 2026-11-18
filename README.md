@@ -1,15 +1,134 @@
 # spm-core
 
-Independent, host-neutral model runtime in Java 17-compatible bytecode, with an optional Rust compute library. Explicit SIMD implementations are entirely Rust. The Java scalar implementation runs without a native library or the Vector incubator module.
+Independent, host-neutral 3D model runtime in Java 17-compatible bytecode (`dev.spm.core:*`, version `1.0.0`), with an optional Rust SIMD compute library (`native-rust/`).
 
-The implementation follows fixed original YesSteveModel and OhMyYesSteveModel reference revisions. OpenYSM code, binaries, behavior oracles and fallbacks are excluded. Reference identities and dependency notices are part of the published resources.
+- **Java scalar baseline is mandatory:** the pure-Java path runs everywhere without native binaries or `jdk.incubator.vector`.
+- **Explicit SIMD is Rust-only:** `native-rust/` provides optional JNI/C ABI acceleration (`SSE2`, `AVX`, `AVX2`, `AVX2+FMA`, `AVX-512` on x86/x86_64; `NEON` on aarch64) verified by explicit path, SHA-256 digest, and ABI handshake before loading.
+- **Host-neutral by design:** Minecraft, mod loaders, GPU buffers/shaders, Cloud/P2P transport, and game effects live outside `spm-core` in the host application (such as Sparkle's Morpher).
 
-## Build
+---
 
-Build with JDK 25. The API and implementation compile with `--release 17`; tests can run on Java 17, 21 or 25. `scripts/verify.ps1` also requires Python 3.11+ and runs the evidence-tool tests and source/bytecode/artifact isolation audit as mandatory checks.
+## Upstream References & Provenance
+
+`spm-core` is an independent clean-room runtime. Every upstream reference and redistributed fixture is tracked explicitly in [`provenance/allowed-sources.json`](provenance/allowed-sources.json), [`NOTICE`](NOTICE), and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+### Reference & Attribution Matrix
+
+| Upstream Project | Pinned Revision | Upstream License | How It Is Used in `spm-core` | Source / Assets Incorporated? |
+|---|---|---|---|---|
+| **[YesSteveModel/YesSteveModel](https://github.com/YesSteveModel/YesSteveModel)** | `c0fff0bc99c58ff623e2f2acc2545521bdd8909c` | Apache-2.0 | Model, material, animation, and runtime behavior specification only. | **No.** No upstream source code, binary, or artwork is included. |
+| **[AndreaFrederica/OhMyYesSteveModel](https://github.com/AndreaFrederica/OhMyYesSteveModel)** | `d2536542747a1aa5c02594827f579171c525843c` | Apache-2.0 | 1) Historical YSM format specifications (V1/V2 raw archives, V3 envelopes, compiled payloads 1–32) and independent Java runtime semantics.<br>2) Historical wire primitives (`ModifiedCityHash`, `HistoricalChaCha`, `Mt19937` in `runtime/java-v3/.../legacy/java/`) independently reimplemented in `codec` (`LegacyHash`, `LegacyCipher`).<br>3) **Verbatim synthetic test vectors** under `verification/src/test/resources/ysm/`. | **Test vectors only** (`verification/src/test/resources/ysm/`), redistributed unmodified under **Apache-2.0**. No upstream Java/native implementation source or artwork is included. |
+| **[JannisX11/blockbench](https://github.com/JannisX11/blockbench)** | `ec0b2827104d0799c153bfb5f867579c0c44652f` (historical `813379d114aab14a2ff1e40e4bba6985dfa6844e`) | GPL-3.0 | `.bbmodel` file-format and transform-order (`ZYX`/`XYZ`) specification for `format-bbmodel`. | **No.** No Blockbench JS/TS source code or assets are included. |
+| **[KhronosGroup/glTF](https://github.com/KhronosGroup/glTF)** | `60d514b8079f19230a2f49ef5884dd09fa3feb6d` | CC-BY-4.0 | glTF 2.0 / GLB container, accessor, buffer, node transform, skinning, morph target, PBR material, and animation specification for `format-gltf` and `GltfAnimationLibrary`. | **No.** Independently written importer and evaluator; no upstream code or fixtures copied. |
+| **[FiguraMC/Figura](https://github.com/FiguraMC/Figura)** | `7afeb6a2f7635cfbad87ec65fe116cd3cfd4cdaa` | LGPL-2.1 *(pinned historical commit only)* | Avatar container, NBT/BBModel layout, and Lua API contract specification for `format-figura` and `script-lua`. | **No.** Independently written pure-Java adapter, NBT reader, and bounded Lua 5.3 VM; no Figura code, artwork, or later PolyForm releases used. |
+
+### Historical Wire Primitive & Dependency Notices
+
+- **CityHash** (Copyright (c) 2011 Google, Inc. — MIT): `codec` (`dev.spm.core.codec.legacy.LegacyHash`) implements the historical modified-constant / reversed-reduction wire hash documented in OhMyYesSteveModel. The MIT permission and warranty notice is bundled in [`codec/src/main/resources/META-INF/spm-core/legacy-third-party.txt`](codec/src/main/resources/META-INF/spm-core/legacy-third-party.txt) and inside the published `codec` JAR.
+- **ChaCha / HChaCha** (`floodyberry/chacha-opt` — Public Domain / MIT): Attribution for the dynamic ChaCha stream semantics in `dev.spm.core.codec.legacy.LegacyCipher` is retained in [`legacy-third-party.txt`](codec/src/main/resources/META-INF/spm-core/legacy-third-party.txt).
+- **Verifiable Test Vectors (Apache-2.0)**: The 34 historical wire vectors (`verification/src/test/resources/ysm/historical/v1.wire`–`v32.wire`, including `v5-face.wire` and `v32-infinite-animation.wire`) and `legacy_v3_dynamic_vector.ysm` are verbatim copies from `AndreaFrederica/OhMyYesSteveModel` (`d2536542747a1aa5c02594827f579171c525843c`). Per-file SHA-256 digests and provenance notes live in [`verification/src/test/resources/ysm/historical/hashes.json`](verification/src/test/resources/ysm/historical/hashes.json), [`PROVENANCE.md`](verification/src/test/resources/ysm/PROVENANCE.md), and [`LICENSE`](verification/src/test/resources/ysm/LICENSE).
+- **External Runtime & Build Dependencies (Not Relicensed)**:
+  - `io.airlift:aircompressor:0.27` (Apache-2.0) — Zstd compression/decompression consumed by `format-ysm` as an ordinary dependency.
+  - `com.google.code.gson:gson:2.10.1` (Apache-2.0) — JSON support consumed by `format-v3d`.
+  - Gradle Wrapper (`gradle/wrapper/gradle-wrapper.jar`, `gradlew`, `gradlew.bat`) — unmodified Apache-2.0 build tooling.
+
+### Strict Exclusions
+
+By repository policy (enforced by [`scripts/audit_core.py`](scripts/audit_core.py) and [`provenance/allowed-sources.json`](provenance/allowed-sources.json)):
+
+- **OpenYSM** source code, native binaries (`ysm-core.dll`, `libysm-core.so`, `libysm-core.dylib`, `com.elfmcys.yesstevemodel.*`, `com.ysm.parser.*`), behavior oracles, and fallbacks are **strictly excluded**.
+- Unreviewed legacy Sparkle Morpher algorithms, post-LGPL PolyForm Figura releases, and upstream model artwork are excluded.
+
+---
+
+## Architecture & Modules
+
+### Java Product Modules (`dev.spm.core:*`)
+
+| Module | Responsibility |
+|---|---|
+| `api` | Public host-neutral contracts (`ModelDocument`, `ModelAsset`, `Skeleton`, `BonePose`, `MeshSkin`, `SkinningMethod`, `SdefParameters`, `MorphTarget`, `DecodePolicy`, `ResourceBudget`, `CancellationToken`, `ImportRequest`, `ImportResult`, `ModelFormatAdapter`). Strictly restricted to `java.*` and `dev.spm.core.api.*` imports. |
+| `acceleration-api` | Compute SPI (`CpuComputeProvider`, `Isa`, `ScalarTransforms`, `TransformResult`). |
+| `codec` | `CacheEnvelopeCodec` and `dev.spm.core.codec.legacy` (`LegacyHash`, `LegacyCipher`). |
+| `format-common` | Shared bounded JSON reader and quota accounting (`BoundedJson`). |
+| `format-ysm` | YSM V1/V2 raw archives (`YsmArchiveCodec`), V3 encrypted envelopes (`YsmEnvelopeCodec`), historical compiled payloads 1–32 (`YsmHistoricalCodec`, `YsmModelImporter`). |
+| `format-bedrock` | Bounded Bedrock geometry (`minecraft:geometry` `1.12.0`/`1.16.0`) importer (`BedrockJsonImporter`). |
+| `format-bbmodel` | Bounded Blockbench `.bbmodel` cube-project importer (`BbmodelJsonImporter`, `ZYX` / `XYZ` rotation order). |
+| `format-v3d` | Verified V3D package codec, manifest, metadata, and package validation (`V3dCodec`, `V3dManifest`, `V3dMetadata`, `V3dPackage`). |
+| `format-gltf` | Bounded glTF 2.0 and GLB v2 importer (`GltfModelImporter`, `GltfAccessors`, `GltfTransforms`). |
+| `format-figura` | Bounded `.figura`/`.figura.zip` and `avatar.nbt` importer (`FiguraAssetImporter`), NBT reader (`FiguraNbtDecoder`, `NbtReader`), vector math (`FiguraVectorApi`), and stateful avatar runtime (`FiguraAvatarRuntime`). |
+| `script-lua` | Independently written pure-Java bounded Lua 5.3 runtime (`LuaVm`, `LuaLexer`, `LuaParser`, `LuaEvaluator`, `LuaStdLib`, `LuaPatterns`, `LuaBudget`). |
+| `scene` | Animation players, controllers, Molang compiler/evaluator, and lifecycle hooks (`SceneInstance`, `PoseAnimationLibrary`, `PoseAnimationPlayer`, `PoseAnimationController`, `GltfAnimationLibrary`, `ControllerRuntime`, `MolangProgram`, `MolangFunctionLibrary`, `MolangBindings`, `MolangHooks`, `EffectTimeline`, `EffectCursor`, `AnimationDecodeLimits`, `PeerScriptPolicy`). |
+| `render-cpu` | Mandatory Java scalar compute backend (`JavaComputeProvider`, `JavaCpuRenderer`, `BoneEvaluator`, `SkinningRenderer`, `MorphApplicator`). |
+| `native-jni` | Optional JNI bridge (`NativeComputeProvider`, `NativeTransforms`, `NativeBoneEvaluator`, `NativeRigidRenderer`, `NativeArena`). |
+| `runtime` | Frame composition (`ModelFrameRenderer`, `WeightedFrameRenderer`, `CpuFrame`, `BoneWirePacker`, `ResourceRegistry`). |
+| `parser` | Unified model import entry point (`SpmModelParser`, `RawYsmParser`, `V3dModelAdapter`). |
+
+### Verification & Native Workspace
+
+- `verification` / `integration-tests` — Non-published test suites covering cross-format equivalence, cache wire compatibility, skinning math, weighted frames, glTF/Figura pipelines, retained asset budgets, Apache-2.0 historical YSM vectors, and explicit native JNI integration.
+- `native-rust/` — Rust (`1.98`) workspace containing `spm-native-abi`, `spm-render-scalar`, `spm-render-simd`, and `spm-native-jni` (producing `spm_core_native.dll` / `libspm_core_native.so` / `libspm_core_native.dylib`).
+
+---
+
+## Capabilities & Use
+
+### Unified Model Import (`parser`)
+
+`dev.spm.core.parser.SpmModelParser` is the unified import entry point—no separate native parser binary is required. It handles YSM V1/V2 archives, V3 envelopes, compiled historical payloads 1–32, verified V3D packages, Bedrock/BBModel geometry subsets, glTF 2.0 / GLB, and Figura archives. `FormatHint.AUTO` detects file domains automatically; headerless compiled payloads require `FormatHint.YSM_PAYLOAD`.
+
+```java
+var policy = DecodePolicy.localModel(); // or DecodePolicy.conservative() for untrusted/remote input
+var budget = new ResourceBudget(256L << 20);
+var cancel = new CancellationToken();
+
+var request = new ImportRequest(
+    new ModelSource("local-model", new ResourceKey("avatar.ysm"), authorizedResolver),
+    FormatHint.AUTO, policy, budget, cancel);
+
+try (ImportResult imported = new SpmModelParser().importModel(request)) {
+    for (var model : imported.models()) {
+        try (CpuFrame frame = ModelFrameRenderer.render(
+                model.asset(), model.asset().document().bindPose(), budget, cancel)) {
+            // Submit frame.meshes() through the Host's graphics implementation.
+        }
+    }
+}
+```
+
+Key format notes:
+
+- **Extensions:** Additional formats register via `new SpmModelParser(List<ModelFormatAdapter>)` with unique `formatId`s, bounded read-only probing, and exact root snapshot replay.
+- **YSM:** Raw YSM authoring JSON accepts C/Java comments while generic JSON remains strict. `YsmModelImporter` projects representable historical variants into `ModelDocument` while retaining archival tree/resource metadata.
+- **glTF 2.0 / GLB (`gltf2`):** Maps node TRS/matrix hierarchies, `JOINTS_0`/`WEIGHTS_0`/inverse bind matrices, morph targets & weights, PBR materials & texture references, and `LINEAR`/`STEP`/`CUBICSPLINE` animations (`GltfAnimationLibrary`). Bounded external buffers/images resolve relative to the logical entry; base64 data URIs are supported. Sparse accessors and unsupported required extensions are explicitly rejected.
+- **Figura (`figura`):** Reads `.figura` / `.figura.zip` archives and `avatar.nbt` bundles, Blockbench models and animations, embedded/archive PNG textures, `.ogg` sound assets, and `.lua` scripts executed in the bounded pure-Java Lua 5.3 runtime (`FiguraAvatarRuntime`). Nested archives and unsafe path traversal remain rejected.
+- **V3D:** Uses a logical `v3d.json` entry and authorized sibling resources, validating decrypted sources against declared wire & hashes; filesystem cache publication remains Host-owned.
+- **Skinning & Frames (`runtime`):**
+  - Rigid per-bone meshes run through `CpuComputeProvider` (`JavaComputeProvider` by default, or an explicitly loaded `NativeComputeProvider.load(path, expectedSha256, Isa.AUTO)`).
+  - Weighted meshes (`ModelFrameRenderer.render(..., SkinningRig, SkinState, ...)`) run `BDEF`, `SDEF`, and `QDEF` skinning plus additive `MorphTarget` deltas through `WeightedFrameRenderer` and `SkinningRenderer`.
+- **Ownership & Budgets:** `ImportResult`, `ModelAsset`, decoded payloads, and `CpuFrame` instances are `AutoCloseable` and must be closed. `ResourceRegistry` binds leases to concrete generations so replacement or late asynchronous completion cannot retire a newer asset. `DecodePolicy` distinguishes strict limits (`conservative()`) from local workloads (`localModel()`), and `ResourceBudget.peakUsed()` tracks admitted allocation credits rather than JVM heap size.
+
+### Scene, Animation & Molang (`scene`)
+
+- `PoseAnimationLibrary`, `PoseAnimationPlayer`, `PoseAnimationController`, `GltfAnimationLibrary`, and `ControllerRuntime` evaluate TRS animation trees, clip delays/weights, channel overrides, and shortest-axis blending into `BonePose`.
+- `SceneInstance` evaluates numeric and typed Molang (`MolangProgram.evaluateValue` / `evaluate`), `MolangFunctionLibrary`, `MolangHooks` (transactional lifecycle & reverse-order defer flushing), and `EffectTimeline` / `EffectCursor.claim(frame, owner.generation())`.
+- `SceneInputs` accepts immutable `MolangBindings` snapshots (no executable host callbacks or game objects). Unsampled queries fail explicitly with `MolangException.bindingRequest()` so the Host can retry with an enriched snapshot.
+- `AnimationDecodeLimits` and `PeerScriptPolicy` separate local-asset budgets from shared per-frame Peer budgets (with a 512 active AST depth ceiling).
+
+---
+
+## Build & Verification
+
+Build with **JDK 25** (product modules target `--release 17` with `-Xlint:all -Werror`). Tests can run on Java 17, 21, or 25. Optional native builds require **Rust `1.98.1`** (see `native-rust/rust-toolchain.toml`). Full verification scripts require **Python 3.11+**.
 
 ```sh
+# Java build & unit/verification suites
 ./gradlew check
+
+# Select a different test runtime JVM (e.g., Java 17)
+./gradlew check -PspmTestJavaVersion=17
+
+# Rust native checks & release build
 cd native-rust
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -17,134 +136,42 @@ cargo test --workspace --locked
 cargo build --release --locked
 ```
 
-Native integration is explicit. Pass the library built from this checkout:
+Run explicit native JNI integration against a library built from this checkout (`spm_core_native.dll` on Windows, `libspm_core_native.so` on Linux, `libspm_core_native.dylib` on macOS):
 
 ```sh
 ./gradlew :integration-tests:test -PspmNativeLibrary=/absolute/path/to/libspm_core_native.so
 ```
 
-Use `spm_core_native.dll` on Windows and `libspm_core_native.dylib` on macOS. On Windows, `scripts/verify.ps1 -Native` also runs the native checks and integration. It supports a locally installed GNU toolchain when MSVC Build Tools are unavailable; published platform support requires execution on that platform.
+On Windows, [`scripts/verify.ps1`](scripts/verify.ps1) runs Gradle verification, Python tooling tests, source/bytecode/JAR isolation auditing (`scripts/audit_core.py`), and platform matrix generation:
 
-`-PspmTestJavaVersion=17` selects a Java 17 test launcher. The compiler remains JDK 25. Gradle must be able to discover the requested JRE/JDK (`org.gradle.java.installations.paths` can supply its location).
-
-## Use
-
-The `parser` module is the unified loading entry point. A separate SPM parser project or an original
-native parser binary is not required. `SpmModelParser` reads YSM V1/V2 raw archives, V3 envelopes and
-historical payloads 1–32, verified V3D packages, plus the supported Bedrock/BBModel geometry subsets. AUTO detects file
-domains; headerless historical payloads require the explicit `YSM_PAYLOAD` hint.
-
-```java
-var request = new ImportRequest(
-    new ModelSource("local-model", new ResourceKey("avatar.ysm"), authorizedResolver),
-    FormatHint.AUTO, DecodePolicy.localModel(), sharedBudget, cancellation);
-try (ImportResult imported = new SpmModelParser().importModel(request)) {
-    for (var model : imported.models()) {
-        try (CpuFrame frame = ModelFrameRenderer.render(
-                model.asset(), model.asset().document().bindPose(), sharedBudget, cancellation)) {
-            // Submit the immutable frame through the Host's graphics implementation.
-        }
-    }
-}
+```powershell
+.\scripts\verify.ps1 -Native -TestJavaVersion 25
 ```
 
-Use `dev.spm.core.parser.SpmModelParser` with the request/result types in `dev.spm.core.api`.
-The Host supplies the authorized resource resolver, shared budget and cancellation token. Raw YSM
-authoring JSON accepts C/Java comments; generic JSON remains strict. `ModelImportException` exposes
-a stable diagnostic code for malformed input, limits, cancellation, unsupported features and source
-I/O. Local-file limits are explicit; `conservative()` and the five-argument policy constructor keep
-their strict object limits. `budget.peakUsed()` reports admitted allocation credits, not JVM heap size.
+Additional release/evidence tasks:
 
-Additional formats register through `new SpmModelParser(List<ModelFormatAdapter>)`. Each adapter has
-a unique `formatId`, a read-only bounded probe and the same request budget/token. The parser replays
-the exact probed root snapshot, including for one-shot sources, and pins it until dependent assets
-and streams close. Extensions return the same owned `ImportResult`; a plugin must implement the
-geometry/animation capabilities it declares. The built-in glTF 2.0 adapter (`gltf2`) reads `.gltf` and `.glb` scenes, including bounded external buffers/images resolved relative to the logical entry and base64 data URIs. It maps node hierarchy & transforms (`translation`/`rotation`/`scale`/`matrix`), skeletal skinning (`JOINTS_0`/`WEIGHTS_0`/`inverseBindMatrices`), morph targets & weights, PBR materials & texture references, and `animations` (`LINEAR`/`STEP`/`CUBICSPLINE`) evaluated by `GltfAnimationLibrary` in `scene`. Sparse accessors and unsupported required extensions remain explicitly rejected.
+- `./gradlew bundleArtifacts` — builds binary, sources, javadoc JARs, POMs, and dependency inventories.
+- `./gradlew sbom` — emits an SPDX 2.3 JSON SBOM (`build/reports/sbom.spdx.json`) for the exact Git `HEAD` and resolved Gradle closure.
+- `./gradlew publishCandidate` + `scripts/package_candidate.py` — stages an immutable local Maven repository under `build/candidate-dist/` (verified by `scripts/validate_candidate_consumer.py` on JRE 17).
 
-The Figura adapter (`figura`) accepts `.figura.zip` / `.figura` archives and `avatar.nbt` bundles, importing Blockbench models with animations, embedded base64/archive PNG textures, `.ogg` sound resources, and `.lua` scripts executed inside the pure-Java MIT-clean bounded Lua 5.3 runtime (`script-lua`) via `FiguraAvatarRuntime`. Nested archives and unsafe paths outside the archive remain rejected.
+---
 
-V3D sources use a logical `v3d.json` entry and authorized sibling resources. Admission checks the
-actual decrypted source against the declared wire, in addition to hashes and bounded paths. Edited
-decoded workspaces do not replace the executable wire. Filesystem cache publication remains Host-owned.
+## Current Boundaries
 
-`NativeComputeProvider.load(path, expectedSha256, Isa.AUTO)` can be passed explicitly to
-`ModelFrameRenderer.render`. It records the resolved Rust ISA in the frame backend. Java scalar
-remains the default and does not load a native library.
+- **Host responsibilities:** GPU vertex/bone buffers, render passes, shader layouts, resource reload fences, Minecraft/Loader adapters, Cloud/P2P identity & networking, and game-side effect execution belong to the Host (SPM), not `spm-core`.
+- **Native acceleration scope:** `NativeTransforms.load(path, expectedSha256)` never downloads binaries and rejects incompatible ABIs before activation. If a native load fails before binding, execution stays on the Java path; if a broken native library has already entered the JVM, a fresh process may be needed to replace bindings. `NativeComputeProvider` accelerates rigid bone/vertex evaluation; weighted `BDEF`/`SDEF`/`QDEF` + morph skinning executes on the Core scalar path.
+- **Format boundaries:** MMD (`PMX`/`PMD`/`VMD`), VRM/VRMA, FBX, and BVH are outside `spm-core`. Bedrock imports currently require one supported geometry per request. Unsupported BBModel mesh/plugin element types are rejected. Historical bone flags without an established allowed-source runtime mapping preserve exact archival values and report an explicit variant limitation rather than guessed behavior.
+- **Verification honesty:** Core unit tests do not certify Minecraft/Loader compatibility-mod behavior or real Host Peer counting. Cross-compiled native targets (such as `aarch64-linux-android`) and unexecuted OS/ISA targets are recorded honestly in `scripts/platform_matrix.py` rather than claimed as executed support.
 
-The public model representation is `dev.spm.core.api.ModelDocument`: immutable skeleton, bind pose, geometry, material references and source metadata. Import functions require explicit `DecodePolicy`, shared `ResourceBudget` and `CancellationToken` values.
-
-```java
-var policy = DecodePolicy.conservative();
-var budget = new ResourceBudget(256L << 20);
-var cancel = new CancellationToken();
-try (ModelAsset asset = BedrockJsonImporter.importAsset(jsonBytes, policy, budget, cancel);
-     CpuFrame frame = ModelFrameRenderer.render(asset, asset.document().bindPose(), budget, cancel)) {
-    // frame.meshes(): transformed positions/normals/colors, matching UVs and indices.
-    // The Host owns texture loading, effects and actual graphics submission.
-}
-```
-
-`BbmodelJsonImporter.importAsset` imports the supported Blockbench cube subset. `YsmArchiveCodec` reads/writes V1/V2 raw resource archives. `YsmEnvelopeCodec` handles the separate V3 encrypted envelope; `YsmHistoricalCodec` handles its versioned compiled model tree. `YsmModelImporter` projects representable historical variants into the same runtime model while retaining the original archival tree and resource bytes.
-
-Owned archives, decoded payloads, import results, model assets and CPU frames must be closed. Asset retirement stops new leases; an owned render frame keeps its exact source asset charged until the frame closes. Borrowed documents and frame outputs must not outlive their owner/lease. Legacy `importJson` is a construction-only convenience and does not account for retained assets; use `importAsset` for caches and asynchronous rendering. Share the same budget across related work. `ResourceRegistry` binds leases to concrete generations so replacement and late asynchronous completion cannot retire a newer asset accidentally.
-
-`PoseAnimationLibrary` and `PoseAnimationPlayer` evaluate supported Bedrock TRS animation trees into `BonePose`. `SceneInstance` supports explicit inputs, numeric Molang programs, scalar clips and controller graphs. Reusing a frame ID returns its immutable snapshot; effects carry owner/frame identity and are claimed separately by the Host.
-
-Typed clips/controllers support declared start/loop delays, clip weights, authored-channel overrides
-and explicit shortest-axis blending. Their clocks, variables, PRNG, commands and effects commit
-transactionally. Fields omitted by callers preserve the existing Core defaults. These declared-field
-contracts follow documented Bedrock behavior and explicit Core scheduling rules; they do not certify
-equivalence to historical native behavior that was unavailable in the allowed source.
-
-`NativeTransforms.load(path, expectedSha256)` verifies explicit native content and the JNI ABI before enabling it. It never downloads code. A failed native load must leave the Java path selected; a failed load that has already entered the JVM may require a fresh process to replace its bindings. CPU/native computation and GPU submission are separate capabilities.
-
-## Current boundaries
-
-`MolangProgram.evaluateValue` retains bounded number, boolean, text, structure and missing values;
-`evaluate` remains the numeric entry point. Owners expose immutable `typedVariables()` snapshots.
-`SceneInputs` can carry `MolangBindings`: immutable Host-sampled values and exact call results,
-without game objects or executable callbacks. Unsampled calls fail explicitly. Sound and particle
-results require a Host snapshot; enqueueing a request does not establish that a Host executed it.
-An unsampled call exposes its immutable `MolangException.bindingRequest()` for a Host retry with
-an enriched snapshot. Stateful calls include their occurrence; retries reuse the same frame meter.
-
-`MolangFunctionLibrary` compiles function assets from an authorized `ResourceCatalog`. Original
-wire resources remain authoritative over editable V3D workspace scripts. `MolangHooks` executes
-owner lifecycle handlers within the unpublished frame candidate. Deferred arguments are flushed
-in reverse submission order to the registered defer handlers; nested submissions are discarded
-after that initial batch. `SceneInputs.SyncMode` selects local hook execution, a Host sync effect,
-or suppression. Core supplies no network transport.
-
-`AnimationDecodeLimits` separates explicitly selected local-asset limits from Peer limits.
-Selecting a format never grants local trust or raises the Peer policy.
-
-Script effects join timeline effects in tick order and commit with the successful frame. Hosts can
-suppress emission while simulation continues. Owner `reset()` advances the generation and clears
-variables, physics and playback state. Dispatchers should use `EffectCursor.claim(frame,
-owner.generation())` and verify current ownership again when committing external work.
-
-`PeerScriptPolicy` provides separate source/token/tree, function-call and aggregate frame budgets.
-The Host must share one policy across every model and worker of a Peer frame. Function calls share
-steps, preserve their caller's AST depth and have a separate call limit; a total active AST ceiling
-of 512 additionally bounds the interpreter stack. These contracts require a real Host adapter;
-Core unit tests alone do not certify game-side Peer counting or compatibility-mod behavior.
-
-This is an implementation candidate, not a declaration of complete SPM migration or upstream feature parity. Current executable geometry is rigid per-bone geometry. Weighted BDEF/SDEF/QDEF, full glTF semantics, VRM/MMD, Figura Lua, complete typed Molang and every Host extension are not implemented by the existing rigid API. JSON metadata preservation does not imply animation/script execution.
-
-Bedrock imports currently require one supported geometry per request. BBModel mesh/plugin element types are rejected when unsupported. Historical bone flags without an established allowed-source runtime mapping retain their exact archival values and return an explicit variant limitation instead of guessed rendered behavior. Full V3D filesystem cache management and online cache wire integration are separate work.
-
-GPU buffers, render passes, shader layouts, resource reload fences, Minecraft/Loader adapters, Cloud/P2P policy and game effects belong to SPM. No successful CPU test establishes GPU pixels, game compatibility or unexecuted CPU/OS support.
-
-The configured Maven publications have not been published. A release must freeze a source revision, artifact/native digests, dependency closure and tested capability/platform matrix before publication.
+---
 
 ## License
 
-Mixed-license, split by component:
+`spm-core` uses a **component-split mixed license**:
 
-- The independently written SPM Core sources — Java modules, the `native-rust` workspace, build logic and `scripts/` — are MIT. See [LICENSE](LICENSE).
-- The historical wire/envelope fixtures under `verification/src/test/resources/ysm/` are verbatim Apache-2.0 upstream test vectors and stay Apache-2.0. See `verification/src/test/resources/ysm/LICENSE`.
-- The historical CityHash and ChaCha notices ship inside the `codec` jar at `META-INF/spm-core/legacy-third-party.txt`.
-- External dependencies such as `io.airlift:aircompressor` remain under their own licenses and are not relicensed.
-- `provenance/allowed-sources.json` records the specification references. No upstream implementation source, binary or artwork is incorporated.
+- **Independently written `spm-core` sources** (Java modules, `native-rust/`, Gradle build logic, and `scripts/`): **MIT License** — see [`LICENSE`](LICENSE).
+- **Redistributed historical YSM test vectors** (`verification/src/test/resources/ysm/`): **Apache License 2.0** (verbatim copies from `AndreaFrederica/OhMyYesSteveModel`) — see [`verification/src/test/resources/ysm/LICENSE`](verification/src/test/resources/ysm/LICENSE).
+- **Historical algorithm notices** (CityHash MIT, ChaCha/HChaCha Public Domain/MIT): shipped in [`codec/src/main/resources/META-INF/spm-core/legacy-third-party.txt`](codec/src/main/resources/META-INF/spm-core/legacy-third-party.txt).
+- **External dependencies & Gradle wrapper**: remain under their own licenses (see `NOTICE` and `THIRD_PARTY_NOTICES.md`).
 
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) is the authoritative component-by-component split.
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) is the authoritative component-by-component split.
