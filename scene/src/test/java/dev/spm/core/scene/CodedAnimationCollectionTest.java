@@ -310,4 +310,37 @@ class CodedAnimationCollectionTest {
         assertEquals(9,afterReset.variables().get("contextatdrain"));
         assertFalse(afterReset.controllers().get(0).contributing());
     }
+    @Test void hostDrivenCommandsAdditiveLayerSpeedAndClipSummaryWork() {
+        var doc=new dev.spm.core.api.ModelDocument("test","ysm-raw-v2",
+                new dev.spm.core.api.Skeleton(List.of("root"),new int[]{-1},new float[]{0,0,0}),
+                List.of(),BonePose.identity(1),List.of(),List.of(),
+                obj("animations",obj(
+                        "walk",obj("loop",true,"animation_length",1,"bones",obj("root",obj("rotation",obj("0",List.of(0,0,0),"1",List.of(0,90,0))))),
+                        "wave",obj("loop",true,"animation_length",1,"particle_effects",obj("0.5",obj("effect","minecraft:heart")),"bones",obj("root",obj("rotation",obj("0",List.of(0,0,0),"1",List.of(10,0,0))))))));
+        var library=PoseAnimationLibrary.fromModel(doc,budget());
+        assertTrue(library.hasClip("walk"));
+        var summary=library.clipSummary("wave");
+        assertEquals(CodedLoopMode.LOOP,summary.loopMode());
+        assertTrue(summary.rotationBones().contains("root"));
+        assertTrue(summary.hasEvents());
+        var main=CodedControllerDefinition.hostDriven("main",0);
+        var parallel=CodedControllerDefinition.hostDriven("parallel",0,true);
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),List.of(main,parallel),60,42);
+        var cmds=Map.of(
+                "main",CodedControllerCommand.play("walk",CodedLoopMode.LOOP,0,2.0),
+                "parallel",CodedControllerCommand.play("wave",CodedLoopMode.LOOP,0,1.0));
+        owner.evaluate(0,0,new SceneInputs(Map.of(),MolangBindings.empty(),true,SceneInputs.SyncMode.HOST,Map.of(),cmds),budget());
+        var frame=owner.evaluate(1,500_000_000L,new SceneInputs(Map.of(),MolangBindings.empty(),true,SceneInputs.SyncMode.HOST,Map.of(),cmds),budget());
+        assertTrue(frame.effects().stream().anyMatch(e->e.kind().equals("particle") && e.resource().equals("minecraft:heart")));
+        assertTrue(Math.abs(frame.pose().rotations()[0])>0.01f);
+        assertTrue(Math.abs(frame.pose().rotations()[1])>0.1f);
+    }
+    @Test void perlinNoiseEvaluatesDeterministicallyInMolang() {
+        var p=MolangProgram.compile("ysm.perlin_noise(1.25, 2.5, 42)");
+        var ctx=new MolangContext(Map.of(),Map.of(),Map.of(),budget());
+        double first=p.evaluate(ctx);
+        double second=p.evaluate(ctx);
+        assertEquals(first,second,1e-12);
+        assertTrue(Double.isFinite(first));
+    }
 }

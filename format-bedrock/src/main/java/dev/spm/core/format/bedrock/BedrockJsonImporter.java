@@ -21,9 +21,12 @@ public final class BedrockJsonImporter {
      * call, otherwise repeated imports reset their own charge to zero.
      */
     public static ModelDocument importJson(byte[] bytes,DecodePolicy policy,ResourceBudget budget,CancellationToken cancellation) throws IOException {
+        return importJson(bytes,null,policy,budget,cancellation);
+    }
+    public static ModelDocument importJson(byte[] bytes,String preferredIdentifier,DecodePolicy policy,ResourceBudget budget,CancellationToken cancellation) throws IOException {
         Objects.requireNonNull(bytes); Objects.requireNonNull(policy); Objects.requireNonNull(budget); Objects.requireNonNull(cancellation);
         try (var quota=new BoundedJson.Quota(policy,budget,cancellation)) {
-            return model(BoundedJson.read(bytes,quota),quota);
+            return model(BoundedJson.read(bytes,quota),preferredIdentifier,quota);
         } catch (IllegalArgumentException | ArithmeticException exception) {
             throw new IOException("Invalid Bedrock model",exception);
         }
@@ -33,21 +36,32 @@ public final class BedrockJsonImporter {
      * asset is closed, so a host cache cannot consume unbounded aggregate memory.
      */
     public static ModelAsset importAsset(byte[] bytes,DecodePolicy policy,ResourceBudget budget,CancellationToken cancellation) throws IOException {
+        return importAsset(bytes,null,policy,budget,cancellation);
+    }
+    public static ModelAsset importAsset(byte[] bytes,String preferredIdentifier,DecodePolicy policy,ResourceBudget budget,CancellationToken cancellation) throws IOException {
         Objects.requireNonNull(bytes); Objects.requireNonNull(policy); Objects.requireNonNull(budget); Objects.requireNonNull(cancellation);
         try (var quota=new BoundedJson.Quota(policy,budget,cancellation)) {
             ModelDocument document;
-            try { document=model(BoundedJson.read(bytes,quota),quota); }
+            try { document=model(BoundedJson.read(bytes,quota),preferredIdentifier,quota); }
             catch (IllegalArgumentException | ArithmeticException exception) { throw new IOException("Invalid Bedrock model",exception); }
             return new ModelAsset(document,quota.transfer());
         }
     }
 
-    private static ModelDocument model(JsonObject root,BoundedJson.Quota quota) throws IOException {
+    private static final Set<String> SUPPORTED_FORMAT_VERSIONS = Set.of("1.8.0","1.10.0","1.12.0","1.16.0","1.19.0","1.20.0","1.21.0");
+
+    private static ModelDocument model(JsonObject root,String preferredIdentifier,BoundedJson.Quota quota) throws IOException {
         String version=string(required(root,"format_version"),"format_version");
-        if (!Set.of("1.12.0","1.16.0").contains(version)) throw new IOException("Unsupported Bedrock format version: "+version);
+        if (!SUPPORTED_FORMAT_VERSIONS.contains(version)) throw new IOException("Unsupported Bedrock format version: "+version);
         var geometries=array(required(root,"minecraft:geometry"),"minecraft:geometry").values();
-        if (geometries.size()!=1) throw new IOException("Exactly one geometry is supported per import");
-        var geometry=object(geometries.get(0),"geometry");
+        if (geometries.isEmpty()) throw new IOException("Missing Bedrock geometry entry");
+        JsonObject geometry;
+        if (preferredIdentifier==null || preferredIdentifier.isBlank()) {
+            if (geometries.size()!=1) throw new IOException("Exactly one geometry is supported per import");
+            geometry=object(geometries.get(0),"geometry");
+        } else {
+            geometry=selectGeometry(geometries,preferredIdentifier);
+        }
         var description=optionalObject(geometry,"description");
         String identity=string(required(description,"identifier"),"identifier");
         if (identity.isBlank()) throw new IOException("Missing geometry identifier");
@@ -211,6 +225,23 @@ public final class BedrockJsonImporter {
             for (int i=0;i<p.length;i++) { min[i%3]=Math.min(min[i%3],p[i]); max[i%3]=Math.max(max[i%3],p[i]); }
             return new Mesh(name,new VertexBatch(p,n,bones),uv,triangles,faces,new Bounds(min[0],min[1],min[2],max[0],max[1],max[2]),0);
         }
+    }
+
+    private static JsonObject selectGeometry(List<JsonValue> geometries,String preferredIdentifier) throws IOException {
+        String wanted=preferredIdentifier.trim();
+        for (JsonValue raw : geometries) {
+            var candidate=object(raw,"geometry");
+            var desc=optionalObject(candidate,"description");
+            JsonValue idVal=desc.values().get("identifier");
+            if (idVal instanceof JsonString id) {
+                String value=id.value();
+                if (value.equalsIgnoreCase(wanted) || value.equalsIgnoreCase("geometry."+wanted)
+                        || (wanted.toLowerCase(java.util.Locale.ROOT).startsWith("geometry.") && value.equalsIgnoreCase(wanted.substring(9)))) {
+                    return candidate;
+                }
+            }
+        }
+        return object(geometries.get(0),"geometry");
     }
 
     private static JsonValue required(JsonObject object,String name) throws IOException {

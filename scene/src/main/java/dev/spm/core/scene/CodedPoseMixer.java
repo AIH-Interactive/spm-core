@@ -39,7 +39,11 @@ final class CodedPoseMixer {
                     if(!member.mask[offset+channel])continue;
                     driven[offset+channel]=true;
                     float[] full=new float[3];
-                    for(int axis=0;axis<3;axis++){int i=offset+axis;full[axis]=PoseAnimationLibrary.representable(channel==2?neutral[channel][i]*values[channel][i]:neutral[channel][i]+values[channel][i]);}
+                    if (member.additive) {
+                        for(int axis=0;axis<3;axis++){int i=offset+axis;full[axis]=PoseAnimationLibrary.representable(channel==2?target[channel][i]*values[channel][i]:target[channel][i]+values[channel][i]);}
+                    } else {
+                        for(int axis=0;axis<3;axis++){int i=offset+axis;full[axis]=PoseAnimationLibrary.representable(channel==2?neutral[channel][i]*values[channel][i]:neutral[channel][i]+values[channel][i]);}
+                    }
                     if(channel==0) {
                         float[] lower={target[0][offset],target[0][offset+1],target[0][offset+2]};
                         PoseRotation.blend(full,lower,0,member.endingProgress,full);

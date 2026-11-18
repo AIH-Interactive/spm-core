@@ -3,8 +3,9 @@ package dev.spm.core.scene;
 import java.util.Map;
 
 /** Host-sampled numeric query snapshot. It must be safe to use without a game thread. */
-public record SceneInputs(Map<String, Double> queries,MolangBindings bindings,boolean effectsAllowed,SyncMode syncMode,Map<MolangHooks.Phase,java.util.List<MolangValue>> hookArguments) {
-    public SceneInputs(Map<String,Double> queries,MolangBindings bindings,boolean effectsAllowed,SyncMode syncMode) {this(queries,bindings,effectsAllowed,syncMode,Map.of());}
+public record SceneInputs(Map<String, Double> queries,MolangBindings bindings,boolean effectsAllowed,SyncMode syncMode,Map<MolangHooks.Phase,java.util.List<MolangValue>> hookArguments,Map<String, CodedControllerCommand> controllerCommands) {
+    public SceneInputs(Map<String,Double> queries,MolangBindings bindings,boolean effectsAllowed,SyncMode syncMode,Map<MolangHooks.Phase,java.util.List<MolangValue>> hookArguments) {this(queries,bindings,effectsAllowed,syncMode,hookArguments,Map.of());}
+    public SceneInputs(Map<String,Double> queries,MolangBindings bindings,boolean effectsAllowed,SyncMode syncMode) {this(queries,bindings,effectsAllowed,syncMode,Map.of(),Map.of());}
     public enum SyncMode { LOCAL,HOST,NONE }
     public SceneInputs(Map<String,Double> queries,MolangBindings bindings,boolean effectsAllowed) { this(queries,bindings,effectsAllowed,SyncMode.HOST); }
     public SceneInputs(Map<String,Double> queries) { this(queries,MolangBindings.empty(),true); }
@@ -15,6 +16,9 @@ public record SceneInputs(Map<String, Double> queries,MolangBindings bindings,bo
         hookArguments=Map.copyOf(copied);
         java.util.Objects.requireNonNull(bindings);
         java.util.Objects.requireNonNull(syncMode);
+        java.util.Objects.requireNonNull(controllerCommands);
+        if (controllerCommands.size() > 4096) throw new IllegalArgumentException("At most 4096 controller commands");
+        controllerCommands = Map.copyOf(controllerCommands);
         queries = Map.copyOf(MolangContext.numericCopy(queries));
         if (queries.size() > 4096) throw new IllegalArgumentException("At most 4096 query inputs");
     }

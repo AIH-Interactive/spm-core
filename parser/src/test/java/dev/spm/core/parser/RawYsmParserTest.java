@@ -148,6 +148,28 @@ final class RawYsmParserTest {
         assertThrows(IOException.class,()->importFiles(1,files,budget));assertEquals(0,budget.used());
     }
 
+    @Test void spmModelParserImportsUnpackedYsmCatalogWithSingleTextureObjectAndOmittedArm() throws Exception {
+        var files=new LinkedHashMap<ResourceKey,byte[]>();
+        files.put(new ResourceKey("ysm.json"),"""
+            {"files":{"player":{"model":{"main":"main.json"},"texture":{"uv":"skin.png"}}}}
+            """.getBytes(StandardCharsets.UTF_8));
+        files.put(new ResourceKey("main.json"),GEO);
+        files.put(new ResourceKey("skin.png"),new byte[]{1,2,3});
+        var budget=new ResourceBudget(32L<<20);
+        ResourceCatalog catalog=ResourceCatalog.of(files.keySet(),key->{
+            byte[] data=files.get(key);
+            if(data==null) throw new IOException("Missing "+key.path());
+            return new java.io.ByteArrayInputStream(data);
+        });
+        var request=new ImportRequest(new ModelSource("folder",new ResourceKey("ysm.json"),catalog),FormatHint.YSM,POLICY,budget,new CancellationToken());
+        try(var result=new SpmModelParser().importModel(request)) {
+            assertEquals(2,result.models().size());
+            assertEquals("player/main",result.models().get(0).key());
+            assertEquals("player/arm",result.models().get(1).key());
+        }
+        assertEquals(0,budget.used());
+    }
+
     private static LinkedHashMap<ResourceKey,byte[]> legacy(){
         var files=new LinkedHashMap<ResourceKey,byte[]>();files.put(new ResourceKey("main.json"),GEO);
         files.put(new ResourceKey("arm.json"),GEO);files.put(new ResourceKey("skin.png"),new byte[]{1,2,3});return files;

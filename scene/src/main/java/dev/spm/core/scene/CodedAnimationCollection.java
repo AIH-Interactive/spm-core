@@ -38,7 +38,7 @@ public final class CodedAnimationCollection {
         maximumCatchUp=maximumCatchUpSteps;this.seed=seed;random=seed;clock=new FixedStepClock(maximumCatchUpSteps);members=initial();mixer=new CodedPoseMixer(bind);
     }
     private List<CodedPlayback> initial() {
-        return definitions.stream().map(definition->new CodedPlayback(library,bind.boneCount(),definition.beginningTransitionTicks())).toList();
+        return definitions.stream().map(definition->new CodedPlayback(library,bind.boneCount(),definition.beginningTransitionTicks(),definition.additive())).toList();
     }
     public synchronized long generation() {return generation;}
     public synchronized Map<String,MolangValue> typedVariables() {return scripts.variables;}
@@ -51,8 +51,8 @@ public final class CodedAnimationCollection {
         var nextMembers=members.stream().map(CodedPlayback::copy).toList();
         var context=new MolangContext(inputs,scripts,functions,budget,random,hooks);
         for(var member:nextMembers)context.retainedDeferred(member.deferred.size());
-        if(lastFrame==null){context.initializeHooks();pulse(0,nextMembers,context,inputs.effectsAllowed(),nextMixer);}
-        for(int offset=advance.executedSteps()-1;offset>=0;offset--)pulse(advance.totalSteps()-offset,nextMembers,context,inputs.effectsAllowed(),nextMixer);
+        if(lastFrame==null){context.initializeHooks();pulse(0,nextMembers,context,inputs.effectsAllowed(),inputs.controllerCommands(),nextMixer);}
+        for(int offset=advance.executedSteps()-1;offset>=0;offset--)pulse(advance.totalSteps()-offset,nextMembers,context,inputs.effectsAllowed(),inputs.controllerCommands(),nextMixer);
         var finalContext=context.overlay(Map.of("life_time",advance.totalSteps()/60.0));finalContext.afterFrameHooks();finalContext.flushDeferred();
         var snapshots=new ArrayList<CodedControllerSnapshot>();
         for(int index=0;index<nextMembers.size();index++) {
@@ -67,7 +67,7 @@ public final class CodedAnimationCollection {
         var nextScripts=context.snapshot();long nextRandom=context.randomState();budget.checkCancelled();
         clock=nextClock;members=nextMembers;mixer=nextMixer;scripts=nextScripts;random=nextRandom;sequence=nextSequence;lastFrame=frame;return frame;
     }
-    private void pulse(long step,List<CodedPlayback> candidates,MolangContext context,boolean emit,CodedPoseMixer candidateMixer) {
+    private void pulse(long step,List<CodedPlayback> candidates,MolangContext context,boolean emit,Map<String,CodedControllerCommand> commands,CodedPoseMixer candidateMixer) {
         context=context.overlay(Map.of("life_time",step/60.0,"delta_time",1.0/60));context.beforeStepHooks();
         for(int index=0;index<candidates.size();index++) {
             context.budget().step();var member=candidates.get(index);var definition=definitions.get(index);member.pulseStep=step;member.selectionAnchor=candidateMixer.relativeAnchor();
@@ -75,9 +75,26 @@ public final class CodedAnimationCollection {
             local.codedControl(member);
             CodedPlayDecision decision;
             try {
-                int result=definition.predicate()==null?5:(int)definition.predicate().evaluate(local);
-                decision=switch(result){case 2->CodedPlayDecision.CONTINUE;case 3->CodedPlayDecision.STOP;case 4->CodedPlayDecision.PAUSE;default->CodedPlayDecision.BYPASS;};
-                if(decision==CodedPlayDecision.BYPASS)decision=fallback(definition.fallback(),local,member);
+                CodedControllerCommand command=commands.get(definition.name());
+                if (command!=null) {
+                    if (command.resetPlayback()) member.resetPlayback();
+                    if (command.reload()) member.reload();
+                    if (command.transitionTicks()>=0) member.transition(command.transitionTicks());
+                    member.speed(command.speed());
+                    if (!command.animation().isEmpty()) member.select(command.animation(),command.loopMode());
+                    if (command.decision()!=CodedPlayDecision.BYPASS) {
+                        decision=command.decision();
+                    } else {
+                        int result=definition.predicate()==null?5:(int)definition.predicate().evaluate(local);
+                        decision=switch(result){case 2->CodedPlayDecision.CONTINUE;case 3->CodedPlayDecision.STOP;case 4->CodedPlayDecision.PAUSE;default->CodedPlayDecision.BYPASS;};
+                        if(decision==CodedPlayDecision.BYPASS)decision=fallback(definition.fallback(),local,member);
+                    }
+                } else {
+                    member.speed(1.0);
+                    int result=definition.predicate()==null?5:(int)definition.predicate().evaluate(local);
+                    decision=switch(result){case 2->CodedPlayDecision.CONTINUE;case 3->CodedPlayDecision.STOP;case 4->CodedPlayDecision.PAUSE;default->CodedPlayDecision.BYPASS;};
+                    if(decision==CodedPlayDecision.BYPASS)decision=fallback(definition.fallback(),local,member);
+                }
             } finally {local.codedControl(null);}
             member.sample(step,decision,local,bind.boneCount(),emit);
         }

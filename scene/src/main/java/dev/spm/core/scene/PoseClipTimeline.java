@@ -17,6 +17,7 @@ final class PoseClipTimeline {
             MolangContext local=context.overlay(Map.of("anim_time",event.time(),"life_time",step/60.0,"delta_time",1.0/60));
             for (var instruction:event.instructions()) { context.budget().step(); instruction.evaluate(local); }
             if (event.sound()!=null) sound(event.sound(),step,effects);
+            if (event.particle()!=null) particle(event.particle(),step,effects);
         }
     }
     static void append(PoseAnimationLibrary.Clip clip,double start,double end,boolean initial,long step,
@@ -37,11 +38,16 @@ final class PoseClipTimeline {
                 MolangContext local=context.overlay(Map.of("anim_time",event.time(),"life_time",step/60.0,"delta_time",1.0/60));
                 for(var instruction:event.instructions()) { context.budget().step(); instruction.evaluate(local); }
                 if(event.sound()!=null) sound(event.sound(),step,effects);
+                if(event.particle()!=null) particle(event.particle(),step,effects);
             }
         }
     }
     static void sound(String resource,long step,List<EffectTimeline.Pending> effects) {
         if(effects.size()>=4096) throw new MolangException(MolangException.Reason.CAPACITY,"Too many effects in one frame");
         effects.add(new EffectTimeline.Pending(step,new AnimationClip.Cue(0,"sound",resource,Map.of())));
+    }
+    static void particle(String resource,long step,List<EffectTimeline.Pending> effects) {
+        if(effects.size()>=4096) throw new MolangException(MolangException.Reason.CAPACITY,"Too many effects in one frame");
+        effects.add(new EffectTimeline.Pending(step,new AnimationClip.Cue(0,"particle",resource,Map.of())));
     }
 }

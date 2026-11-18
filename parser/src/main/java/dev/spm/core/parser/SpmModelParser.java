@@ -78,7 +78,11 @@ public final class SpmModelParser implements ModelImporter {
                     case BEDROCK -> single(builder,BedrockJsonImporter.importAsset(bytes,request.policy(),request.budget(),request.cancellation()),request);
                     case BBMODEL -> single(builder,BbmodelJsonImporter.importAsset(bytes,request.policy(),request.budget(),request.cancellation()),request);
                     case YSM -> {
-                        if(isV3(bytes)){
+                        String entryPath = request.source().entry().path();
+                        if (request.source().resolver() instanceof ResourceCatalog catalog
+                                && (entryPath.equals("ysm.json") || entryPath.equals("main.json"))) {
+                            RawYsmParser.parseCatalog(catalog, request, builder);
+                        } else if(isV3(bytes)){
                             try(var payload=YsmEnvelopeCodec.decode(bytes,request.policy(),request.budget(),request.cancellation())){
                                 historical(builder,YsmModelImporter.importPayload(payload,request.policy(),request.budget(),request.cancellation()),request);
                             }

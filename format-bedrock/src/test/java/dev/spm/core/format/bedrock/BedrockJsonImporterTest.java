@@ -118,4 +118,14 @@ final class BedrockJsonImporterTest {
         assertArrayEquals(first.skeleton().pivots(), second.skeleton().pivots(), 0f);
         assertEquals(first.bindPose().boneCount(), second.bindPose().boneCount());
     }
+
+    @Test void preferredIdentifierSelectsMatchingGeometryAndSupportsModernVersion() throws Exception {
+        var two = ("{\"format_version\":\"1.21.0\",\"minecraft:geometry\":["
+                + "{\"description\":{\"identifier\":\"geometry.a\",\"texture_width\":64,\"texture_height\":32},\"bones\":[{\"name\":\"a_root\"}]},"
+                + "{\"description\":{\"identifier\":\"geometry.b\",\"texture_width\":64,\"texture_height\":32},\"bones\":[{\"name\":\"b_root\"}]}]}")
+                .getBytes(StandardCharsets.UTF_8);
+        var doc = BedrockJsonImporter.importJson(two, "b", policy(), budget(), token());
+        assertEquals("geometry.b", doc.identity());
+        assertEquals(java.util.List.of("b_root"), doc.skeleton().names());
+    }
 }

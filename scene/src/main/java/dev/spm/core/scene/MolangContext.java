@@ -27,6 +27,7 @@ public final class MolangContext {
             case "ctrl.set_beginning_transition_length", "query.position", "query.position_delta" -> count==1;
             case "ysm.particle", "ysm.abs_particle" -> count>=1;
             case "ysm.first_order", "ysm.second_order" -> count>=2;
+            case "ysm.perlin_noise" -> count>=2 && count<=3;
             default -> true;
         };
         if(!valid) throw new MolangException(MolangException.Reason.ARITY,"Wrong arity: "+name);
@@ -337,7 +338,38 @@ public final class MolangContext {
             double c=arguments.size()>4?arguments.get(4).number():1;
             return MolangValue.number(physics.second(key,input,a,b,c,budget));
         }
+        if(name.equals("ysm.perlin_noise")) {
+            double x=arguments.get(0).number();
+            double y=arguments.get(1).number();
+            long seed=arguments.size()>2?(long)arguments.get(2).number():0L;
+            return MolangValue.number(perlin2d(x,y,seed));
+        }
         return bindings.call(name,arguments,-1,controllerScope);
+    }
+    private static double perlin2d(double x,double y,long seed) {
+        int xi=(int)Math.floor(x), yi=(int)Math.floor(y);
+        double xf=x-xi, yf=y-yi;
+        double u=fade(xf), v=fade(yf);
+        double n00=grad(hash(xi,yi,seed),xf,yf);
+        double n10=grad(hash(xi+1,yi,seed),xf-1,yf);
+        double n01=grad(hash(xi,yi+1,seed),xf,yf-1);
+        double n11=grad(hash(xi+1,yi+1,seed),xf-1,yf-1);
+        double x1=n00+u*(n10-n00);
+        double x2=n01+u*(n11-n01);
+        return finite(x1+v*(x2-x1));
+    }
+    private static double fade(double t) { return t*t*t*(t*(t*6-15)+10); }
+    private static int hash(int x,int y,long seed) {
+        long h=seed ^ (x*0x9E3779B97F4A7C15L) ^ (y*0xBF58476D1CE4E5B9L);
+        h=(h^(h>>>30))*0xBF58476D1CE4E5B9L;
+        h=(h^(h>>>27))*0x94D049BB133111EBL;
+        return (int)(h^(h>>>31));
+    }
+    private static double grad(int h,double x,double y) {
+        return switch(h&7) {
+            case 0 -> x+y; case 1 -> -x+y; case 2 -> x-y; case 3 -> -x-y;
+            case 4 -> x; case 5 -> -x; case 6 -> y; default -> -y;
+        };
     }
     void resetAnimationContext() {flushDeferred();if(contextVariables!=null)contextVariables.clear();}
     void timelineEffects(java.util.List<EffectTimeline.Pending> effects) {

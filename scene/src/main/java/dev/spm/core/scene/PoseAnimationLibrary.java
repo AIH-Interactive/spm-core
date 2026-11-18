@@ -88,7 +88,17 @@ public final class PoseAnimationLibrary {
         }
     }
     record BoneTracks(int index, Track rotation, Track position, Track scale) { }
-    record Event(double time, String sound, List<MolangProgram> instructions) { }
+    record Event(double time, String sound, String particle, String particleLocator, List<MolangProgram> instructions) { }
+    public record ClipSummary(
+            String name,
+            double durationSeconds,
+            CodedLoopMode loopMode,
+            Set<String> animatedBones,
+            Set<String> rotationBones,
+            Set<String> positionBones,
+            Set<String> scaleBones,
+            boolean hasEvents,
+            boolean overridePrevious) { }
     record Clip(String name, double duration, Loop loop, Scalar blendWeight, Scalar startDelay, Scalar loopDelay,
                 boolean overridePrevious, List<BoneTracks> bones, List<Event> events) {
         double localTime(double elapsed) { return loop==Loop.LOOP ? elapsed%duration : Math.min(elapsed,duration); }
@@ -128,6 +138,38 @@ public final class PoseAnimationLibrary {
     }
     public Set<String> names() { return clips.keySet(); }
     public int boneCount() { return skeleton.boneCount(); }
+    public Skeleton skeleton() { return skeleton; }
+    public boolean hasClip(String name) { return name != null && clips.containsKey(name); }
+    public ClipSummary clipSummary(String name) {
+        Clip clip = clip(name);
+        return summarize(clip);
+    }
+    public Map<String, ClipSummary> summaries() {
+        var result = new LinkedHashMap<String, ClipSummary>(clips.size());
+        clips.forEach((key, value) -> result.put(key, summarize(value)));
+        return Map.copyOf(result);
+    }
+    private ClipSummary summarize(Clip clip) {
+        var animated = new java.util.LinkedHashSet<String>();
+        var rotation = new java.util.LinkedHashSet<String>();
+        var position = new java.util.LinkedHashSet<String>();
+        var scale = new java.util.LinkedHashSet<String>();
+        List<String> boneNames = skeleton.names();
+        for (BoneTracks bone : clip.bones) {
+            String boneName = boneNames.get(bone.index);
+            animated.add(boneName);
+            if (bone.rotation != null) rotation.add(boneName);
+            if (bone.position != null) position.add(boneName);
+            if (bone.scale != null) scale.add(boneName);
+        }
+        CodedLoopMode mode = switch (clip.loop) {
+            case LOOP -> CodedLoopMode.LOOP;
+            case ONCE -> CodedLoopMode.PLAY_ONCE;
+            case HOLD -> CodedLoopMode.HOLD_ON_LAST_FRAME;
+        };
+        return new ClipSummary(clip.name, clip.duration, mode, Set.copyOf(animated), Set.copyOf(rotation),
+                Set.copyOf(position), Set.copyOf(scale), !clip.events.isEmpty(), clip.overridePrevious);
+    }
     Clip clip(String name) {
         Clip result=clips.get(name);
         if (result==null) throw new IllegalArgumentException("Unknown animation: "+name);
@@ -236,7 +278,9 @@ public final class PoseAnimationLibrary {
             return new PoseAnimationLibrary(skeleton,result);
         }
         Clip animation(String name,JsonObject value) {
-            fields(value,Set.of("animation_length","loop","bones","sound_effects","timeline","blend_weight","start_delay","loop_delay","override_previous_animation"));
+            fields(value,historicalYsm
+                    ? Set.of("animation_length","loop","bones","sound_effects","particle_effects","timeline","blend_weight","start_delay","loop_delay","override_previous_animation")
+                    : Set.of("animation_length","loop","bones","sound_effects","timeline","blend_weight","start_delay","loop_delay","override_previous_animation"));
             List<BoneTracks> bones=new ArrayList<>();
             double inferred=0;
             JsonValue boneValue=value.values().get("bones");
@@ -275,7 +319,25 @@ public final class PoseAnimationLibrary {
                     resource=string(definition.values().get("effect"),"effect");
                 }
                 if (resource.isBlank() || resource.length()>1024) throw invalid("Invalid sound selector");
-                events.add(new Event(time(entry.getKey()),resource,List.of()));
+                events.add(new Event(time(entry.getKey()),resource,null,null,List.of()));
+            }
+            JsonValue particles=value.values().get("particle_effects");
+            if (particles!=null) for (Map.Entry<String,JsonValue> entry:object(particles,"particle_effects").values().entrySet()) {
+                budget.step();
+                double at=time(entry.getKey());
+                List<JsonValue> list=entry.getValue() instanceof JsonArray array?array.values():List.of(entry.getValue());
+                for (JsonValue rawParticle:list) {
+                    budget.step(); countEvent();
+                    JsonObject particleObj=object(rawParticle,"particle effect");
+                    fields(particleObj,Set.of("effect","locator","pre_effect_script"));
+                    String effect=particleObj.values().containsKey("effect")?string(particleObj.values().get("effect"),"effect"):"";
+                    if (effect.isBlank() || effect.length()>1024) throw invalid("Invalid particle effect");
+                    String locator=particleObj.values().containsKey("locator")?string(particleObj.values().get("locator"),"locator"):"";
+                    List<MolangProgram> pre=particleObj.values().containsKey("pre_effect_script")
+                            ?List.of(program(string(particleObj.values().get("pre_effect_script"),"pre_effect_script")))
+                            :List.of();
+                    events.add(new Event(at,null,effect,locator,pre));
+                }
             }
             JsonValue timeline=value.values().get("timeline");
             if (timeline!=null) for (Map.Entry<String,JsonValue> entry:object(timeline,"timeline").values().entrySet()) {
@@ -287,7 +349,7 @@ public final class PoseAnimationLibrary {
                         throw limit("At most "+instructionLimit+" instructions per timeline event");
                     for (JsonValue instruction:array.values()) instructions.add(program(string(instruction,"timeline instruction")));
                 } else instructions.add(program(string(entry.getValue(),"timeline instruction")));
-                events.add(new Event(time(entry.getKey()),null,List.copyOf(instructions)));
+                events.add(new Event(time(entry.getKey()),null,null,null,List.copyOf(instructions)));
             }
             if (events.size()>4096) throw limit("At most 4096 events per animation");
             if (!historicalYsm) {

@@ -18,7 +18,7 @@ import java.util.Set;
 final class RawYsmParser {
     private static final List<String> ANIMATION_TYPES=List.of("main","arm","fp_arm","extra","tac","carryon",
         "parcool","swem","slashblade","tlm","immersive_melodies","irons_spell_books");
-    private final ModelArchive archive;
+    private final int archiveVersion;
     private final ImportRequest request;
     private final ParserResultBuilder result;
     private final BoundedJson.Quota quota;
@@ -27,14 +27,20 @@ final class RawYsmParser {
     private JsonObject manifest;
     private JsonObject properties;
 
-    private RawYsmParser(ModelArchive archive,ImportRequest request,ParserResultBuilder result,BoundedJson.Quota quota){
-        this.archive=archive;this.request=request;this.result=result;this.quota=quota;
-        entries=archive.entries();resolver=ResourceCatalog.of(entries,archive::open);
+    private RawYsmParser(int archiveVersion,Set<ResourceKey> entries,ResourceResolver resolver,ImportRequest request,ParserResultBuilder result,BoundedJson.Quota quota){
+        this.archiveVersion=archiveVersion;this.request=request;this.result=result;this.quota=quota;
+        this.entries=entries;this.resolver=resolver;
     }
     static void parse(ModelArchive archive,ImportRequest request,ParserResultBuilder result)throws IOException {
         var quota=new BoundedJson.Quota(request.policy(),request.budget(),request.cancellation());
         result.retain(quota);
-        new RawYsmParser(archive,request,result,quota).parse();
+        Set<ResourceKey> entries=archive.entries();
+        new RawYsmParser(archive.outerVersion(),entries,ResourceCatalog.of(entries,archive::open),request,result,quota).parse();
+    }
+    static void parseCatalog(ResourceCatalog catalog,ImportRequest request,ParserResultBuilder result)throws IOException {
+        var quota=new BoundedJson.Quota(request.policy(),request.budget(),request.cancellation());
+        result.retain(quota);
+        new RawYsmParser(0,catalog.entries(),catalog,request,result,quota).parse();
     }
     private void parse()throws IOException {
         request.cancellation().check();result.resources(resolver);
@@ -42,7 +48,9 @@ final class RawYsmParser {
         properties=optionalObject(manifest,"properties");
         JsonObject files=requiredObject(manifest,"files"),player=requiredObject(files,"player");
         JsonObject models=requiredObject(player,"model");
-        String main=path(required(models,"main"),"model main","json"),arm=path(required(models,"arm"),"model arm","json");
+        String main=path(required(models,"main"),"model main","json");
+        JsonValue armValue=models.values().get("arm");
+        String arm=nonblank(armValue)?path(armValue,"model arm","json"):main;
         for(var entry:models.values().entrySet())path(entry.getValue(),"model "+entry.getKey(),"json");
         validateImages(properties);
         validateAuthors(optionalObject(manifest,"metadata"));
@@ -52,10 +60,10 @@ final class RawYsmParser {
         JsonValue oldSound=player.values().get("sound_path");if(oldSound!=null&&oldSound!=JsonNull.INSTANCE)directory(text(oldSound,"sound_path"));
         var animations=animationSets(optionalObject(player,"animation"));
         var controllers=controllerFiles(optionalArray(player,"animation_controllers"));
-        var textures=textureSets(optionalArray(player,"texture"));
+        var textures=textureSets(optionalTextureList(player,"texture"));
         if(textures.values().isEmpty())throw new IOException("Raw player has no texture");
-        document("player/main","player",main,textures,animations,controllers,List.of());
-        document("player/arm","player",arm,textures,animations,controllers,List.of());
+        document("player/main","player",main,null,textures,animations,controllers,List.of());
+        document("player/arm","player",arm,null,textures,animations,controllers,List.of());
         replacements(files,"projectiles","projectile");
         JsonValue arrow=files.values().get("arrow");
         if(arrow!=null&&arrow!=JsonNull.INSTANCE)replacement(object(arrow,"arrow"),"projectile/arrow");
@@ -237,20 +245,21 @@ final class RawYsmParser {
         var seen=new LinkedHashSet<String>();
         for(JsonValue match:matches){String name=text(match,"replacement match");if(name.isBlank()||!seen.add(name))throw new IOException("Blank or duplicate replacement match");}
         String geo=path(required(source,"model"),"replacement model","json");
+        String identifier=optionalText(source,"identifier","");
         Library animations=emptyLibrary(),controllers=emptyLibrary();
         JsonValue animation=source.values().get("animation"),controller=source.values().get("controller");
         if(nonblank(animation))animations=animationSets(obj(Map.of("main",animation)));
         if(nonblank(controller))controllers=controllerFiles(List.of(controller));
-        JsonObject textures=textureSets(List.of(required(source,"texture")));
-        document(key+"/main",key.startsWith("vehicle/")?"vehicle":"projectile",geo,textures,animations,controllers,matches);
+        JsonObject textures=textureSets(optionalTextureList(source,"texture"));
+        document(key+"/main",key.startsWith("vehicle/")?"vehicle":"projectile",geo,identifier,textures,animations,controllers,matches);
     }
     private Library emptyLibrary()throws IOException{return new Library(obj(Map.of()),obj(Map.of()));}
 
-    private void document(String key,String type,String path,JsonObject textures,Library animations,Library controllers,List<JsonValue> matches)throws IOException {
+    private void document(String key,String type,String path,String preferredIdentifier,JsonObject textures,Library animations,Library controllers,List<JsonValue> matches)throws IOException {
         request.cancellation().check();
         ModelAsset asset;
         try(var input=ParserInput.read(request,new ResourceKey(path),resolver)){
-            asset=BedrockJsonImporter.importAsset(RawYsmJson.withoutComments(input.bytes(),quota),request.policy(),request.budget(),request.cancellation());
+            asset=BedrockJsonImporter.importAsset(RawYsmJson.withoutComments(input.bytes(),quota),preferredIdentifier,request.policy(),request.budget(),request.cancellation());
         }
         result.retain(asset);ModelDocument base=asset.document();
         var materials=new ArrayList<Material>();int selected=0,index=0;
@@ -276,12 +285,18 @@ final class RawYsmParser {
         }
         JsonObject ysm=obj(Map.of("manifest",manifest,"geometry_path",string(path),"target_type",string(type),
             "animation_sets",animations.sources(),"controller_files",controllers.sources(),"texture_sets",textures,"match",array(matches),
-            "archive_version",new JsonNumber(archive.outerVersion())));
+            "archive_version",new JsonNumber(archiveVersion)));
         var metadata=new LinkedHashMap<>(base.metadata().values());metadata.put("ysm",ysm);
         metadata.put("animations",animations.definitions());metadata.put("animation_controllers",controllers.definitions());
-        ModelDocument document=new ModelDocument(base.identity(),"ysm-raw-v"+archive.outerVersion(),base.skeleton(),meshes,
+        ModelDocument document=new ModelDocument(base.identity(),"ysm-raw-v"+archiveVersion,base.skeleton(),meshes,
             base.bindPose(),materials,base.locators(),obj(metadata));
         result.add(key,document);
+    }
+    private List<JsonValue> optionalTextureList(JsonObject source,String field)throws IOException {
+        JsonValue value=source.values().get(field);
+        if(value==null||value==JsonNull.INSTANCE)return List.of();
+        if(value instanceof JsonArray array)return array.values();
+        return List.of(value);
     }
 
     private void validateImages(JsonObject source)throws IOException {

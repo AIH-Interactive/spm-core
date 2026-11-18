@@ -19,6 +19,11 @@ final class CodedPlayback implements CodedControl {
     long pulseStep;
     long endingStep;
     double transitionTicks;
+    double speed=1.0;
+    double scaledRunning;
+    double lastUnscaledRunning;
+    boolean pureUnitSpeed=true;
+    final boolean additive;
     boolean changed;
     boolean initial=true;
     boolean contributing;
@@ -32,14 +37,23 @@ final class CodedPlayback implements CodedControl {
     double endingProgress;
 
     CodedPlayback(PoseAnimationLibrary library,int bones,double ticks) {
-        this.library=library;transitionTicks=ticks;contribution=BonePose.identity(bones);transitionFrom=contribution;selectionAnchor=contribution;mask=new boolean[bones*3];
+        this(library,bones,ticks,false);
+    }
+    CodedPlayback(PoseAnimationLibrary library,int bones,double ticks,boolean additive) {
+        this.library=library;transitionTicks=ticks;this.additive=additive;contribution=BonePose.identity(bones);transitionFrom=contribution;selectionAnchor=contribution;mask=new boolean[bones*3];
     }
     private CodedPlayback(CodedPlayback other) {
         contextVariables.putAll(other.contextVariables);deferred.addAll(other.deferred);schedule=other.schedule==null?null:other.schedule.copy();previousRunning=other.previousRunning;library=other.library;selected=other.selected;mode=other.mode;clip=other.clip;startStep=other.startStep;
-        pulseStep=other.pulseStep;endingStep=other.endingStep;transitionTicks=other.transitionTicks;changed=other.changed;initial=other.initial;phase=other.phase;finished=other.finished;
+        pulseStep=other.pulseStep;endingStep=other.endingStep;transitionTicks=other.transitionTicks;speed=other.speed;scaledRunning=other.scaledRunning;lastUnscaledRunning=other.lastUnscaledRunning;pureUnitSpeed=other.pureUnitSpeed;additive=other.additive;changed=other.changed;initial=other.initial;phase=other.phase;finished=other.finished;
         contributing=other.contributing;contribution=other.contribution;transitionFrom=other.transitionFrom;selectionAnchor=other.selectionAnchor;mask=other.mask.clone();localTime=other.localTime;endingProgress=other.endingProgress;
     }
     CodedPlayback copy() {return new CodedPlayback(this);}
+    void speed(double value) {
+        if (Double.isFinite(value) && value > 0) {
+            if (value != 1.0) pureUnitSpeed = false;
+            this.speed = value;
+        }
+    }
     @Override public void select(String name,CodedLoopMode override) {
         if(selected.equals(name)&&mode==override)return;
         selected=name;mode=override;transitionFrom=selectionAnchor;clip=library.names().contains(name)?library.clip(name):null;
@@ -64,7 +78,7 @@ final class CodedPlayback implements CodedControl {
             endingProgress=progress;contribution=transitionFrom;
             contributing=decision!=CodedPlayDecision.PAUSE;return;
         }
-        if(phase==Phase.IDLE||changed){context.resetAnimationContext();schedule=null;previousRunning=0;initial=true;}
+        if(phase==Phase.IDLE||changed){context.resetAnimationContext();schedule=null;previousRunning=0;scaledRunning=0;lastUnscaledRunning=0;pureUnitSpeed=(speed==1.0);initial=true;}
         if(clip==null){contributing=false;Arrays.fill(mask,false);return;}
         double beginSeconds=transitionTicks/20.0;
         if(changed){phase=beginSeconds>0?Phase.BEGINNING:Phase.RUNNING;finished=false;schedule=clip.delayed()?new PoseClipPlayback(clip,context):null;}
@@ -72,7 +86,18 @@ final class CodedPlayback implements CodedControl {
         if(phase==Phase.BEGINNING&&elapsed>=beginSeconds)phase=Phase.RUNNING;
         if(phase==Phase.BEGINNING)localTime=0;
         else {
-            double running=Math.max(0,elapsed-beginSeconds);
+            double unscaledRunning=Math.max(0,elapsed-beginSeconds);
+            double running;
+            if (pureUnitSpeed) {
+                running=unscaledRunning;
+                scaledRunning=unscaledRunning;
+                lastUnscaledRunning=unscaledRunning;
+            } else {
+                double delta=Math.max(0,unscaledRunning-lastUnscaledRunning);
+                scaledRunning+=delta*speed;
+                lastUnscaledRunning=unscaledRunning;
+                running=scaledRunning;
+            }
             boolean emitNow=emit&&decision!=CodedPlayDecision.PAUSE;
             var pending=new java.util.ArrayList<EffectTimeline.Pending>();
             if(clip.loop()==PoseAnimationLibrary.Loop.ONCE&&running>=clip.duration()&&!changed) {
