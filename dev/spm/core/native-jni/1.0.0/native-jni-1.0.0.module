@@ -36,11 +36,11 @@
         {
           "name": "native-jni-1.0.0.jar",
           "url": "native-jni-1.0.0.jar",
-          "size": 18887,
-          "sha512": "57d9b2b261d622675bf9cbdc5b3ba84821cee8cd9b64e630974a2e5a2e98e230efb2a0ee1760a29367b3d95fe676c82c93f6bdfdb5d13bc7fa40f216bf4eca74",
-          "sha256": "54dd6eff3c91615461169f851fb20b047911a01c07974bd12b79a612ce985ba6",
-          "sha1": "944b87b1c8447b28d8824def6d7f07d90866b592",
-          "md5": "1fc10b917ca292f5bb41686f40a542f9"
+          "size": 18880,
+          "sha512": "98795c5fcd319710308dcd04c06dc08aa597d167957f01f19d0d3e537ba8295f4c760a0b6300a2acad75840502e0abc76e1c57612ca19abffd65be68a3b70f0d",
+          "sha256": "def47b844ec69c9d9c870790908c1b2fc21c5ddf746f34fee1eac3053dce2595",
+          "sha1": "725162b83161b0d3775ddf5320046ee5dc4cbfcf",
+          "md5": "934b4f4b523640f0029b00d8dde05020"
         }
       ]
     },
@@ -66,11 +66,11 @@
         {
           "name": "native-jni-1.0.0.jar",
           "url": "native-jni-1.0.0.jar",
-          "size": 18887,
-          "sha512": "57d9b2b261d622675bf9cbdc5b3ba84821cee8cd9b64e630974a2e5a2e98e230efb2a0ee1760a29367b3d95fe676c82c93f6bdfdb5d13bc7fa40f216bf4eca74",
-          "sha256": "54dd6eff3c91615461169f851fb20b047911a01c07974bd12b79a612ce985ba6",
-          "sha1": "944b87b1c8447b28d8824def6d7f07d90866b592",
-          "md5": "1fc10b917ca292f5bb41686f40a542f9"
+          "size": 18880,
+          "sha512": "98795c5fcd319710308dcd04c06dc08aa597d167957f01f19d0d3e537ba8295f4c760a0b6300a2acad75840502e0abc76e1c57612ca19abffd65be68a3b70f0d",
+          "sha256": "def47b844ec69c9d9c870790908c1b2fc21c5ddf746f34fee1eac3053dce2595",
+          "sha1": "725162b83161b0d3775ddf5320046ee5dc4cbfcf",
+          "md5": "934b4f4b523640f0029b00d8dde05020"
         }
       ]
     },

@@ -36,11 +36,11 @@
         {
           "name": "acceleration-api-1.0.0.jar",
           "url": "acceleration-api-1.0.0.jar",
-          "size": 10438,
-          "sha512": "767b04d75a120cf2d89506ae0956be30a09ea5ac2ff5d359ed814362d9d71d32b814f6eb6d26034515c9e5e3d9d3892f3501dc8a04aef5fba045bbdbe62ed61f",
-          "sha256": "03a4f23aa6700818d25e063ec265690e3dfa4b835a0b1352e33a60a6adb92fc8",
-          "sha1": "a5394a11ab75355b35d79f37c0b93d78bd3e4d95",
-          "md5": "39288eece886964eaf523d00297bf32f"
+          "size": 10431,
+          "sha512": "2cc01ef7f45ce13bfea62b5664df1e28f07481a58b0f09a1d2a60505a9a12036ca2fb5ac84d88dc8e8c23a55e85c33808b8c1ee63d3af6d33ec165bb7545cb1a",
+          "sha256": "30463582cfcf933741b679ebc0f174ec5d7d278debfd882aac843b438ef856cd",
+          "sha1": "5cb6df54e41d30f61c55cc4448e00a03b592c122",
+          "md5": "bbedb286275ed5e434e79e8709f6517c"
         }
       ]
     },
@@ -66,11 +66,11 @@
         {
           "name": "acceleration-api-1.0.0.jar",
           "url": "acceleration-api-1.0.0.jar",
-          "size": 10438,
-          "sha512": "767b04d75a120cf2d89506ae0956be30a09ea5ac2ff5d359ed814362d9d71d32b814f6eb6d26034515c9e5e3d9d3892f3501dc8a04aef5fba045bbdbe62ed61f",
-          "sha256": "03a4f23aa6700818d25e063ec265690e3dfa4b835a0b1352e33a60a6adb92fc8",
-          "sha1": "a5394a11ab75355b35d79f37c0b93d78bd3e4d95",
-          "md5": "39288eece886964eaf523d00297bf32f"
+          "size": 10431,
+          "sha512": "2cc01ef7f45ce13bfea62b5664df1e28f07481a58b0f09a1d2a60505a9a12036ca2fb5ac84d88dc8e8c23a55e85c33808b8c1ee63d3af6d33ec165bb7545cb1a",
+          "sha256": "30463582cfcf933741b679ebc0f174ec5d7d278debfd882aac843b438ef856cd",
+          "sha1": "5cb6df54e41d30f61c55cc4448e00a03b592c122",
+          "md5": "bbedb286275ed5e434e79e8709f6517c"
         }
       ]
     },

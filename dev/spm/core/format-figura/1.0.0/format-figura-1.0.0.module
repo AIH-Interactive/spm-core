@@ -50,11 +50,11 @@
         {
           "name": "format-figura-1.0.0.jar",
           "url": "format-figura-1.0.0.jar",
-          "size": 89871,
-          "sha512": "72324401371f7c9b8cc4d90ee6afe741bd6fbd59c2266d0b6cfc916a3161f756358b3cb4c775249bda71c912f1ed382f954841149930775bdeaeb8c90032f1af",
-          "sha256": "5a18cb6c999b6fba5ceefa9c80ede8a6258d728970c522fd2fc121a90ed15df9",
-          "sha1": "b5216827e512d03d30f36bcef2876f0d98b680c9",
-          "md5": "ea781525122e5c98ba3f98ac1565493e"
+          "size": 89864,
+          "sha512": "5bbf7d5acffb0622d92e3d6bd54bc229be3195548e0cf7a37d65d799111ae9eb6908b6ca12a42ef86aa060bf7c5bde5b8e11d3edc83ba207841dd824b703f100",
+          "sha256": "19439a619c14dc04c3f596005b851affce24f16666282b0f59e5a578fad6b91d",
+          "sha1": "b6e46305af39a7cedc813993ebc9be7f1863f69c",
+          "md5": "609660745904ebcf18e37e42c477d2cc"
         }
       ]
     },
@@ -108,11 +108,11 @@
         {
           "name": "format-figura-1.0.0.jar",
           "url": "format-figura-1.0.0.jar",
-          "size": 89871,
-          "sha512": "72324401371f7c9b8cc4d90ee6afe741bd6fbd59c2266d0b6cfc916a3161f756358b3cb4c775249bda71c912f1ed382f954841149930775bdeaeb8c90032f1af",
-          "sha256": "5a18cb6c999b6fba5ceefa9c80ede8a6258d728970c522fd2fc121a90ed15df9",
-          "sha1": "b5216827e512d03d30f36bcef2876f0d98b680c9",
-          "md5": "ea781525122e5c98ba3f98ac1565493e"
+          "size": 89864,
+          "sha512": "5bbf7d5acffb0622d92e3d6bd54bc229be3195548e0cf7a37d65d799111ae9eb6908b6ca12a42ef86aa060bf7c5bde5b8e11d3edc83ba207841dd824b703f100",
+          "sha256": "19439a619c14dc04c3f596005b851affce24f16666282b0f59e5a578fad6b91d",
+          "sha1": "b6e46305af39a7cedc813993ebc9be7f1863f69c",
+          "md5": "609660745904ebcf18e37e42c477d2cc"
         }
       ]
     },

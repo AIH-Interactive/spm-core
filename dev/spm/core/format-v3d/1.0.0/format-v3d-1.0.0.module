@@ -36,11 +36,11 @@
         {
           "name": "format-v3d-1.0.0.jar",
           "url": "format-v3d-1.0.0.jar",
-          "size": 28529,
-          "sha512": "704a0d0e4a5c52b91f3cbda29aa14f36358c565e49c90e9b7ad3c6ab79fdd5bac5137c960a09975567c6aef973f8a92b95306ea89b911428968efdb4e7b6369a",
-          "sha256": "f3f710cc6a907d83c53d7d12b51d77d5576f6338933cce1dc00435cd182345d8",
-          "sha1": "a9e47dff102650c690c849b8625c756b2849de13",
-          "md5": "08fbcfc5d56f5340aed0ca11ef4de506"
+          "size": 28522,
+          "sha512": "fbdb74bb42b455277ad8332ec2bb6f511cce3320526045a6e219c0e7ab266b572d232b2a913be3114624bb5a028b857ef14a78f0fa96bee6862b3a6b4a736102",
+          "sha256": "e2d3d3e55fd79837452a42013dc228dac54df3f99f2e94b67f2fe877aa4e571e",
+          "sha1": "2d433e652b91eb2383959b84598a2b57918e9c58",
+          "md5": "77916546fa9615af07879f41f35f9481"
         }
       ]
     },
@@ -80,11 +80,11 @@
         {
           "name": "format-v3d-1.0.0.jar",
           "url": "format-v3d-1.0.0.jar",
-          "size": 28529,
-          "sha512": "704a0d0e4a5c52b91f3cbda29aa14f36358c565e49c90e9b7ad3c6ab79fdd5bac5137c960a09975567c6aef973f8a92b95306ea89b911428968efdb4e7b6369a",
-          "sha256": "f3f710cc6a907d83c53d7d12b51d77d5576f6338933cce1dc00435cd182345d8",
-          "sha1": "a9e47dff102650c690c849b8625c756b2849de13",
-          "md5": "08fbcfc5d56f5340aed0ca11ef4de506"
+          "size": 28522,
+          "sha512": "fbdb74bb42b455277ad8332ec2bb6f511cce3320526045a6e219c0e7ab266b572d232b2a913be3114624bb5a028b857ef14a78f0fa96bee6862b3a6b4a736102",
+          "sha256": "e2d3d3e55fd79837452a42013dc228dac54df3f99f2e94b67f2fe877aa4e571e",
+          "sha1": "2d433e652b91eb2383959b84598a2b57918e9c58",
+          "md5": "77916546fa9615af07879f41f35f9481"
         }
       ]
     },

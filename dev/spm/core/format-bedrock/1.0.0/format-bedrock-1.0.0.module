@@ -36,11 +36,11 @@
         {
           "name": "format-bedrock-1.0.0.jar",
           "url": "format-bedrock-1.0.0.jar",
-          "size": 18662,
-          "sha512": "0c2ea0afc76d78d916dee2c64113c2ea9b48d1e1f0e9f8d6c4f46d30ca777bc8a58c6138f3d13415336036cc7cb5393bf833c86833c01cf6e864d856cfbb8ac5",
-          "sha256": "a43b339ed7343d5d3e006f2f586f7735e3b194671cd667f334766bd5ba8790d9",
-          "sha1": "dedcce5deba8938fc153eb6a9f949016952f58b4",
-          "md5": "2fe9913e694bad1fa8d0993a22360066"
+          "size": 19462,
+          "sha512": "3d01667153015e49a12d41ef154179d917b7365170a926d337ede2ebf8b9ceda208040badde6b2adfdc7418a418b25458d30c3ed73c47c3b3bcf7baa3a67a141",
+          "sha256": "86a229f9f6f4a7f4390c984b34d01956688f9c88a23f100b14ddcb8ddf8a037c",
+          "sha1": "a8054a735d627960c69b58debef4ef8e458dd985",
+          "md5": "ab26a0a3f4a6124a1ecf8f071cffddc5"
         }
       ]
     },
@@ -73,11 +73,11 @@
         {
           "name": "format-bedrock-1.0.0.jar",
           "url": "format-bedrock-1.0.0.jar",
-          "size": 18662,
-          "sha512": "0c2ea0afc76d78d916dee2c64113c2ea9b48d1e1f0e9f8d6c4f46d30ca777bc8a58c6138f3d13415336036cc7cb5393bf833c86833c01cf6e864d856cfbb8ac5",
-          "sha256": "a43b339ed7343d5d3e006f2f586f7735e3b194671cd667f334766bd5ba8790d9",
-          "sha1": "dedcce5deba8938fc153eb6a9f949016952f58b4",
-          "md5": "2fe9913e694bad1fa8d0993a22360066"
+          "size": 19462,
+          "sha512": "3d01667153015e49a12d41ef154179d917b7365170a926d337ede2ebf8b9ceda208040badde6b2adfdc7418a418b25458d30c3ed73c47c3b3bcf7baa3a67a141",
+          "sha256": "86a229f9f6f4a7f4390c984b34d01956688f9c88a23f100b14ddcb8ddf8a037c",
+          "sha1": "a8054a735d627960c69b58debef4ef8e458dd985",
+          "md5": "ab26a0a3f4a6124a1ecf8f071cffddc5"
         }
       ]
     },
@@ -93,11 +93,11 @@
         {
           "name": "format-bedrock-1.0.0-sources.jar",
           "url": "format-bedrock-1.0.0-sources.jar",
-          "size": 5986,
-          "sha512": "1817e75bbbd22c59deaf5a3fea39a8514488355d91646417f14e40e6b7ae3c6cd4f95b90e0047c1825a0e340a4f05f2629c0af5acfcc09775dbdbab3385751a9",
-          "sha256": "e9f4fbaf334faf9c8e67cbf2f95a4ec89038f7e9319a64951b53ed7dc18ba6f9",
-          "sha1": "8a1ad060c912fe93eca93bec65b9d5a2021449ad",
-          "md5": "46ff1c81b979542f9ef5ef70a8202ced"
+          "size": 6330,
+          "sha512": "812527d7c1d77497c05c0c50a96fa31ff87306134880a068f479fefd0c8251fe16b3e9c30ae9b2b1c750e9fc1db0556c324662875aee98e6cb1296a9d666b83b",
+          "sha256": "b1d272b5e62384def73c36e741651e7918f46fe2fa38173eb90c2aa206dcab75",
+          "sha1": "efdc1487edf240d74b5e9f0d66e187ffcfb734ed",
+          "md5": "e9644519b2140780205d38c3076b20f0"
         }
       ]
     },
@@ -113,11 +113,11 @@
         {
           "name": "format-bedrock-1.0.0-javadoc.jar",
           "url": "format-bedrock-1.0.0-javadoc.jar",
-          "size": 4148827,
-          "sha512": "c2c8fea5bafdaf6a4b4155079617e78557ae1609633c0fbddcdff5e72e950e4676bcfd90416b4f422a12290e704884c81614a31c8316021bf784afbba56a6f55",
-          "sha256": "e02b2bc954d5494cadb5aeae92388c27e25b95947325a26dc8e5c62712059c12",
-          "sha1": "d445651654d6ccd73941bf6f8326d327229e1187",
-          "md5": "d0b22e26d507cfb001229b6a87e20038"
+          "size": 4149044,
+          "sha512": "f263e333d461675b3ea752347cc4907d5a0d4c7dd8eb512484370784aacf0b808d3a824c7084044d1f261699ecd43235fa128e640649d153dbc3c1e252ebe99b",
+          "sha256": "ba311505642c414edcdcdaef43cbad21111e765120f1332dfe316c946273d14e",
+          "sha1": "2861db6e73b37db10eda8626b0133b9d5e1bd9c0",
+          "md5": "7a6dfec0d3f2c33dc6838c54aae808a4"
         }
       ]
     }

@@ -36,11 +36,11 @@
         {
           "name": "format-gltf-1.0.0.jar",
           "url": "format-gltf-1.0.0.jar",
-          "size": 52182,
-          "sha512": "5e62286b946220a7361869775a369213d587cf66f2f66f8c2cb2ecdc9c48b4ffe238b8c30d8a36480781aef769ee256a2bd8627103eb6affb4a21a3cddd46573",
-          "sha256": "779361e5aabf8b846d34b4f7ba99c8b5d011b280aa8b68d522ab17dba9eb8898",
-          "sha1": "82d52983d98b7cd24420719592b8070e3ee5a1c1",
-          "md5": "9fa35f21d7c15c19a6bc018323f26b44"
+          "size": 52175,
+          "sha512": "affa89d69825e383b3e76636c8537af456a50be99e2fa546ce85d9d9b0b38d654ebdff7e3e00e686b80d88c60b545f85b5e7065c6f897c0bfdd9855db98ddd4d",
+          "sha256": "7828341e995dd295b75cf6bc641971e1f4e150d276686b77f90d0eee1c9aeb74",
+          "sha1": "9d303c068d51a35c155ec792e187299c83520c58",
+          "md5": "4583aa4bde022f6b258621d522148064"
         }
       ]
     },
@@ -73,11 +73,11 @@
         {
           "name": "format-gltf-1.0.0.jar",
           "url": "format-gltf-1.0.0.jar",
-          "size": 52182,
-          "sha512": "5e62286b946220a7361869775a369213d587cf66f2f66f8c2cb2ecdc9c48b4ffe238b8c30d8a36480781aef769ee256a2bd8627103eb6affb4a21a3cddd46573",
-          "sha256": "779361e5aabf8b846d34b4f7ba99c8b5d011b280aa8b68d522ab17dba9eb8898",
-          "sha1": "82d52983d98b7cd24420719592b8070e3ee5a1c1",
-          "md5": "9fa35f21d7c15c19a6bc018323f26b44"
+          "size": 52175,
+          "sha512": "affa89d69825e383b3e76636c8537af456a50be99e2fa546ce85d9d9b0b38d654ebdff7e3e00e686b80d88c60b545f85b5e7065c6f897c0bfdd9855db98ddd4d",
+          "sha256": "7828341e995dd295b75cf6bc641971e1f4e150d276686b77f90d0eee1c9aeb74",
+          "sha1": "9d303c068d51a35c155ec792e187299c83520c58",
+          "md5": "4583aa4bde022f6b258621d522148064"
         }
       ]
     },

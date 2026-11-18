@@ -36,11 +36,11 @@
         {
           "name": "format-ysm-1.0.0.jar",
           "url": "format-ysm-1.0.0.jar",
-          "size": 116311,
-          "sha512": "891b56cfce70662fd2d8678c7d0913eb8b8c022590cd357deb569832b45c817f28e5f2872b32ca7b26cb48f716429094b1328bbcb88e1936d9854cde3800a468",
-          "sha256": "0eec5f9ec65f4f8bc0c3885c51d735542a1fb252ff3dfafbbcc0680fd5a01af2",
-          "sha1": "b8c71eb3027a5d97003cf810a1d19b594b52a99d",
-          "md5": "8dde82b0f5df898e729f89307d24d081"
+          "size": 116304,
+          "sha512": "ca1181812809bf2d85ec81db8ebc04fd6f9b0011a2f3a32982f39e4aecd2ec159688892b3480dc1e1e002b390495d19e13d908d25272fb44ad92f1e628e7ae7f",
+          "sha256": "cb7022f3bc49819c4f31eaaf75275863c1413bde734511f704707cc57e540cfd",
+          "sha1": "15003c740d9bd4da4447270d0dcaca2c5a2a8c23",
+          "md5": "bf3c3b0b3d6d4dfa3e49eb1905b944c2"
         }
       ]
     },
@@ -80,11 +80,11 @@
         {
           "name": "format-ysm-1.0.0.jar",
           "url": "format-ysm-1.0.0.jar",
-          "size": 116311,
-          "sha512": "891b56cfce70662fd2d8678c7d0913eb8b8c022590cd357deb569832b45c817f28e5f2872b32ca7b26cb48f716429094b1328bbcb88e1936d9854cde3800a468",
-          "sha256": "0eec5f9ec65f4f8bc0c3885c51d735542a1fb252ff3dfafbbcc0680fd5a01af2",
-          "sha1": "b8c71eb3027a5d97003cf810a1d19b594b52a99d",
-          "md5": "8dde82b0f5df898e729f89307d24d081"
+          "size": 116304,
+          "sha512": "ca1181812809bf2d85ec81db8ebc04fd6f9b0011a2f3a32982f39e4aecd2ec159688892b3480dc1e1e002b390495d19e13d908d25272fb44ad92f1e628e7ae7f",
+          "sha256": "cb7022f3bc49819c4f31eaaf75275863c1413bde734511f704707cc57e540cfd",
+          "sha1": "15003c740d9bd4da4447270d0dcaca2c5a2a8c23",
+          "md5": "bf3c3b0b3d6d4dfa3e49eb1905b944c2"
         }
       ]
     },

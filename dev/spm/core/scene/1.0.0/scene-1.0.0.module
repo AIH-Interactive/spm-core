@@ -36,11 +36,11 @@
         {
           "name": "scene-1.0.0.jar",
           "url": "scene-1.0.0.jar",
-          "size": 221921,
-          "sha512": "7cfccb7fed606089d893be913a93cbb312ed29f16311c9d42cee73d0d691df0b6ebb55dcc27f28abf405406a437a597d8e8da70624fcf30eae03d6a80204680b",
-          "sha256": "84590d54ea4adb08e8f94cdde0e44d32ade0c6ca384816bdadf7cdf4ed68ba9e",
-          "sha1": "9ac1bbc591346fc5f00c17750e655a383c525451",
-          "md5": "e349151ebb81c7e3d01ad6df25b8a1e4"
+          "size": 229372,
+          "sha512": "28a4f7981924979d58637de5054bd3f13d752e16e321f7c125fc1d3643a66be224165ad0625fb1e9e796d1bd07b92c551575e45f02498502009c94afd44b05bc",
+          "sha256": "628b3edbd4f179836ae85b405b9839b5622424a18b1d288753886e17d8940cf3",
+          "sha1": "c43a358f4d1023c10501c6a95247fca538eb82e9",
+          "md5": "d8e8357e66b64de3ae7dd0ad89532265"
         }
       ]
     },
@@ -66,11 +66,11 @@
         {
           "name": "scene-1.0.0.jar",
           "url": "scene-1.0.0.jar",
-          "size": 221921,
-          "sha512": "7cfccb7fed606089d893be913a93cbb312ed29f16311c9d42cee73d0d691df0b6ebb55dcc27f28abf405406a437a597d8e8da70624fcf30eae03d6a80204680b",
-          "sha256": "84590d54ea4adb08e8f94cdde0e44d32ade0c6ca384816bdadf7cdf4ed68ba9e",
-          "sha1": "9ac1bbc591346fc5f00c17750e655a383c525451",
-          "md5": "e349151ebb81c7e3d01ad6df25b8a1e4"
+          "size": 229372,
+          "sha512": "28a4f7981924979d58637de5054bd3f13d752e16e321f7c125fc1d3643a66be224165ad0625fb1e9e796d1bd07b92c551575e45f02498502009c94afd44b05bc",
+          "sha256": "628b3edbd4f179836ae85b405b9839b5622424a18b1d288753886e17d8940cf3",
+          "sha1": "c43a358f4d1023c10501c6a95247fca538eb82e9",
+          "md5": "d8e8357e66b64de3ae7dd0ad89532265"
         }
       ]
     },
@@ -86,11 +86,11 @@
         {
           "name": "scene-1.0.0-sources.jar",
           "url": "scene-1.0.0-sources.jar",
-          "size": 73436,
-          "sha512": "994ed1f5516fd8ad42a957c1aa007c87d2b424b61a10761425d1b54a5350ca4a794610ab7ebcf39c9e008519688097dec8575ac74f15320aef162662fa641abc",
-          "sha256": "893f739ec8e2850914dc202d09b9f457e3b02f197f255dc1f0880baf55d5fa9d",
-          "sha1": "306d63af540667dfb3f55642b1c85d5dc8edf4be",
-          "md5": "a49b4ea9605862f973bb26fe982d95f8"
+          "size": 75967,
+          "sha512": "9cac84fff2ff11807fe44f3e7f06f3e692cb4b30f4ba36283ca0ff1bcbb25d9ae9771799116d7130d438407f3332d8a516d792f8f8af7d038143c7f536fd92a3",
+          "sha256": "708300aef6ab6c3aabcffd8e1201bca106f488c0c2908270b686af9730017fda",
+          "sha1": "701ad156115db58f761e313042d20106776ce70e",
+          "md5": "1ec260764f8dd0b058310389e7a450ac"
         }
       ]
     },
@@ -106,11 +106,11 @@
         {
           "name": "scene-1.0.0-javadoc.jar",
           "url": "scene-1.0.0-javadoc.jar",
-          "size": 4392964,
-          "sha512": "41c10d70718db6b31f54973e78964c0f289d2141580831bfb0f4d6b58455e481e5ac01ad938d72e074ba2c7909c32a9a51f7db3531b699309061b36fd12357f8",
-          "sha256": "a50eb5d118968e241d909a62a760f55ec3cb0d9d7f8a3da50d2382fb035dd022",
-          "sha1": "b4e20fe41458e241755479debed0421d5337a847",
-          "md5": "8234e3153adddfe12424f4c04c02e22a"
+          "size": 4404531,
+          "sha512": "3746a436146e2be2c66dbc9269f7e9303c5fcd3888f71e1240532ca8e8d2db8a22198474146946c216e752fa5ebb90d32c9dc68807afa0475b5d9233696a9e17",
+          "sha256": "ced83568a2bf0c61e179fcf580dd7d5634424bd1dc61108e843b8a4463fa0504",
+          "sha1": "c88b56186b08b8c841d9261f0d763be16b9a6398",
+          "md5": "6f4b2f89fa9e2ed87c1765112a23762a"
         }
       ]
     }

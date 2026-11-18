@@ -36,11 +36,11 @@
         {
           "name": "codec-1.0.0.jar",
           "url": "codec-1.0.0.jar",
-          "size": 21493,
-          "sha512": "0f221ce052cef974edcf9fb5f87d35d8be158ce2d03bd287c3a40d7bdca10b0fae9f9ec0b122ed394303b486335f80560819bf9e8e6703f1ee6d982b50212351",
-          "sha256": "498a04601872f1acf6a92c8f08724c0d0329080ded73a1b76e3c0a033ad58035",
-          "sha1": "881a8a7a5ff3d2a9291c3dcf3e3646964d588c61",
-          "md5": "1b34de56032c36ed824ce14344d40676"
+          "size": 21486,
+          "sha512": "69c1b86189be1d88d38aca75f92aea92f5405afe4897ee66f521d4cf2234a3f9badb33369e44e54b4b62386f14ecb4161a5f374b195200c2c237321ce40f4a30",
+          "sha256": "20fd06df48e7cdc63397288e106fe42fa94e0bc74a70a02a929bbd997dab6d6c",
+          "sha1": "e08e6bc34c969b28f3e80c0eb4a6f16080207aa7",
+          "md5": "d3ef2a6648e354499a637259cc50444c"
         }
       ]
     },
@@ -66,11 +66,11 @@
         {
           "name": "codec-1.0.0.jar",
           "url": "codec-1.0.0.jar",
-          "size": 21493,
-          "sha512": "0f221ce052cef974edcf9fb5f87d35d8be158ce2d03bd287c3a40d7bdca10b0fae9f9ec0b122ed394303b486335f80560819bf9e8e6703f1ee6d982b50212351",
-          "sha256": "498a04601872f1acf6a92c8f08724c0d0329080ded73a1b76e3c0a033ad58035",
-          "sha1": "881a8a7a5ff3d2a9291c3dcf3e3646964d588c61",
-          "md5": "1b34de56032c36ed824ce14344d40676"
+          "size": 21486,
+          "sha512": "69c1b86189be1d88d38aca75f92aea92f5405afe4897ee66f521d4cf2234a3f9badb33369e44e54b4b62386f14ecb4161a5f374b195200c2c237321ce40f4a30",
+          "sha256": "20fd06df48e7cdc63397288e106fe42fa94e0bc74a70a02a929bbd997dab6d6c",
+          "sha1": "e08e6bc34c969b28f3e80c0eb4a6f16080207aa7",
+          "md5": "d3ef2a6648e354499a637259cc50444c"
         }
       ]
     },

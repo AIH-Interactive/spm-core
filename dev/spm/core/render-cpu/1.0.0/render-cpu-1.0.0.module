@@ -43,11 +43,11 @@
         {
           "name": "render-cpu-1.0.0.jar",
           "url": "render-cpu-1.0.0.jar",
-          "size": 31983,
-          "sha512": "f830261254c451aa1011c042aff4c1f8fcff1665d2017d5c15c35db47f35792d8a7fb34129cbb15c30bd6afebef64075beba291cfd7935e5db04dd6a76eec07b",
-          "sha256": "47beba46922f446cefb723bdb2fc9603aaa07382638b5e8088c351f709b11a9e",
-          "sha1": "bf6f3c03a6735956bec58033f03646d74dbe7633",
-          "md5": "eb040d358d030452b24eea93659f6e14"
+          "size": 31976,
+          "sha512": "129af2aa6b9a4b6b2ff83d119ad1d5f920aebece6ff11f825cdff8d3d75cded105ca22a3f50170bd3aa6c1716f2f57cc2a4d02843bad3c96d0f50f7de56cd916",
+          "sha256": "df5d9676d25fb331864432f3b0b0a1260a9907e3dd81c28694fd696cd8f239d1",
+          "sha1": "92981750d54b66e17012919cc16374013a668983",
+          "md5": "36198248cf6850bbbed0c5887c1db719"
         }
       ]
     },
@@ -80,11 +80,11 @@
         {
           "name": "render-cpu-1.0.0.jar",
           "url": "render-cpu-1.0.0.jar",
-          "size": 31983,
-          "sha512": "f830261254c451aa1011c042aff4c1f8fcff1665d2017d5c15c35db47f35792d8a7fb34129cbb15c30bd6afebef64075beba291cfd7935e5db04dd6a76eec07b",
-          "sha256": "47beba46922f446cefb723bdb2fc9603aaa07382638b5e8088c351f709b11a9e",
-          "sha1": "bf6f3c03a6735956bec58033f03646d74dbe7633",
-          "md5": "eb040d358d030452b24eea93659f6e14"
+          "size": 31976,
+          "sha512": "129af2aa6b9a4b6b2ff83d119ad1d5f920aebece6ff11f825cdff8d3d75cded105ca22a3f50170bd3aa6c1716f2f57cc2a4d02843bad3c96d0f50f7de56cd916",
+          "sha256": "df5d9676d25fb331864432f3b0b0a1260a9907e3dd81c28694fd696cd8f239d1",
+          "sha1": "92981750d54b66e17012919cc16374013a668983",
+          "md5": "36198248cf6850bbbed0c5887c1db719"
         }
       ]
     },

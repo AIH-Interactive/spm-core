@@ -36,11 +36,11 @@
         {
           "name": "format-bbmodel-1.0.0.jar",
           "url": "format-bbmodel-1.0.0.jar",
-          "size": 24885,
-          "sha512": "f57570ec7702f769ed9d9659e4fada1cd0a2f2e5a3b922f8f17a51d572140158ac6030f0994b47898def37ebc611e9a3290fbefa779a5fe39860c286371b1c6d",
-          "sha256": "9cd0d0232b878a5cd072a214f2e47861aec91d0cf00a782177ac4932332ee142",
-          "sha1": "ee09680c67fffcd42494f1a27d91685684c94426",
-          "md5": "5a048d994885f9c2ced163a71dae14a3"
+          "size": 24878,
+          "sha512": "61ee3eb95a628bfc5aefedd891ddd018b5afb36819222fe711240e1e9e0f326c06f360b354653ee92794a6c78c73c1c3d1c40daa3e17a9eddefe1a6f016d1509",
+          "sha256": "3309c96eceb9a45a5e80db171ae739c9e88ef77824593c3c5dfe8cfd4f443099",
+          "sha1": "bb84c95bf117374d3a9b478cfba11417343deef2",
+          "md5": "1859e668b26550aeadbb98e7e006916f"
         }
       ]
     },
@@ -73,11 +73,11 @@
         {
           "name": "format-bbmodel-1.0.0.jar",
           "url": "format-bbmodel-1.0.0.jar",
-          "size": 24885,
-          "sha512": "f57570ec7702f769ed9d9659e4fada1cd0a2f2e5a3b922f8f17a51d572140158ac6030f0994b47898def37ebc611e9a3290fbefa779a5fe39860c286371b1c6d",
-          "sha256": "9cd0d0232b878a5cd072a214f2e47861aec91d0cf00a782177ac4932332ee142",
-          "sha1": "ee09680c67fffcd42494f1a27d91685684c94426",
-          "md5": "5a048d994885f9c2ced163a71dae14a3"
+          "size": 24878,
+          "sha512": "61ee3eb95a628bfc5aefedd891ddd018b5afb36819222fe711240e1e9e0f326c06f360b354653ee92794a6c78c73c1c3d1c40daa3e17a9eddefe1a6f016d1509",
+          "sha256": "3309c96eceb9a45a5e80db171ae739c9e88ef77824593c3c5dfe8cfd4f443099",
+          "sha1": "bb84c95bf117374d3a9b478cfba11417343deef2",
+          "md5": "1859e668b26550aeadbb98e7e006916f"
         }
       ]
     },
