@@ -1,0 +1,132 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "script-lua",
+    "version": "1.1.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.1.0"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "scene",
+          "version": {
+            "requires": "1.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "script-lua-1.1.0.jar",
+          "url": "script-lua-1.1.0.jar",
+          "size": 122914,
+          "sha512": "097092a35dc20ed296290a6dea78d569681428c7601ea7ddade221a79e97144aefeda689c83bcbdc95bc696aff2f369127b1670f36228b4c74a776389a1f3c27",
+          "sha256": "0e5ed9ebf1ab345793602dd1d844d196b6e4a9d85f513d5ee175114f66c43f1b",
+          "sha1": "d9f774a049a044b7fea6fb67fcd08db5d55c4341",
+          "md5": "4d148d8478ddfdf7a136a7acabc85e53"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.1.0"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "scene",
+          "version": {
+            "requires": "1.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "script-lua-1.1.0.jar",
+          "url": "script-lua-1.1.0.jar",
+          "size": 122914,
+          "sha512": "097092a35dc20ed296290a6dea78d569681428c7601ea7ddade221a79e97144aefeda689c83bcbdc95bc696aff2f369127b1670f36228b4c74a776389a1f3c27",
+          "sha256": "0e5ed9ebf1ab345793602dd1d844d196b6e4a9d85f513d5ee175114f66c43f1b",
+          "sha1": "d9f774a049a044b7fea6fb67fcd08db5d55c4341",
+          "md5": "4d148d8478ddfdf7a136a7acabc85e53"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "script-lua-1.1.0-sources.jar",
+          "url": "script-lua-1.1.0-sources.jar",
+          "size": 32168,
+          "sha512": "1f069271b4363c5355422110be32853df04c1d1a2f777d6e697fee1472f6d514728782c179957f9e00879d64030756a5b4936dba469fa14f69ce6b750301b463",
+          "sha256": "91322ee4aca099f91c29492ca4bef0aa07eb9bff6ef600e0460ad99f3a8375dd",
+          "sha1": "e9b663a89538149fcf2e19502990583d83c80b1f",
+          "md5": "65ff5645d3a29d9b210c82c33761e302"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "script-lua-1.1.0-javadoc.jar",
+          "url": "script-lua-1.1.0-javadoc.jar",
+          "size": 4206339,
+          "sha512": "4b3abe77c1100ca13e66f257946896e29ebcab992627f1b1c76104af93927e15bc0a8b54bd08daa30028050bcc02f94d3c341a2b8673b0c048947f49d37333c9",
+          "sha256": "759ee6ac3d3b464efb8fe32f28aa43c39ecfbe64d8d1779eb382c8766253bbf0",
+          "sha1": "69c1a3a23b18bfb5c8ba5e64c308b07fc3c63b17",
+          "md5": "873d043c828b69acca5c7985d438a17e"
+        }
+      ]
+    }
+  ]
+}

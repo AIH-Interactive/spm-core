@@ -1,0 +1,132 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "render-cpu",
+    "version": "1.1.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.1.0"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "acceleration-api",
+          "version": {
+            "requires": "1.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "render-cpu-1.1.0.jar",
+          "url": "render-cpu-1.1.0.jar",
+          "size": 31976,
+          "sha512": "129af2aa6b9a4b6b2ff83d119ad1d5f920aebece6ff11f825cdff8d3d75cded105ca22a3f50170bd3aa6c1716f2f57cc2a4d02843bad3c96d0f50f7de56cd916",
+          "sha256": "df5d9676d25fb331864432f3b0b0a1260a9907e3dd81c28694fd696cd8f239d1",
+          "sha1": "92981750d54b66e17012919cc16374013a668983",
+          "md5": "36198248cf6850bbbed0c5887c1db719"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.1.0"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "acceleration-api",
+          "version": {
+            "requires": "1.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "render-cpu-1.1.0.jar",
+          "url": "render-cpu-1.1.0.jar",
+          "size": 31976,
+          "sha512": "129af2aa6b9a4b6b2ff83d119ad1d5f920aebece6ff11f825cdff8d3d75cded105ca22a3f50170bd3aa6c1716f2f57cc2a4d02843bad3c96d0f50f7de56cd916",
+          "sha256": "df5d9676d25fb331864432f3b0b0a1260a9907e3dd81c28694fd696cd8f239d1",
+          "sha1": "92981750d54b66e17012919cc16374013a668983",
+          "md5": "36198248cf6850bbbed0c5887c1db719"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "render-cpu-1.1.0-sources.jar",
+          "url": "render-cpu-1.1.0-sources.jar",
+          "size": 15505,
+          "sha512": "1cd6f5599390ad3c5463bacaea37f0e536f87c430e24b666807ee72190cf810ba8f61ea378ac6cf0027d1eac990967d779b8d0d06ba7be23af4ac34c0787004f",
+          "sha256": "8fbbeb8c6fe20dee53c9236bb8d947857d5c3b7438f65697403985b6b8315e06",
+          "sha1": "db9548ff4a1ca48fc0536c61fd64ce46fff3a2e8",
+          "md5": "8ad923fddccac8c3fe6eefeb20d2c24c"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "render-cpu-1.1.0-javadoc.jar",
+          "url": "render-cpu-1.1.0-javadoc.jar",
+          "size": 4174590,
+          "sha512": "f23660b37236f357a3598b2b9bfc09ed949c6db96b9a3551a8696d566aaff3dbd87e4bbcf60f19afa63dfe1db9f573731b38ead76127ac0ec8198ed8645ea365",
+          "sha256": "bc0031ce51da9566fdcf30003719d28387bc7aa558d890c6658e6a99e8d60c3f",
+          "sha1": "183d52a34b5798f8a00eaf951d8c407df8e19f91",
+          "md5": "debe0797f0516f8a3ea527e6f79b6197"
+        }
+      ]
+    }
+  ]
+}
