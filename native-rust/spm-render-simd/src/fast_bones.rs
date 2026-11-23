@@ -703,6 +703,11 @@ fn uncached_kernel(isa: Isa) -> (UncachedKernel, crate::KernelId) {
             _ => {}
         }
     }
+    // No dedicated kernel exists on this architecture, so there is nothing for `isa` to select and
+    // the portable walk serves every tier. That is also the tier reported, because naming the
+    // requested tier would claim instructions that never ran.
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    let _ = isa;
     (evaluate_scalar, KernelId::Scalar)
 }
 
@@ -782,6 +787,10 @@ fn refresh_kernel(isa: Isa) -> (RefreshKernel, crate::KernelId) {
             _ => {}
         }
     }
+    // See `uncached_kernel`: on an architecture with no vector rebuild the portable one serves
+    // every tier and is the tier reported.
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    let _ = isa;
     (refresh_scalar, KernelId::Scalar)
 }
 
@@ -899,6 +908,10 @@ fn step_kernel(isa: Isa) -> (StepKernel, crate::KernelId) {
             _ => {}
         }
     }
+    // See `uncached_kernel`: the portable fused walk serves every tier on an architecture without
+    // a vector kernel, and reports itself rather than the requested tier.
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    let _ = isa;
     (step_scalar, KernelId::Scalar)
 }
 
@@ -2994,22 +3007,8 @@ mod x86 {
     }
 }
 
-#[cfg(target_arch = "aarch64")]
-mod neon {
-    use super::*;
-
-    /// NEON has no dedicated 8-wide step yet, so it runs the scalar walk and reports `Scalar`.
-    ///
-    /// # Safety
-    ///
-    /// `scratch` must be sized for `skeleton.bone_count()` bones.
-    #[target_feature(enable = "neon")]
-    pub(super) unsafe fn step_neon(
-        skeleton: &CompiledSkeleton,
-        params: &[f32],
-        scratch: &mut Scratch,
-    ) -> Result<(), Status> {
-        // SAFETY: as above.
-        unsafe { super::step_scalar(skeleton, params, scratch) }
-    }
-}
+// There is deliberately no `neon` module here. NEON has no dedicated 8-wide packed kernel, so every
+// aarch64 tier resolves to the portable walk, and that walk reports `Scalar` because that is the
+// code it executes. A module that only forwards to the portable walk would add a name without
+// changing which instructions run, and reporting `Neon` for it would be exactly the N13 defect the
+// tier report exists to prevent.
