@@ -332,17 +332,14 @@ pub unsafe fn evaluate_packed(
             return Err(Status::BufferTooSmall);
         }
     }
+    let isa = crate::select(request.isa)?;
+    let id = step_tier(isa);
     if request.root[..ROOT_FLOATS].iter().any(|v| !v.is_finite()) {
         return Err(Status::NonFinite);
     }
-    if request.params[..param_floats]
-        .iter()
-        .any(|v| !v.is_finite())
-    {
+    if !all_finite(&request.params[..param_floats], isa) {
         return Err(Status::NonFinite);
     }
-    let isa = crate::select(request.isa)?;
-    let id = step_tier(isa);
 
     let mut root = [0_f32; ROOT_FLOATS];
     root.copy_from_slice(&request.root[..ROOT_FLOATS]);
@@ -390,6 +387,22 @@ pub unsafe fn evaluate_packed(
             path,
         })
     })
+}
+
+/// Returns true iff every float in `values` is finite (neither NaN nor infinite).
+///
+/// The bit test `(bits & 0x7f80_0000) == 0x7f80_0000` matches IEEE-754 non-finite values exactly,
+/// allowing the vector path to check 32 floats per iteration without branches.
+#[inline]
+fn all_finite(values: &[f32], isa: Isa) -> bool {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    if matches!(isa, Isa::Avx2 | Isa::Avx2Fma | Isa::Avx512) {
+        // SAFETY: `crate::select` already verified AVX2 support for `isa`.
+        return unsafe { x86::all_finite_avx2(values) };
+    }
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    let _ = isa;
+    values.iter().all(|v| v.is_finite())
 }
 
 /// The canonical hidden record: identity transform, identity normal, hidden flag set.
@@ -531,10 +544,15 @@ impl RootColumns {
 
     /// SSE2 form: one 4-wide multiply-add chain per output column.
     ///
+    /// Every world matrix this path emits is affine (`[.., 0]` for the first three columns and
+    /// `[.., 1]` for the translation column), so the first three columns skip the zero product
+    /// against `r3` and the fourth adds `r3` directly.
+    ///
     /// # Safety
     ///
     /// `record` must be valid for 144 writable bytes.
     #[cfg(target_arch = "x86_64")]
+    #[inline]
     #[target_feature(enable = "sse2")]
     unsafe fn write_record_sse2(
         &self,
@@ -549,15 +567,20 @@ impl RootColumns {
         let r1 = _mm_loadu_ps(self.pose[1].as_ptr());
         let r2 = _mm_loadu_ps(self.pose[2].as_ptr());
         let r3 = _mm_loadu_ps(self.pose[3].as_ptr());
-        for col in 0..4 {
-            // `m[col*4 + k]` is broadcast and multiplied by root column `k`, so the result column
-            // is `sum_k root[k] * m[col][k]` — the same order the scalar form uses.
+        for col in 0..3 {
             let mut acc = _mm_mul_ps(r0, _mm_set1_ps(m[col * 4]));
             acc = _mm_add_ps(acc, _mm_mul_ps(r1, _mm_set1_ps(m[col * 4 + 1])));
             acc = _mm_add_ps(acc, _mm_mul_ps(r2, _mm_set1_ps(m[col * 4 + 2])));
-            acc = _mm_add_ps(acc, _mm_mul_ps(r3, _mm_set1_ps(m[col * 4 + 3])));
-            // SAFETY: `col * 16` is at most 48, so the 16-byte store stays inside the slot.
+            // SAFETY: `col * 16` is at most 32, so the 16-byte store stays inside the slot.
             unsafe { _mm_storeu_ps(record.add(col * 16).cast::<f32>(), acc) };
+        }
+        {
+            let mut acc = _mm_mul_ps(r0, _mm_set1_ps(m[12]));
+            acc = _mm_add_ps(acc, _mm_mul_ps(r1, _mm_set1_ps(m[13])));
+            acc = _mm_add_ps(acc, _mm_mul_ps(r2, _mm_set1_ps(m[14])));
+            acc = _mm_add_ps(acc, r3);
+            // SAFETY: bytes 48..64 stay inside the 144-byte slot.
+            unsafe { _mm_storeu_ps(record.add(48).cast::<f32>(), acc) };
         }
         let n0 = _mm_loadu_ps(self.normal[0].as_ptr());
         let n1 = _mm_loadu_ps(self.normal[1].as_ptr());
@@ -576,8 +599,75 @@ impl RootColumns {
         unsafe {
             _mm_storeu_ps(record.add(112).cast::<f32>(), _mm_setr_ps(0., 0., 0., 1.));
         }
+        let tail = match layout {
+            PackedLayout::FloatTail => _mm_setr_ps(light as f32, 0., 0., 0.),
+            PackedLayout::IntTail => _mm_castsi128_ps(_mm_setr_epi32(light, 0, 0, 0)),
+        };
         // SAFETY: the tail occupies bytes 128..144 of the same slot.
-        unsafe { write_tail(record, light, layout) };
+        unsafe { _mm_storeu_ps(record.add(128).cast::<f32>(), tail) };
+    }
+
+    /// AVX2/VEX form for inlining into the AVX2 kernels without a VEX-to-legacy SSE transition.
+    ///
+    /// # Safety
+    ///
+    /// `record` must be valid for 144 writable bytes, and the caller must hold `avx2`.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    unsafe fn write_record_avx2(
+        &self,
+        record: *mut u8,
+        m: &[f32],
+        nm: &[f32],
+        light: i32,
+        layout: PackedLayout,
+    ) {
+        #[cfg(target_arch = "x86")]
+        use std::arch::x86::*;
+        #[cfg(target_arch = "x86_64")]
+        use std::arch::x86_64::*;
+        let r0 = _mm_loadu_ps(self.pose[0].as_ptr());
+        let r1 = _mm_loadu_ps(self.pose[1].as_ptr());
+        let r2 = _mm_loadu_ps(self.pose[2].as_ptr());
+        let r3 = _mm_loadu_ps(self.pose[3].as_ptr());
+        for col in 0..3 {
+            let mut acc = _mm_mul_ps(r0, _mm_set1_ps(m[col * 4]));
+            acc = _mm_add_ps(acc, _mm_mul_ps(r1, _mm_set1_ps(m[col * 4 + 1])));
+            acc = _mm_add_ps(acc, _mm_mul_ps(r2, _mm_set1_ps(m[col * 4 + 2])));
+            // SAFETY: `col * 16` is at most 32, so the 16-byte store stays inside the slot.
+            unsafe { _mm_storeu_ps(record.add(col * 16).cast::<f32>(), acc) };
+        }
+        {
+            let mut acc = _mm_mul_ps(r0, _mm_set1_ps(m[12]));
+            acc = _mm_add_ps(acc, _mm_mul_ps(r1, _mm_set1_ps(m[13])));
+            acc = _mm_add_ps(acc, _mm_mul_ps(r2, _mm_set1_ps(m[14])));
+            acc = _mm_add_ps(acc, r3);
+            // SAFETY: bytes 48..64 stay inside the 144-byte slot.
+            unsafe { _mm_storeu_ps(record.add(48).cast::<f32>(), acc) };
+        }
+        let n0 = _mm_loadu_ps(self.normal[0].as_ptr());
+        let n1 = _mm_loadu_ps(self.normal[1].as_ptr());
+        let n2 = _mm_loadu_ps(self.normal[2].as_ptr());
+        let keep_xyz = _mm_castsi128_ps(_mm_setr_epi32(-1, -1, -1, 0));
+        for col in 0..3 {
+            let mut acc = _mm_mul_ps(n0, _mm_set1_ps(nm[col * 3]));
+            acc = _mm_add_ps(acc, _mm_mul_ps(n1, _mm_set1_ps(nm[col * 3 + 1])));
+            acc = _mm_add_ps(acc, _mm_mul_ps(n2, _mm_set1_ps(nm[col * 3 + 2])));
+            acc = _mm_and_ps(acc, keep_xyz);
+            // SAFETY: `64 + col * 16` is at most 96, so the 16-byte store stays inside the slot.
+            unsafe { _mm_storeu_ps(record.add(64 + col * 16).cast::<f32>(), acc) };
+        }
+        // SAFETY: the fourth column occupies bytes 112..128 of the slot.
+        unsafe {
+            _mm_storeu_ps(record.add(112).cast::<f32>(), _mm_setr_ps(0., 0., 0., 1.));
+        }
+        let tail = match layout {
+            PackedLayout::FloatTail => _mm_setr_ps(light as f32, 0., 0., 0.),
+            PackedLayout::IntTail => _mm_castsi128_ps(_mm_setr_epi32(light, 0, 0, 0)),
+        };
+        // SAFETY: the tail occupies bytes 128..144 of the same slot.
+        unsafe { _mm_storeu_ps(record.add(128).cast::<f32>(), tail) };
     }
 
     /// NEON form, the aarch64 counterpart of the SSE2 path.
@@ -637,6 +727,7 @@ impl RootColumns {
 /// # Safety
 ///
 /// `record` must be valid for 144 writable bytes.
+#[allow(dead_code)]
 #[inline]
 unsafe fn write_tail(record: *mut u8, light: i32, layout: PackedLayout) {
     // SAFETY: the tail occupies bytes 128..144 of the same slot.
@@ -1006,12 +1097,9 @@ unsafe fn step_scalar(
     let level_parents = skeleton.level_parents();
     for (slot, &bone) in order.iter().enumerate() {
         let bone = bone as usize;
-        if scratch.dirty[bone] != 0 {
-            // SAFETY: `refresh_one` re-derives everything from the bone's own parameters.
-            unsafe { refresh_one(skeleton, params, scratch, bone)? };
-        }
         if scratch.subtree_dirty[bone] != 0 {
-            // SAFETY: `bone` and `slot` come from the skeleton's own level plan.
+            // SAFETY: `bone` and `slot` come from the skeleton's own level plan, and `refresh`
+            // already rebuilt every dirty local matrix before this step ran.
             unsafe { compose_one(skeleton, params, scratch, bone, level_parents[slot], slot)? };
         }
     }
@@ -1429,8 +1517,6 @@ unsafe fn evaluate_cached(
         let (refresh, _) = refresh_kernel(isa);
         // SAFETY: `scratch` is sized for `n` bones and the kernel only touches those buffers.
         unsafe { refresh(skeleton, params, scratch)? };
-        // The locals are now final, so the composition below must not rebuild them.
-        scratch.dirty[..n].fill(0);
         let (run, _) = step_kernel(isa);
         // SAFETY: as above; the kernel only touches buffers sized for this skeleton.
         unsafe { run(skeleton, params, scratch)? };
@@ -1531,6 +1617,82 @@ mod x86 {
     use std::arch::x86_64::*;
 
     use super::*;
+
+    /// Checks that every float in `values` is finite using 8-wide integer exponent masks.
+    #[target_feature(enable = "avx2")]
+    pub(super) unsafe fn all_finite_avx2(values: &[f32]) -> bool {
+        let len = values.len();
+        let ptr = values.as_ptr().cast::<__m256i>();
+        let exp_mask = _mm256_set1_epi32(0x7f80_0000_u32 as i32);
+        let mut bad0 = _mm256_setzero_si256();
+        let mut bad1 = _mm256_setzero_si256();
+        let mut bad2 = _mm256_setzero_si256();
+        let mut bad3 = _mm256_setzero_si256();
+        let mut i = 0;
+        while i + 32 <= len {
+            // SAFETY: `i + 32 <= len`, so all four 8-float unaligned loads stay within `values`.
+            unsafe {
+                let v0 = _mm256_loadu_si256(ptr.add(i / 8));
+                let v1 = _mm256_loadu_si256(ptr.add(i / 8 + 1));
+                let v2 = _mm256_loadu_si256(ptr.add(i / 8 + 2));
+                let v3 = _mm256_loadu_si256(ptr.add(i / 8 + 3));
+                bad0 = _mm256_or_si256(
+                    bad0,
+                    _mm256_cmpeq_epi32(_mm256_and_si256(v0, exp_mask), exp_mask),
+                );
+                bad1 = _mm256_or_si256(
+                    bad1,
+                    _mm256_cmpeq_epi32(_mm256_and_si256(v1, exp_mask), exp_mask),
+                );
+                bad2 = _mm256_or_si256(
+                    bad2,
+                    _mm256_cmpeq_epi32(_mm256_and_si256(v2, exp_mask), exp_mask),
+                );
+                bad3 = _mm256_or_si256(
+                    bad3,
+                    _mm256_cmpeq_epi32(_mm256_and_si256(v3, exp_mask), exp_mask),
+                );
+            }
+            i += 32;
+        }
+        let mut bad = _mm256_or_si256(_mm256_or_si256(bad0, bad1), _mm256_or_si256(bad2, bad3));
+        while i + 8 <= len {
+            // SAFETY: `i + 8 <= len`, so the 8-float unaligned load stays within `values`.
+            let v = unsafe { _mm256_loadu_si256(ptr.add(i / 8)) };
+            bad = _mm256_or_si256(
+                bad,
+                _mm256_cmpeq_epi32(_mm256_and_si256(v, exp_mask), exp_mask),
+            );
+            i += 8;
+        }
+        if _mm256_testz_si256(bad, bad) == 0 {
+            return false;
+        }
+        values[i..].iter().all(|v| v.is_finite())
+    }
+
+    /// Returns true if any lane of any of the 12 vectors is NaN or infinite.
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    unsafe fn any_nonfinite_12(vecs: [__m256; 12]) -> bool {
+        let exp_mask = _mm256_set1_epi32(0x7f80_0000_u32 as i32);
+        let mut bad0 = _mm256_setzero_si256();
+        let mut bad1 = _mm256_setzero_si256();
+        for pair in 0..6 {
+            let a = _mm256_castps_si256(vecs[pair * 2]);
+            let b = _mm256_castps_si256(vecs[pair * 2 + 1]);
+            bad0 = _mm256_or_si256(
+                bad0,
+                _mm256_cmpeq_epi32(_mm256_and_si256(a, exp_mask), exp_mask),
+            );
+            bad1 = _mm256_or_si256(
+                bad1,
+                _mm256_cmpeq_epi32(_mm256_and_si256(b, exp_mask), exp_mask),
+            );
+        }
+        let bad = _mm256_or_si256(bad0, bad1);
+        _mm256_testz_si256(bad, bad) == 0
+    }
 
     /// `a - b * c`, fused when the caller's tier has FMA.
     ///
@@ -1729,62 +1891,32 @@ mod x86 {
         for level in skeleton.levels() {
             let mut slot = level.start;
             while slot + 8 <= level.end() {
-                let mut any_dirty = false;
                 let mut any_subtree = false;
                 for lane in 0..8 {
                     let bone = order[slot + lane] as usize;
-                    any_dirty |= scratch.dirty[bone] != 0;
                     any_subtree |= scratch.subtree_dirty[bone] != 0;
                 }
-                // `dirty` implies `subtree_dirty`, so this single check covers both.
                 if !any_subtree {
                     slot += 8;
                     continue;
                 }
 
-                // ---- gather this group's parameters ----
-                let mut rx = [0_f32; 8];
-                let mut ry = [0_f32; 8];
-                let mut rz = [0_f32; 8];
-                let mut vdx = [0_f32; 8];
-                let mut vdy = [0_f32; 8];
-                let mut vdz = [0_f32; 8];
+                // ---- gather this group's cached local matrices and scales ----
                 let mut sx = [0_f32; 8];
                 let mut sy = [0_f32; 8];
                 let mut sz = [0_f32; 8];
-                let mut piv_x = [0_f32; 8];
-                let mut piv_y = [0_f32; 8];
-                let mut piv_z = [0_f32; 8];
                 let mut bone_lane = [0_usize; 8];
                 let mut parent_lane = [0_i32; 8];
-                let mut any_rotation = false;
+                let mut local_cols = [[0_f32; 8]; 12];
                 for lane in 0..8 {
                     let bone = order[slot + lane] as usize;
                     bone_lane[lane] = bone;
                     parent_lane[lane] = level_parents[slot + lane];
                     let p = bone * BONE_PARAM_STRIDE;
-                    rx[lane] = params[p];
-                    ry[lane] = params[p + 1];
-                    rz[lane] = params[p + 2];
-                    vdx[lane] = -params[p + 3] * 0.0625;
-                    vdy[lane] = params[p + 4] * 0.0625;
-                    vdz[lane] = params[p + 5] * 0.0625;
                     sx[lane] = params[p + 6];
                     sy[lane] = params[p + 7];
                     sz[lane] = params[p + 8];
-                    piv_x[lane] = skeleton.pivots_x()[bone];
-                    piv_y[lane] = skeleton.pivots_y()[bone];
-                    piv_z[lane] = skeleton.pivots_z()[bone];
-                    any_rotation |= rx[lane] != 0. || ry[lane] != 0. || rz[lane] != 0.;
-                }
-
-                // ---- local matrices: cached for clean lanes, rebuilt 8-wide for the group ----
-                let mut local_cols = [[0_f32; 8]; 12];
-                for lane in 0..8 {
-                    if scratch.dirty[bone_lane[lane]] != 0 {
-                        continue;
-                    }
-                    let l = &scratch.locals[bone_lane[lane] * 16..bone_lane[lane] * 16 + 16];
+                    let l = &scratch.locals[bone * 16..bone * 16 + 16];
                     local_cols[0][lane] = l[0];
                     local_cols[1][lane] = l[1];
                     local_cols[2][lane] = l[2];
@@ -1797,131 +1929,6 @@ mod x86 {
                     local_cols[9][lane] = l[12];
                     local_cols[10][lane] = l[13];
                     local_cols[11][lane] = l[14];
-                }
-                if any_dirty {
-                    let vsx = _mm256_loadu_ps(sx.as_ptr());
-                    let vsy = _mm256_loadu_ps(sy.as_ptr());
-                    let vsz = _mm256_loadu_ps(sz.as_ptr());
-                    let zero = _mm256_setzero_ps();
-                    // SAFETY: this function's `#[target_feature]` includes `avx2`.
-                    let (sin_x, cos_x, sin_y, cos_y, sin_z, cos_z) = if any_rotation {
-                        // SAFETY: as above.
-                        unsafe {
-                            let (sx_, cx_) = sin_cos8::<FMA>(_mm256_loadu_ps(rx.as_ptr()));
-                            let (sy_, cy_) = sin_cos8::<FMA>(_mm256_loadu_ps(ry.as_ptr()));
-                            let (sz_, cz_) = sin_cos8::<FMA>(_mm256_loadu_ps(rz.as_ptr()));
-                            (sx_, cx_, sy_, cy_, sz_, cz_)
-                        }
-                    } else {
-                        let one = _mm256_set1_ps(1.);
-                        (zero, one, zero, one, zero, one)
-                    };
-                    let l00 = _mm256_mul_ps(_mm256_mul_ps(cos_z, cos_y), vsx);
-                    let l10 = _mm256_mul_ps(_mm256_mul_ps(sin_z, cos_y), vsx);
-                    let l20 = _mm256_mul_ps(_mm256_sub_ps(zero, sin_y), vsx);
-                    let l01 = _mm256_mul_ps(
-                        _mm256_sub_ps(
-                            _mm256_mul_ps(_mm256_mul_ps(cos_z, sin_y), sin_x),
-                            _mm256_mul_ps(sin_z, cos_x),
-                        ),
-                        vsy,
-                    );
-                    let l11 = _mm256_mul_ps(
-                        _mm256_add_ps(
-                            _mm256_mul_ps(_mm256_mul_ps(sin_z, sin_y), sin_x),
-                            _mm256_mul_ps(cos_z, cos_x),
-                        ),
-                        vsy,
-                    );
-                    let l21 = _mm256_mul_ps(_mm256_mul_ps(cos_y, sin_x), vsy);
-                    let l02 = _mm256_mul_ps(
-                        _mm256_add_ps(
-                            _mm256_mul_ps(_mm256_mul_ps(cos_z, sin_y), cos_x),
-                            _mm256_mul_ps(sin_z, sin_x),
-                        ),
-                        vsz,
-                    );
-                    let l12 = _mm256_mul_ps(
-                        _mm256_sub_ps(
-                            _mm256_mul_ps(_mm256_mul_ps(sin_z, sin_y), cos_x),
-                            _mm256_mul_ps(cos_z, sin_x),
-                        ),
-                        vsz,
-                    );
-                    let l22 = _mm256_mul_ps(_mm256_mul_ps(cos_y, cos_x), vsz);
-                    let tpx = _mm256_loadu_ps(piv_x.as_ptr());
-                    let tpy = _mm256_loadu_ps(piv_y.as_ptr());
-                    let tpz = _mm256_loadu_ps(piv_z.as_ptr());
-                    let tdx = _mm256_loadu_ps(vdx.as_ptr());
-                    let tdy = _mm256_loadu_ps(vdy.as_ptr());
-                    let tdz = _mm256_loadu_ps(vdz.as_ptr());
-                    let l03 = _mm256_sub_ps(
-                        _mm256_add_ps(tpx, tdx),
-                        _mm256_add_ps(
-                            _mm256_add_ps(_mm256_mul_ps(l00, tpx), _mm256_mul_ps(l01, tpy)),
-                            _mm256_mul_ps(l02, tpz),
-                        ),
-                    );
-                    let l13 = _mm256_sub_ps(
-                        _mm256_add_ps(tpy, tdy),
-                        _mm256_add_ps(
-                            _mm256_add_ps(_mm256_mul_ps(l10, tpx), _mm256_mul_ps(l11, tpy)),
-                            _mm256_mul_ps(l12, tpz),
-                        ),
-                    );
-                    let l23 = _mm256_sub_ps(
-                        _mm256_add_ps(tpz, tdz),
-                        _mm256_add_ps(
-                            _mm256_add_ps(_mm256_mul_ps(l20, tpx), _mm256_mul_ps(l21, tpy)),
-                            _mm256_mul_ps(l22, tpz),
-                        ),
-                    );
-                    let mut built = [[0_f32; 8]; 12];
-                    for (index, vector) in
-                        [l00, l10, l20, l01, l11, l21, l02, l12, l22, l03, l13, l23]
-                            .into_iter()
-                            .enumerate()
-                    {
-                        // SAFETY: `built[index]` is eight floats and the vector is eight lanes.
-                        unsafe { _mm256_storeu_ps(built[index].as_mut_ptr(), vector) };
-                    }
-                    for lane in 0..8 {
-                        let bone = bone_lane[lane];
-                        if scratch.dirty[bone] == 0 {
-                            continue;
-                        }
-                        let base = bone * 16;
-                        if sx[lane] == 0. || sy[lane] == 0. || sz[lane] == 0. {
-                            // A zero scale makes the bone invisible; the matrix is never read, but
-                            // it must not carry a stale value either.
-                            scratch.locals[base..base + 16].fill(0.);
-                            local_cols.iter_mut().for_each(|column| column[lane] = 0.);
-                            continue;
-                        }
-                        let m = &mut scratch.locals[base..base + 16];
-                        m[0] = built[0][lane];
-                        m[1] = built[1][lane];
-                        m[2] = built[2][lane];
-                        m[3] = 0.;
-                        m[4] = built[3][lane];
-                        m[5] = built[4][lane];
-                        m[6] = built[5][lane];
-                        m[7] = 0.;
-                        m[8] = built[6][lane];
-                        m[9] = built[7][lane];
-                        m[10] = built[8][lane];
-                        m[11] = 0.;
-                        m[12] = built[9][lane];
-                        m[13] = built[10][lane];
-                        m[14] = built[11][lane];
-                        m[15] = 1.;
-                        if !m.iter().all(|v| v.is_finite()) {
-                            return Err(Status::NonFinite);
-                        }
-                        for (index, column) in local_cols.iter_mut().enumerate() {
-                            column[lane] = built[index][lane];
-                        }
-                    }
                 }
 
                 // ---- gather the parent world matrices into eight-lane columns ----
@@ -2050,11 +2057,11 @@ mod x86 {
                     _mm256_mul_ps(p22, l23),
                     p23
                 );
+                let world_vecs = [w00, w10, w20, w01, w11, w21, w02, w12, w22, w03, w13, w23];
+                // SAFETY: this function's `#[target_feature]` includes `avx2`.
+                let world_has_nonfinite = unsafe { any_nonfinite_12(world_vecs) };
                 let mut world = [[0_f32; 8]; 12];
-                for (index, vector) in [w00, w10, w20, w01, w11, w21, w02, w12, w22, w03, w13, w23]
-                    .into_iter()
-                    .enumerate()
-                {
+                for (index, vector) in world_vecs.into_iter().enumerate() {
                     // SAFETY: `world[index]` is eight floats and the vector is eight lanes.
                     unsafe { _mm256_storeu_ps(world[index].as_mut_ptr(), vector) };
                 }
@@ -2097,7 +2104,7 @@ mod x86 {
                         world[10][lane],
                         world[11][lane],
                     ];
-                    if !w.iter().all(|v| v.is_finite()) {
+                    if world_has_nonfinite && !w.iter().all(|v| v.is_finite()) {
                         return Err(Status::NonFinite);
                     }
                     let m = &mut scratch.transforms[m_off..m_off + 16];
@@ -2156,9 +2163,9 @@ mod x86 {
                     scratch.visible[bone] = u8::from(own_visible);
                     scratch.descendants[bone] = u8::from(params[p + 10] == 0.);
                     if own_visible && params[p + 11] == 1. {
-                        let px = piv_x[lane];
-                        let py = piv_y[lane];
-                        let pz = piv_z[lane];
+                        let px = skeleton.pivots_x()[bone];
+                        let py = skeleton.pivots_y()[bone];
+                        let pz = skeleton.pivots_z()[bone];
                         let q = bone * 4;
                         scratch.locators[q] = -(w[9] + w[0] * px + w[3] * py + w[6] * pz) * 16.;
                         scratch.locators[q + 1] = (w[10] + w[1] * px + w[4] * py + w[7] * pz) * 16.;
@@ -2172,10 +2179,6 @@ mod x86 {
             // silently truncated.
             while slot < level.end() {
                 let bone = order[slot] as usize;
-                if scratch.dirty[bone] != 0 {
-                    // SAFETY: `refresh_one` re-derives everything from the bone's parameters.
-                    unsafe { super::refresh_one(skeleton, params, scratch, bone)? };
-                }
                 if scratch.subtree_dirty[bone] != 0 {
                     // SAFETY: `bone` and `slot` come from the skeleton's own level plan.
                     unsafe {
@@ -2327,11 +2330,11 @@ mod x86 {
                     _mm256_mul_ps(l22, vpz),
                 ),
             );
+            let built_vecs = [l00, l10, l20, l01, l11, l21, l02, l12, l22, l03, l13, l23];
+            // SAFETY: this function's `#[target_feature]` includes `avx2`.
+            let built_has_nonfinite = unsafe { any_nonfinite_12(built_vecs) };
             let mut built = [[0_f32; 8]; 12];
-            for (index, vector) in [l00, l10, l20, l01, l11, l21, l02, l12, l22, l03, l13, l23]
-                .into_iter()
-                .enumerate()
-            {
+            for (index, vector) in built_vecs.into_iter().enumerate() {
                 // SAFETY: `built[index]` is eight floats and the vector is eight lanes.
                 unsafe { _mm256_storeu_ps(built[index].as_mut_ptr(), vector) };
             }
@@ -2364,7 +2367,7 @@ mod x86 {
                 m[13] = built[10][lane];
                 m[14] = built[11][lane];
                 m[15] = 1.;
-                if !m.iter().all(|v| v.is_finite()) {
+                if built_has_nonfinite && !m.iter().all(|v| v.is_finite()) {
                     return Err(Status::NonFinite);
                 }
             }
@@ -2611,26 +2614,22 @@ mod x86 {
                 _mm256_mul_ps(l22, vpz),
             ),
         );
+        let local_vecs = [l00, l10, l20, l01, l11, l21, l02, l12, l22, l03, l13, l23];
         let mut local_cols = [[0_f32; 8]; 12];
-        for (index, vector) in [l00, l10, l20, l01, l11, l21, l02, l12, l22, l03, l13, l23]
-            .into_iter()
-            .enumerate()
-        {
+        for (index, vector) in local_vecs.into_iter().enumerate() {
             // SAFETY: `local_cols[index]` is eight floats and the vector is eight lanes.
             unsafe { _mm256_storeu_ps(local_cols[index].as_mut_ptr(), vector) };
         }
-        for lane in 0..8 {
-            if sx[lane] == 0. || sy[lane] == 0. || sz[lane] == 0. {
-                // A zero scale makes the bone invisible; the composition below zeroes its
-                // matrices, so nothing needs to be stored here.
-                local_cols.iter_mut().for_each(|column| column[lane] = 0.);
-                continue;
-            }
-            // The local matrix stays in `local_cols` and is handed to the composition directly.
-            // Storing it to `scratch.locals` would be a 64-byte write per bone that nothing on
-            // this path reads — the cache is declared stale instead.
-            if !local_cols.iter().all(|column| column[lane].is_finite()) {
-                return Err(Status::NonFinite);
+        // SAFETY: this function's `#[target_feature]` includes `avx2`.
+        if unsafe { any_nonfinite_12(local_vecs) } {
+            for lane in 0..8 {
+                if sx[lane] == 0. || sy[lane] == 0. || sz[lane] == 0. {
+                    local_cols.iter_mut().for_each(|column| column[lane] = 0.);
+                    continue;
+                }
+                if !local_cols.iter().all(|column| column[lane].is_finite()) {
+                    return Err(Status::NonFinite);
+                }
             }
         }
 
@@ -2760,11 +2759,11 @@ mod x86 {
             _mm256_mul_ps(p22, l23),
             p23
         );
+        let world_vecs = [w00, w10, w20, w01, w11, w21, w02, w12, w22, w03, w13, w23];
+        // SAFETY: this function's `#[target_feature]` includes `avx2`.
+        let world_has_nonfinite = unsafe { any_nonfinite_12(world_vecs) };
         let mut world = [[0_f32; 8]; 12];
-        for (index, vector) in [w00, w10, w20, w01, w11, w21, w02, w12, w22, w03, w13, w23]
-            .into_iter()
-            .enumerate()
-        {
+        for (index, vector) in world_vecs.into_iter().enumerate() {
             // SAFETY: `world[index]` is eight floats and the vector is eight lanes.
             unsafe { _mm256_storeu_ps(world[index].as_mut_ptr(), vector) };
         }
@@ -2817,7 +2816,7 @@ mod x86 {
                 world[10][lane],
                 world[11][lane],
             ];
-            if !w.iter().all(|v| v.is_finite()) {
+            if world_has_nonfinite && !w.iter().all(|v| v.is_finite()) {
                 return Err(Status::NonFinite);
             }
             let m = &mut scratch.transforms[m_off..m_off + 16];
@@ -2900,7 +2899,7 @@ mod x86 {
                 };
                 // SAFETY: `record` is this bone's slot; the slices are this bone's matrices.
                 unsafe {
-                    root_cols.write_record(
+                    root_cols.write_record_avx2(
                         record,
                         &scratch.transforms[m_off..m_off + 16],
                         &scratch.normals[n_off..n_off + 9],
@@ -2942,10 +2941,473 @@ mod x86 {
             };
             // SAFETY: `record` is this bone's slot; the slices are this bone's matrices.
             unsafe {
-                root_cols.write_record(
+                root_cols.write_record_avx2(
                     record,
                     &scratch.transforms[m_off..m_off + 16],
-                    &scratch.normals[n_off..n_off + 9],
+                    &normal,
+                    light,
+                    request.layout,
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// Partial group (`1..=7` lanes) of the uncached kernel: keeps level tails on the AVX2
+    /// `sin_cos8` and compose path instead of paying scalar `libm` trigonometry for every narrow
+    /// level. Unused lanes are padded with zero rotation / unit scale and never committed.
+    ///
+    /// # Safety
+    ///
+    /// `1 <= count && count < 8`, `slot + count <= skeleton.level_order().len()`, `scratch` must
+    /// be sized for `skeleton.bone_count()` bones, and `out` must be valid for `bone_count * 144`
+    /// writable bytes.
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    unsafe fn evaluate_partial_group<const FMA: bool>(
+        skeleton: &CompiledSkeleton,
+        params: &[f32],
+        scratch: &mut Scratch,
+        slot: usize,
+        count: usize,
+        out: *mut u8,
+        request: &PackedRequest<'_>,
+        hidden: &[u8; PACKED_BONE_STRIDE],
+        root_cols: &RootColumns,
+    ) -> Result<(), Status> {
+        let order = skeleton.level_order();
+        let level_parents = skeleton.level_parents();
+        let level_position = skeleton.level_position();
+
+        let mut rx = [0_f32; 8];
+        let mut ry = [0_f32; 8];
+        let mut rz = [0_f32; 8];
+        let mut vdx = [0_f32; 8];
+        let mut vdy = [0_f32; 8];
+        let mut vdz = [0_f32; 8];
+        let mut sx = [1_f32; 8];
+        let mut sy = [1_f32; 8];
+        let mut sz = [1_f32; 8];
+        let mut piv_x = [0_f32; 8];
+        let mut piv_y = [0_f32; 8];
+        let mut piv_z = [0_f32; 8];
+        let mut bone_lane = [0_usize; 8];
+        let mut parent_lane = [-1_i32; 8];
+        let mut any_rotation = false;
+        for lane in 0..count {
+            let bone = order[slot + lane] as usize;
+            bone_lane[lane] = bone;
+            parent_lane[lane] = level_parents[slot + lane];
+            let p = bone * BONE_PARAM_STRIDE;
+            rx[lane] = params[p];
+            ry[lane] = params[p + 1];
+            rz[lane] = params[p + 2];
+            vdx[lane] = -params[p + 3] * 0.0625;
+            vdy[lane] = params[p + 4] * 0.0625;
+            vdz[lane] = params[p + 5] * 0.0625;
+            sx[lane] = params[p + 6];
+            sy[lane] = params[p + 7];
+            sz[lane] = params[p + 8];
+            piv_x[lane] = skeleton.pivots_x()[bone];
+            piv_y[lane] = skeleton.pivots_y()[bone];
+            piv_z[lane] = skeleton.pivots_z()[bone];
+            any_rotation |= rx[lane] != 0. || ry[lane] != 0. || rz[lane] != 0.;
+        }
+
+        let vsx = _mm256_loadu_ps(sx.as_ptr());
+        let vsy = _mm256_loadu_ps(sy.as_ptr());
+        let vsz = _mm256_loadu_ps(sz.as_ptr());
+        let zero = _mm256_setzero_ps();
+        // SAFETY: this function's `#[target_feature]` includes `avx2`.
+        let (sin_x, cos_x, sin_y, cos_y, sin_z, cos_z) = if any_rotation {
+            // SAFETY: as above.
+            unsafe {
+                let (sx_, cx_) = sin_cos8::<FMA>(_mm256_loadu_ps(rx.as_ptr()));
+                let (sy_, cy_) = sin_cos8::<FMA>(_mm256_loadu_ps(ry.as_ptr()));
+                let (sz_, cz_) = sin_cos8::<FMA>(_mm256_loadu_ps(rz.as_ptr()));
+                (sx_, cx_, sy_, cy_, sz_, cz_)
+            }
+        } else {
+            let one = _mm256_set1_ps(1.);
+            (zero, one, zero, one, zero, one)
+        };
+        let l00 = _mm256_mul_ps(_mm256_mul_ps(cos_z, cos_y), vsx);
+        let l10 = _mm256_mul_ps(_mm256_mul_ps(sin_z, cos_y), vsx);
+        let l20 = _mm256_mul_ps(_mm256_sub_ps(zero, sin_y), vsx);
+        let l01 = _mm256_mul_ps(
+            _mm256_sub_ps(
+                _mm256_mul_ps(_mm256_mul_ps(cos_z, sin_y), sin_x),
+                _mm256_mul_ps(sin_z, cos_x),
+            ),
+            vsy,
+        );
+        let l11 = _mm256_mul_ps(
+            _mm256_add_ps(
+                _mm256_mul_ps(_mm256_mul_ps(sin_z, sin_y), sin_x),
+                _mm256_mul_ps(cos_z, cos_x),
+            ),
+            vsy,
+        );
+        let l21 = _mm256_mul_ps(_mm256_mul_ps(cos_y, sin_x), vsy);
+        let l02 = _mm256_mul_ps(
+            _mm256_add_ps(
+                _mm256_mul_ps(_mm256_mul_ps(cos_z, sin_y), cos_x),
+                _mm256_mul_ps(sin_z, sin_x),
+            ),
+            vsz,
+        );
+        let l12 = _mm256_mul_ps(
+            _mm256_sub_ps(
+                _mm256_mul_ps(_mm256_mul_ps(sin_z, sin_y), cos_x),
+                _mm256_mul_ps(cos_z, sin_x),
+            ),
+            vsz,
+        );
+        let l22 = _mm256_mul_ps(_mm256_mul_ps(cos_y, cos_x), vsz);
+        let vpx = _mm256_loadu_ps(piv_x.as_ptr());
+        let vpy = _mm256_loadu_ps(piv_y.as_ptr());
+        let vpz = _mm256_loadu_ps(piv_z.as_ptr());
+        let vdxv = _mm256_loadu_ps(vdx.as_ptr());
+        let vdyv = _mm256_loadu_ps(vdy.as_ptr());
+        let vdzv = _mm256_loadu_ps(vdz.as_ptr());
+        let l03 = _mm256_sub_ps(
+            _mm256_add_ps(vpx, vdxv),
+            _mm256_add_ps(
+                _mm256_add_ps(_mm256_mul_ps(l00, vpx), _mm256_mul_ps(l01, vpy)),
+                _mm256_mul_ps(l02, vpz),
+            ),
+        );
+        let l13 = _mm256_sub_ps(
+            _mm256_add_ps(vpy, vdyv),
+            _mm256_add_ps(
+                _mm256_add_ps(_mm256_mul_ps(l10, vpx), _mm256_mul_ps(l11, vpy)),
+                _mm256_mul_ps(l12, vpz),
+            ),
+        );
+        let l23 = _mm256_sub_ps(
+            _mm256_add_ps(vpz, vdzv),
+            _mm256_add_ps(
+                _mm256_add_ps(_mm256_mul_ps(l20, vpx), _mm256_mul_ps(l21, vpy)),
+                _mm256_mul_ps(l22, vpz),
+            ),
+        );
+        let local_vecs = [l00, l10, l20, l01, l11, l21, l02, l12, l22, l03, l13, l23];
+        let mut local_cols = [[0_f32; 8]; 12];
+        for (index, vector) in local_vecs.into_iter().enumerate() {
+            // SAFETY: `local_cols[index]` is eight floats and the vector is eight lanes.
+            unsafe { _mm256_storeu_ps(local_cols[index].as_mut_ptr(), vector) };
+        }
+        // SAFETY: this function's `#[target_feature]` includes `avx2`.
+        if unsafe { any_nonfinite_12(local_vecs) } {
+            for lane in 0..count {
+                if sx[lane] == 0. || sy[lane] == 0. || sz[lane] == 0. {
+                    local_cols.iter_mut().for_each(|column| column[lane] = 0.);
+                    continue;
+                }
+                if !local_cols.iter().all(|column| column[lane].is_finite()) {
+                    return Err(Status::NonFinite);
+                }
+            }
+        }
+
+        let mut parent_cols = [[0_f32; 8]; 12];
+        for lane in 0..count {
+            let parent = parent_lane[lane];
+            if parent < 0 {
+                parent_cols[0][lane] = 1.;
+                parent_cols[4][lane] = 1.;
+                parent_cols[8][lane] = 1.;
+                continue;
+            }
+            let po = level_position[parent as usize] as usize * 16;
+            let t = &scratch.transforms[po..po + 16];
+            parent_cols[0][lane] = t[0];
+            parent_cols[1][lane] = t[1];
+            parent_cols[2][lane] = t[2];
+            parent_cols[3][lane] = t[4];
+            parent_cols[4][lane] = t[5];
+            parent_cols[5][lane] = t[6];
+            parent_cols[6][lane] = t[8];
+            parent_cols[7][lane] = t[9];
+            parent_cols[8][lane] = t[10];
+            parent_cols[9][lane] = t[12];
+            parent_cols[10][lane] = t[13];
+            parent_cols[11][lane] = t[14];
+        }
+
+        let l00 = _mm256_loadu_ps(local_cols[0].as_ptr());
+        let l10 = _mm256_loadu_ps(local_cols[1].as_ptr());
+        let l20 = _mm256_loadu_ps(local_cols[2].as_ptr());
+        let l01 = _mm256_loadu_ps(local_cols[3].as_ptr());
+        let l11 = _mm256_loadu_ps(local_cols[4].as_ptr());
+        let l21 = _mm256_loadu_ps(local_cols[5].as_ptr());
+        let l02 = _mm256_loadu_ps(local_cols[6].as_ptr());
+        let l12 = _mm256_loadu_ps(local_cols[7].as_ptr());
+        let l22 = _mm256_loadu_ps(local_cols[8].as_ptr());
+        let l03 = _mm256_loadu_ps(local_cols[9].as_ptr());
+        let l13 = _mm256_loadu_ps(local_cols[10].as_ptr());
+        let l23 = _mm256_loadu_ps(local_cols[11].as_ptr());
+        let p00 = _mm256_loadu_ps(parent_cols[0].as_ptr());
+        let p10 = _mm256_loadu_ps(parent_cols[1].as_ptr());
+        let p20 = _mm256_loadu_ps(parent_cols[2].as_ptr());
+        let p01 = _mm256_loadu_ps(parent_cols[3].as_ptr());
+        let p11 = _mm256_loadu_ps(parent_cols[4].as_ptr());
+        let p21 = _mm256_loadu_ps(parent_cols[5].as_ptr());
+        let p02 = _mm256_loadu_ps(parent_cols[6].as_ptr());
+        let p12 = _mm256_loadu_ps(parent_cols[7].as_ptr());
+        let p22 = _mm256_loadu_ps(parent_cols[8].as_ptr());
+        let p03 = _mm256_loadu_ps(parent_cols[9].as_ptr());
+        let p13 = _mm256_loadu_ps(parent_cols[10].as_ptr());
+        let p23 = _mm256_loadu_ps(parent_cols[11].as_ptr());
+        let w00 = add3!(
+            FMA,
+            _mm256_mul_ps(p00, l00),
+            _mm256_mul_ps(p01, l10),
+            _mm256_mul_ps(p02, l20)
+        );
+        let w10 = add3!(
+            FMA,
+            _mm256_mul_ps(p10, l00),
+            _mm256_mul_ps(p11, l10),
+            _mm256_mul_ps(p12, l20)
+        );
+        let w20 = add3!(
+            FMA,
+            _mm256_mul_ps(p20, l00),
+            _mm256_mul_ps(p21, l10),
+            _mm256_mul_ps(p22, l20)
+        );
+        let w01 = add3!(
+            FMA,
+            _mm256_mul_ps(p00, l01),
+            _mm256_mul_ps(p01, l11),
+            _mm256_mul_ps(p02, l21)
+        );
+        let w11 = add3!(
+            FMA,
+            _mm256_mul_ps(p10, l01),
+            _mm256_mul_ps(p11, l11),
+            _mm256_mul_ps(p12, l21)
+        );
+        let w21 = add3!(
+            FMA,
+            _mm256_mul_ps(p20, l01),
+            _mm256_mul_ps(p21, l11),
+            _mm256_mul_ps(p22, l21)
+        );
+        let w02 = add3!(
+            FMA,
+            _mm256_mul_ps(p00, l02),
+            _mm256_mul_ps(p01, l12),
+            _mm256_mul_ps(p02, l22)
+        );
+        let w12 = add3!(
+            FMA,
+            _mm256_mul_ps(p10, l02),
+            _mm256_mul_ps(p11, l12),
+            _mm256_mul_ps(p12, l22)
+        );
+        let w22 = add3!(
+            FMA,
+            _mm256_mul_ps(p20, l02),
+            _mm256_mul_ps(p21, l12),
+            _mm256_mul_ps(p22, l22)
+        );
+        let w03 = add4!(
+            FMA,
+            _mm256_mul_ps(p00, l03),
+            _mm256_mul_ps(p01, l13),
+            _mm256_mul_ps(p02, l23),
+            p03
+        );
+        let w13 = add4!(
+            FMA,
+            _mm256_mul_ps(p10, l03),
+            _mm256_mul_ps(p11, l13),
+            _mm256_mul_ps(p12, l23),
+            p13
+        );
+        let w23 = add4!(
+            FMA,
+            _mm256_mul_ps(p20, l03),
+            _mm256_mul_ps(p21, l13),
+            _mm256_mul_ps(p22, l23),
+            p23
+        );
+        let world_vecs = [w00, w10, w20, w01, w11, w21, w02, w12, w22, w03, w13, w23];
+        // SAFETY: this function's `#[target_feature]` includes `avx2`.
+        let world_has_nonfinite = unsafe { any_nonfinite_12(world_vecs) };
+        let mut world = [[0_f32; 8]; 12];
+        for (index, vector) in world_vecs.into_iter().enumerate() {
+            // SAFETY: `world[index]` is eight floats and the vector is eight lanes.
+            unsafe { _mm256_storeu_ps(world[index].as_mut_ptr(), vector) };
+        }
+
+        let glow = skeleton.glow_mask();
+        for lane in 0..count {
+            let bone = bone_lane[lane];
+            let parent = parent_lane[lane];
+            let p = bone * BONE_PARAM_STRIDE;
+            let lsx = sx[lane];
+            let lsy = sy[lane];
+            let lsz = sz[lane];
+            let s = slot + lane;
+            let m_off = s * 16;
+            let n_off = s * 9;
+            // SAFETY: `bone < bone_count`, so this is this bone's 144-byte slot.
+            let record = unsafe { out.add(bone * PACKED_BONE_STRIDE) };
+            let pass_visible = match request.pass {
+                BonePassFilter::All => true,
+                BonePassFilter::NonGlow => glow[bone] == 0,
+                BonePassFilter::Glow => glow[bone] != 0,
+            };
+            scratch.visible[bone] = 0;
+            scratch.descendants[bone] = 0;
+            scratch.uniform_scale[bone] = 0.;
+            scratch.locator_mask[bone] = 0;
+            let parent_hidden = parent >= 0 && scratch.descendants[parent as usize] == 0;
+            if parent_hidden || lsx == 0. || lsy == 0. || lsz == 0. || !pass_visible {
+                scratch.transforms[m_off..m_off + 16].fill(0.);
+                scratch.normals[n_off..n_off + 9].fill(0.);
+                // SAFETY: `record` is this bone's slot and `hidden` is exactly one record.
+                unsafe {
+                    std::ptr::copy_nonoverlapping(hidden.as_ptr(), record, PACKED_BONE_STRIDE);
+                }
+                continue;
+            }
+            let w: [f32; 12] = [
+                world[0][lane],
+                world[1][lane],
+                world[2][lane],
+                world[3][lane],
+                world[4][lane],
+                world[5][lane],
+                world[6][lane],
+                world[7][lane],
+                world[8][lane],
+                world[9][lane],
+                world[10][lane],
+                world[11][lane],
+            ];
+            if world_has_nonfinite && !w.iter().all(|v| v.is_finite()) {
+                return Err(Status::NonFinite);
+            }
+            let m = &mut scratch.transforms[m_off..m_off + 16];
+            m[0] = w[0];
+            m[1] = w[1];
+            m[2] = w[2];
+            m[3] = 0.;
+            m[4] = w[3];
+            m[5] = w[4];
+            m[6] = w[5];
+            m[7] = 0.;
+            m[8] = w[6];
+            m[9] = w[7];
+            m[10] = w[8];
+            m[11] = 0.;
+            m[12] = w[9];
+            m[13] = w[10];
+            m[14] = w[11];
+            m[15] = 1.;
+            let uniform_local = lsx == lsy && lsy == lsz;
+            let mut world_uniform = 0_f32;
+            if uniform_local {
+                let base = if parent < 0 {
+                    1.
+                } else {
+                    scratch.uniform_scale[parent as usize]
+                };
+                if base != 0. {
+                    let candidate = base * lsx;
+                    let abs = candidate.abs();
+                    if candidate.is_finite() && (1e-6..=1e6).contains(&abs) {
+                        world_uniform = candidate;
+                    }
+                }
+            }
+            scratch.uniform_scale[bone] = world_uniform;
+            let mut normal = [0_f32; 9];
+            if world_uniform == 1. || world_uniform == -1. {
+                normal.copy_from_slice(&w[..9]);
+            } else if world_uniform != 0. {
+                let inv = 1. / (world_uniform * world_uniform);
+                for (value_out, value_in) in normal.iter_mut().zip(&w[..9]) {
+                    *value_out = value_in * inv;
+                }
+            } else {
+                let local: [f32; 16] = [
+                    local_cols[0][lane],
+                    local_cols[1][lane],
+                    local_cols[2][lane],
+                    0.,
+                    local_cols[3][lane],
+                    local_cols[4][lane],
+                    local_cols[5][lane],
+                    0.,
+                    local_cols[6][lane],
+                    local_cols[7][lane],
+                    local_cols[8][lane],
+                    0.,
+                    local_cols[9][lane],
+                    local_cols[10][lane],
+                    local_cols[11][lane],
+                    1.,
+                ];
+                // SAFETY: `compose_one_with` re-derives everything from `local` and the
+                // parameters, and `bone` and `s` come from the skeleton's own level plan.
+                unsafe {
+                    super::compose_one_with(skeleton, params, scratch, bone, parent, s, &local)?;
+                }
+                let light = if glow[bone] != 0 {
+                    request.full_bright_light
+                } else {
+                    request.packed_light
+                };
+                // SAFETY: `record` is this bone's slot; the slices are this bone's matrices.
+                unsafe {
+                    root_cols.write_record_avx2(
+                        record,
+                        &scratch.transforms[m_off..m_off + 16],
+                        &scratch.normals[n_off..n_off + 9],
+                        light,
+                        request.layout,
+                    );
+                }
+                continue;
+            }
+            scratch.normals[n_off..n_off + 9].copy_from_slice(&normal);
+            let own_visible = params[p + 9] == 0.;
+            scratch.visible[bone] = u8::from(own_visible);
+            scratch.descendants[bone] = u8::from(params[p + 10] == 0.);
+            if own_visible && params[p + 11] == 1. {
+                let px = piv_x[lane];
+                let py = piv_y[lane];
+                let pz = piv_z[lane];
+                let q = bone * 4;
+                scratch.locators[q] = -(w[9] + w[0] * px + w[3] * py + w[6] * pz) * 16.;
+                scratch.locators[q + 1] = (w[10] + w[1] * px + w[4] * py + w[7] * pz) * 16.;
+                scratch.locators[q + 2] = (w[11] + w[2] * px + w[5] * py + w[8] * pz) * 16.;
+                scratch.locator_mask[bone] = 1;
+            }
+            if !own_visible {
+                // SAFETY: `record` is this bone's slot and `hidden` is exactly one record.
+                unsafe {
+                    std::ptr::copy_nonoverlapping(hidden.as_ptr(), record, PACKED_BONE_STRIDE);
+                }
+                continue;
+            }
+            let light = if glow[bone] != 0 {
+                request.full_bright_light
+            } else {
+                request.packed_light
+            };
+            // SAFETY: `record` is this bone's slot; the slices are this bone's matrices.
+            unsafe {
+                root_cols.write_record_avx2(
+                    record,
+                    &scratch.transforms[m_off..m_off + 16],
+                    &normal,
                     light,
                     request.layout,
                 );
@@ -2975,11 +3437,8 @@ mod x86 {
         out: *mut u8,
         request: &PackedRequest<'_>,
     ) -> Result<(), Status> {
-        let order = skeleton.level_order();
-        let level_parents = skeleton.level_parents();
         let hidden = super::hidden_record(request.layout);
         let root_cols = RootColumns::new(request.root);
-        let glow = skeleton.glow_mask();
         for level in skeleton.levels() {
             let mut slot = level.start;
             while slot + 8 <= level.end() {
@@ -2992,45 +3451,15 @@ mod x86 {
                 };
                 slot += 8;
             }
-            // Tail lanes stay scalar, so a level whose width is not a multiple of eight is not
-            // silently truncated.
-            while slot < level.end() {
-                let bone = order[slot] as usize;
-                // SAFETY: `bone` and `slot` come from the skeleton's own level plan.
+            let rem = level.end() - slot;
+            if rem > 0 {
+                // SAFETY: `1 <= rem < 8`, `slot + rem == level.end() <= order.len()`, `scratch` is
+                // sized for this skeleton, and `out` holds `bone_count * 144` bytes.
                 unsafe {
-                    super::refresh_one(skeleton, params, scratch, bone)?;
-                    super::compose_one(skeleton, params, scratch, bone, level_parents[slot], slot)?;
-                }
-                // SAFETY: `bone < bone_count`, so this is this bone's 144-byte slot.
-                let record = unsafe { out.add(bone * PACKED_BONE_STRIDE) };
-                let pass_visible = match request.pass {
-                    BonePassFilter::All => true,
-                    BonePassFilter::NonGlow => glow[bone] == 0,
-                    BonePassFilter::Glow => glow[bone] != 0,
+                    evaluate_partial_group::<FMA>(
+                        skeleton, params, scratch, slot, rem, out, request, &hidden, &root_cols,
+                    )?
                 };
-                if scratch.visible[bone] == 0 || !pass_visible {
-                    // SAFETY: `record` is this bone's slot and `hidden` is exactly one record.
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(hidden.as_ptr(), record, PACKED_BONE_STRIDE);
-                    }
-                } else {
-                    let light = if glow[bone] != 0 {
-                        request.full_bright_light
-                    } else {
-                        request.packed_light
-                    };
-                    // SAFETY: `record` is this bone's slot; the slices are this bone's matrices.
-                    unsafe {
-                        root_cols.write_record(
-                            record,
-                            &scratch.transforms[slot * 16..slot * 16 + 16],
-                            &scratch.normals[slot * 9..slot * 9 + 9],
-                            light,
-                            request.layout,
-                        );
-                    }
-                }
-                slot += 1;
             }
         }
         Ok(())
