@@ -142,7 +142,7 @@ final class GlVkMetadataLayoutTest {
         // Three independent version layers. Pinning them together here means a bump to one cannot
         // silently be assumed to move the others.
         assertEquals(1, boneWire().version(), "logical bone wire version");
-        assertEquals(4, dev.spm.core.nativejni.NativeTransforms.ABI_VERSION, "JNI ABI version");
+        assertEquals(5, dev.spm.core.nativejni.NativeTransforms.ABI_VERSION, "JNI ABI version");
         // The C ABI version is a Rust constant; its Java-visible consequence is that the JNI ABI can
         // move without it. This assertion documents the intended separation, not a runtime read.
         assertNotEquals(boneWire().version(), dev.spm.core.nativejni.NativeTransforms.ABI_VERSION,

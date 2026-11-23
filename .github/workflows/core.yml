@@ -51,8 +51,8 @@ jobs:
         env:
           CONSUMER_RUNTIME_HOME: ${{ steps.consumer_runtime.outputs.path }}
         run: |
-          bash ./gradlew clean publishCandidate -PspmCoreVersion="1.0.0" --no-build-cache --rerun-tasks --console=plain
-          python scripts/package_candidate.py --revision "$GITHUB_SHA" --version "1.0.0"
+          bash ./gradlew clean publishCandidate -PspmCoreVersion="1.1.0" --no-build-cache --rerun-tasks --console=plain
+          python scripts/package_candidate.py --revision "$GITHUB_SHA" --version "1.1.0"
           python -c 'import hashlib,os,subprocess,sys; from pathlib import Path; p=Path("build/candidate-dist").resolve(); subprocess.run([sys.executable,"scripts/validate_candidate_consumer.py","--repository",p.as_uri(),"--revision",os.environ["GITHUB_SHA"],"--manifest-sha256",hashlib.sha256((p/"manifest.json").read_bytes()).hexdigest(),"--gradle",str(Path("gradlew").resolve()),"--compiler-home",os.environ["JAVA_HOME"],"--runtime-home",os.environ["CONSUMER_RUNTIME_HOME"],"--output","build/consumer-evidence.json"],check=True)'
       - name: Preserve the preview and consumer result
         if: ${{ always() }}

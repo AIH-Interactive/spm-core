@@ -38,8 +38,9 @@ class NativeAbiBoundsTest {
 
     @Test void theJniAbiVersionIsPinnedAndMatchesTheLibraryContract() {
         // The Java constant is the contract; the Rust side must agree or loading fails.
-        assertEquals(4, NativeTransforms.ABI_VERSION,
-                "JNI ABI 4 adds mandatory NativeArena exports; changing this needs a coordinated Rust change");
+        assertEquals(5, NativeTransforms.ABI_VERSION,
+                "JNI ABI 5 adds the compiled-skeleton handle family "
+                        + "(NativePackedBoneEvaluator); changing this needs a coordinated Rust change");
     }
 
     @Test @EnabledIfSystemProperty(named="spm.native.library", matches=".+")

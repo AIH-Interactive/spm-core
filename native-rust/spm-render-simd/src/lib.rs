@@ -8,8 +8,14 @@
 //! tier would let a caller believe wider instructions ran than really did.
 use spm_native_abi::{Isa, Status};
 mod bones;
+mod compiled_skeleton;
+mod fast_bones;
 mod rigid;
 pub use bones::{evaluate_bones, evaluate_bones_subtree, BoneInput, BoneOutput};
+pub use compiled_skeleton::{CompiledSkeleton, LevelSlice};
+pub use fast_bones::{
+    evaluate_packed, last_moved_ratio, last_reached_ratio, PackedOutcome, PackedPath, PackedRequest,
+};
 pub use rigid::{render_rigid, RenderResult, RenderedVertex, RigidVertex};
 
 /// Identity of the code that serves an ISA tier.
@@ -47,6 +53,28 @@ impl KernelId {
 /// The kernel identity each of the three kernels uses for `isa`, for the N13 regression test.
 pub fn kernel_ids(isa: Isa) -> (KernelId, KernelId, KernelId) {
     (kernel(isa).1, bones::kernel_id(isa), rigid::kernel_id(isa))
+}
+
+/// The kernel identity of the packed fast-path evaluator for `isa`.
+///
+/// This is a fourth kernel family, so it is reported separately rather than folded into
+/// [`kernel_ids`]: the three older kernels keep their exact contract, and the packed path is
+/// checked against its own identity.
+pub fn packed_kernel_id(isa: Isa) -> KernelId {
+    fast_bones::kernel_id(isa)
+}
+
+/// The tier the packed fast-path evaluator reports for `isa`, without needing a batch.
+pub fn packed_executed(isa: Isa) -> Isa {
+    fast_bones::executed(isa)
+}
+
+/// The fastest tier this host can run for the packed fast path.
+///
+/// Distinct from [`select`]: see [`fast_bones::preferred_isa`] for why the packed path prefers
+/// plain AVX2 over FMA even though the reference kernels prefer the opposite.
+pub fn packed_preferred_isa() -> Isa {
+    fast_bones::preferred_isa()
 }
 
 /// The tier each kernel reports for a given request, without needing a batch.

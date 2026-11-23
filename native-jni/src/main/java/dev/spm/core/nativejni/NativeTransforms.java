@@ -15,7 +15,16 @@ import java.util.Objects;
 
 /** Explicit, content-checked optional provider. Never downloads or loads old libraries. */
 public final class NativeTransforms {
-    public static final int ABI_VERSION=4;
+    /**
+     * JNI revision this build speaks.
+     *
+     * <p>Revision 5 adds the compiled-skeleton handle family
+     * ({@link NativePackedBoneEvaluator}): a persistent, generation-encoded skeleton lease plus a
+     * zero-copy packed evaluation entry that writes straight into a caller-owned direct buffer.
+     * Every revision-4 entry point keeps its exact signature and semantics, so a revision-5
+     * library still serves a revision-4 caller that only uses the older functions.
+     */
+    public static final int ABI_VERSION=5;
     private static Path loadedPath;
     private static String loadedDigest;
     private static boolean ready;

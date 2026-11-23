@@ -22,6 +22,12 @@ from ci_core import NATIVE_TARGETS, candidate_inputs, validate_checkout
 
 GROUP = 'dev.spm.core'
 SOURCE = 'https://github.com/AIH-Interactive/spm-core'
+# Release versions this packaging path may produce. A preview version derived from the exact source
+# revision is always allowed; the release versions are listed explicitly so publishing one is a
+# deliberate edit rather than an accident. Keep this in step with the publishCandidate gate in
+# build.gradle, which rejects anything else before packaging runs.
+RELEASE_VERSIONS = frozenset({'1.1.0'})
+
 SCHEMA = 'spm-core-candidate/1'
 SCOPE = 'LOCAL_RESOLVED_INVENTORY; preview only; full dependency licensing and source origin certification remain pending'
 HASH = re.compile(r'[0-9a-f]{64}')
@@ -50,7 +56,7 @@ def validate_manifest(manifest: dict, revision: str) -> None:
     if manifest.get('schema') != SCHEMA or manifest.get('source') != {'repository': SOURCE, 'revision': revision}:
         raise ValueError('Unsupported schema or incompatible source revision')
     version = manifest.get('version')
-    allowed_versions = {version_for(revision), '1.0.0'}
+    allowed_versions = {version_for(revision)} | RELEASE_VERSIONS
     if version not in allowed_versions or manifest.get('group') != GROUP:
         raise ValueError('Immutable candidate GAV mismatch')
     if manifest.get('status') != 'PREVIEW' or manifest.get('scope') != SCOPE:
@@ -149,7 +155,7 @@ def git(root: Path, *args: str) -> str:
 def package(root: Path, repository: Path, output: Path, revision: str, natives: list[str],
             explicit_version: str | None = None) -> dict:
     version = explicit_version or version_for(revision)
-    if version not in {version_for(revision), '1.0.0'}:
+    if version not in {version_for(revision)} | RELEASE_VERSIONS:
         raise ValueError('Unsupported release/preview version: ' + version)
     validate_checkout(revision, git(root, 'rev-parse', 'HEAD'), git(root, 'status', '--porcelain=v1'))
     if output.exists():
@@ -248,7 +254,7 @@ def main() -> int:
     parser.add_argument('--repository', type=Path, help='Default: <root>/build/candidate-maven')
     parser.add_argument('--output', type=Path, help='Default: <root>/build/candidate-dist')
     parser.add_argument('--revision', required=True)
-    parser.add_argument('--version', help='Explicit release version (e.g. 1.0.0); defaults to 0.1.0-preview.<sha12>')
+    parser.add_argument('--version', help='Explicit release version (one of RELEASE_VERSIONS, e.g. 1.1.0); defaults to 0.1.0-preview.<sha12>')
     parser.add_argument('--native', action='append', default=[], help='Explicit supported-target=library path; repeat for multiple targets')
     args = parser.parse_args()
     root = args.root.resolve()
