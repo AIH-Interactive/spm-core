@@ -705,10 +705,22 @@ fn the_reported_tier_is_the_tier_of_the_selected_kernel() {
                 isa,
                 "forced {isa:?} has a vector kernel and must report itself"
             ),
-            _ => assert_eq!(
+            // The portable walk is a kernel of its own, so naming it is exact rather than a
+            // fallback claim.
+            Isa::Scalar => assert_eq!(
                 packed_executed(isa),
                 Isa::Scalar,
-                "forced {isa:?} has no vector kernel and must report the scalar tier it runs"
+                "forced Scalar runs the portable walk and must report it"
+            ),
+            // No kernel of its own, so the honest report names the kernel that ran — never the
+            // requested tier. Scalar is the usual answer, but on a host with AVX-512 the fallback
+            // is the AVX2 walk, and reporting Avx2 for Avx2 instructions is still honest. Pinning
+            // this arm to Scalar failed on runners that have AVX-512, which is a property of the
+            // hardware rather than of the kernel.
+            _ => assert_ne!(
+                packed_executed(isa),
+                isa,
+                "forced {isa:?} has no vector kernel and must not report the requested tier"
             ),
         }
     }
