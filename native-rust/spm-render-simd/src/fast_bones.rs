@@ -112,6 +112,16 @@ struct Scratch {
     cached_layout: u8,
     /// True once a frame has been written, so the first frame always rewrites everything.
     frame_valid: bool,
+    /// Output buffers that currently hold correct records for the mirrored parameters.
+    ///
+    /// `frame_valid` alone says "the records are up to date" without saying *which* buffer they are
+    /// up to date in. With two output buffers alternating, that let the second one keep records
+    /// from an older frame — so the host had to pass `persistent_output = false` and pay a full
+    /// rewrite on every static frame. Tracking addresses makes the cheap early-out safe for the
+    /// real callers: a static scene settles as soon as every buffer has been written once.
+    valid_outputs: [usize; MAX_VALID_OUTPUTS],
+    /// Number of entries in [`Scratch::valid_outputs`].
+    valid_output_count: u8,
     /// True when `locals` no longer describes the last frame's parameters.
     ///
     /// The uncached kernel does not maintain the local-matrix cache — storing into it is exactly
@@ -152,6 +162,53 @@ impl Scratch {
             visible: &mut self.visible[..bone_count],
             locators: &mut self.locators[..bone_count * 4],
             locator_mask: &mut self.locator_mask[..bone_count],
+        }
+    }
+
+    /// Whether `out` already holds records written for the mirrored parameters.
+    fn output_is_valid(&self, out: usize) -> bool {
+        self.valid_outputs[..self.valid_output_count as usize].contains(&out)
+    }
+
+    /// Forgets every buffer, used when an input that shapes every record changed.
+    fn invalidate_outputs(&mut self) {
+        self.valid_output_count = 0;
+    }
+
+    /// Forgets every buffer except `keep`.
+    ///
+    /// A parameter change leaves the other buffers holding records for the previous frame, so they
+    /// must be rewritten wholesale when they come around. The buffer being written now is different:
+    /// only the bones that moved are stale in it, and the caller's dirty-only write repairs exactly
+    /// those. Dropping its entry too would force a full record rewrite on every animated frame.
+    fn invalidate_other_outputs(&mut self, keep: usize) {
+        let count = self.valid_output_count as usize;
+        if !self.valid_outputs[..count].contains(&keep) {
+            self.valid_output_count = 0;
+            return;
+        }
+        let mut next = 0;
+        for index in 0..count {
+            let candidate = self.valid_outputs[index];
+            if candidate == keep {
+                self.valid_outputs[next] = candidate;
+                next += 1;
+            }
+        }
+        self.valid_output_count = next as u8;
+    }
+
+    /// Records that `out` now holds correct records, evicting the oldest entry when full.
+    fn mark_output(&mut self, out: usize) {
+        if self.output_is_valid(out) {
+            return;
+        }
+        if (self.valid_output_count as usize) >= MAX_VALID_OUTPUTS {
+            self.valid_outputs.rotate_left(1);
+            self.valid_outputs[MAX_VALID_OUTPUTS - 1] = out;
+        } else {
+            self.valid_outputs[self.valid_output_count as usize] = out;
+            self.valid_output_count += 1;
         }
     }
 }
@@ -302,6 +359,9 @@ pub unsafe fn evaluate_packed(
             scratch.cached_bones = n;
             scratch.frame_valid = false;
             scratch.locals_stale = true;
+            // A different skeleton means the remembered output addresses belong to a previous
+            // model's buffers; they must not be treated as current for this one.
+            scratch.invalidate_outputs();
             // Force every bone dirty so the first frame at this skeleton rebuilds everything.
             scratch.dirty[..n].fill(1);
             scratch.subtree_dirty[..n].fill(1);
@@ -600,6 +660,14 @@ unsafe fn write_tail(record: *mut u8, light: i32, layout: PackedLayout) {
 
 /// The parameters that feed a bone's local matrix, in the order they are compared.
 const CACHED_PARAM_FLOATS: usize = 9;
+
+/// How many output buffers one compiled skeleton remembers as holding correct records.
+///
+/// The host writes the same model into more than one buffer per frame — Blaze3D's SSBO and the
+/// OpenGL GPU path each own one — so "some buffer is up to date" is not a usable predicate. Four
+/// slots cover the two real callers plus room for a preview path, and the set is rebuilt in a few
+/// frames after a parameter change, so it does not need to be larger.
+const MAX_VALID_OUTPUTS: usize = 4;
 
 /// Fills `dirty` and `subtree_dirty` and returns how many bones moved and how many were reached.
 ///
@@ -1243,14 +1311,22 @@ unsafe fn evaluate_cached(
     out: *mut u8,
     isa: Isa,
 ) -> Result<PackedPath, Status> {
-    // A full rewrite is needed when the caller cannot guarantee the buffer still holds last
-    // frame's records, or when an input that shapes every record changed.
-    let full_write = !request.persistent_output
-        || !scratch.frame_valid
+    // An input that shapes every record changed, so no buffer can still be current.
+    let settings_changed = !scratch.frame_valid
         || scratch.cached_pass != request.pass as u8
         || scratch.cached_light != request.packed_light
         || scratch.cached_full_bright != request.full_bright_light
         || scratch.cached_layout != request.layout as u8;
+    if settings_changed {
+        scratch.invalidate_outputs();
+    }
+    let out_addr = out as usize;
+    // A full rewrite is needed when the caller cannot guarantee *this* buffer still holds last
+    // frame's records, or when an input that shapes every record changed. "This buffer" is the
+    // important part: the host alternates between two output buffers for the same model, so a
+    // blanket "the records are current" flag would let the second buffer keep older records.
+    let full_write =
+        !request.persistent_output || settings_changed || !scratch.output_is_valid(out_addr);
 
     // Fast path: if the whole parameter array is bit-identical to last frame's, nothing can have
     // changed, so the per-bone scan is unnecessary. This one contiguous comparison replaces a
@@ -1292,8 +1368,14 @@ unsafe fn evaluate_cached(
         // be rewritten. Nothing needs recomposing.
         // SAFETY: `out` is valid for the whole buffer and `scratch` holds `n` bones of data.
         unsafe { write_records(skeleton, request, scratch, out, false) };
+        scratch.mark_output(out_addr);
         return Ok(PackedPath::Cached);
     }
+
+    // The parameters changed, so every buffer except this one now holds records for an older frame.
+    // This buffer is repaired below by the dirty-only write, so keeping it valid is what lets an
+    // animated frame rewrite only the bones that actually moved.
+    scratch.invalidate_other_outputs(out_addr);
 
     let n = skeleton.bone_count();
     // A stale cache means every local matrix must be rebuilt, because the uncached kernel does not
@@ -1359,7 +1441,8 @@ unsafe fn evaluate_cached(
         unsafe { write_records(skeleton, request, scratch, out, !full_write) };
     }
     // The uncached kernel already wrote every record while its matrices were in registers, so
-    // there is nothing left to emit here.
+    // there is nothing left to emit here. Either way this buffer now holds this frame's records.
+    scratch.mark_output(out_addr);
     Ok(path)
 }
 

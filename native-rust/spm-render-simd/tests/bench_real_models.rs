@@ -240,6 +240,68 @@ impl Motion {
     }
 }
 
+/// Times a static frame with `buffers` rotating output buffers.
+///
+/// This is the shape that decides what `persistent_output` is worth to the host. The host writes
+/// the same model into a stable native buffer (`perFrameBoneBuffer`), but it used to have to pass
+/// `false` because the kernel's "the records are current" memory could not tell one buffer from
+/// another. With per-buffer tracking the flag is usable, so the static frame can stop rewriting 144
+/// bytes per bone. `buffers = 1` is the ceiling of that win, and `buffers = 2` is the real host
+/// shape if a second path ever renders the same model.
+fn time_static_frame(
+    skeleton: &CompiledSkeleton,
+    base: &[f32],
+    isa: Isa,
+    iterations: usize,
+    persistent: bool,
+    buffers: usize,
+) -> f64 {
+    let n = skeleton.bone_count();
+    let stride = n * PACKED_BONE_STRIDE;
+    let mut params = base.to_vec();
+    let mut outs: Vec<Vec<u8>> = (0..buffers.max(1)).map(|_| vec![0_u8; stride]).collect();
+    for frame in 0..200 {
+        let index = frame % outs.len();
+        let req = PackedRequest {
+            skeleton,
+            root: &IDENTITY_ROOT,
+            params: &params,
+            layout: PackedLayout::FloatTail,
+            pass: BonePassFilter::All,
+            packed_light: 0x00F0_00F0,
+            full_bright_light: 0x00F0_00F0,
+            isa,
+            persistent_output: persistent,
+            path: None,
+        };
+        let out = &mut outs[index];
+        // SAFETY: `out` is exactly `n * 144` bytes and nothing aliases.
+        unsafe { evaluate_packed(&req, out.as_mut_ptr(), None) }.unwrap();
+    }
+    let start = Instant::now();
+    for frame in 0..iterations {
+        let index = frame % outs.len();
+        let req = PackedRequest {
+            skeleton,
+            root: &IDENTITY_ROOT,
+            params: &params,
+            layout: PackedLayout::FloatTail,
+            pass: BonePassFilter::All,
+            packed_light: 0x00F0_00F0,
+            full_bright_light: 0x00F0_00F0,
+            isa,
+            persistent_output: persistent,
+            path: None,
+        };
+        let out = &mut outs[index];
+        // SAFETY: as above.
+        unsafe { evaluate_packed(&req, out.as_mut_ptr(), None) }.unwrap();
+    }
+    black_box(&mut params);
+    black_box(&outs);
+    start.elapsed().as_secs_f64() * 1e6 / iterations as f64
+}
+
 /// Times a frame in which `motion` describes which bones actually moved.
 ///
 /// This is the number that matters for design C. Timing a static parameter array measures the
@@ -583,4 +645,52 @@ fn dirty_ratio(skeleton: &CompiledSkeleton, base: &[f32], motion: Motion) -> f64
     }
     // The evaluator reports the ratio it acted on, so no second derivation is needed.
     f64::from(spm_render_simd::last_moved_ratio().unwrap_or(0.)) * 100.
+}
+
+/// What `persistent_output` is worth on a static frame, measured in the host's own shapes.
+///
+/// Three cases: the host as it behaved before (`false`, full rewrite every frame), a single stable
+/// buffer (`true`, the ceiling), and two buffers rotating (`true`, what the flag has to survive when
+/// more than one path renders the same model). The two-buffer case is the one that used to be
+/// unsound, so it must land next to the single-buffer case rather than at the `false` number.
+#[test]
+#[ignore = "timing benchmark; run with --release --ignored"]
+fn static_frame_persistence_delta() {
+    let Some(dir) = skeleton_dir() else {
+        println!("[real] no dumped skeletons found; run the Java harness first");
+        return;
+    };
+    let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .expect("skeleton directory must be readable")
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|path| path.to_string_lossy().ends_with(".skeleton.txt"))
+        .collect();
+    paths.sort();
+    let isa = packed_preferred_isa();
+    println!("\n=== static frame, tier {isa:?} ===");
+    println!(
+        "{:<30} {:>5} {:>12} {:>12} {:>12} {:>10}",
+        "model", "bones", "resend", "persist-1", "persist-2", "2 vs 1"
+    );
+    for path in &paths {
+        let Some(real) = load(path) else { continue };
+        let glow = vec![0_u8; real.bone_count()];
+        let Ok(skeleton) = CompiledSkeleton::compile(&real.parents, &real.pivots, &glow) else {
+            continue;
+        };
+        let iterations = (1_000_000 / real.bone_count().max(1)).clamp(300, 20_000);
+        let base = params(real.bone_count(), true);
+        let resend = time_static_frame(&skeleton, &base, isa, iterations, false, 1);
+        let persist_one = time_static_frame(&skeleton, &base, isa, iterations, true, 1);
+        let persist_two = time_static_frame(&skeleton, &base, isa, iterations, true, 2);
+        println!(
+            "{:<30} {:>5} {:>12.2} {:>12.2} {:>12.2} {:>9.2}x",
+            real.name,
+            real.bone_count(),
+            resend,
+            persist_one,
+            persist_two,
+            resend / persist_two
+        );
+    }
 }

@@ -1046,3 +1046,63 @@ fn the_switch_selects_both_kernels() {
         "a sparse frame must return to the cached kernel"
     );
 }
+
+/// The early-out must be per output buffer, because the host alternates between two of them.
+///
+/// `persistent_output` means "the buffer you are handing me still holds the records you wrote into
+/// it". With one shared flag, "the records somewhere are current" was read as "this buffer is
+/// current", so the second buffer of a static frame kept records from an older frame — which is why
+/// the host had to pass `false` and pay a full rewrite on every static frame. This drives the real
+/// two-buffer shape and asserts both buffers end up holding the same, correct records.
+#[test]
+fn every_output_buffer_is_tracked_separately() {
+    let (parents, pivots, glow) = fan_skeleton(4, 8);
+    let n = parents.len();
+    let skeleton = CompiledSkeleton::compile(&parents, &pivots, &glow).unwrap();
+    let params = params_for(n, 0);
+    let isa = packed_preferred_isa();
+    let bytes = n * PACKED_BONE_STRIDE;
+
+    // Poison both buffers: if a frame is skipped, the poison survives and the comparison below
+    // fails with a message that says so.
+    let mut first = vec![0xAA_u8; bytes];
+    let mut second = vec![0xAA_u8; bytes];
+
+    let run = |out: &mut [u8]| {
+        let request = PackedRequest {
+            skeleton: &skeleton,
+            root: &IDENTITY_ROOT,
+            params: &params,
+            layout: PackedLayout::FloatTail,
+            pass: BonePassFilter::All,
+            packed_light: 0x00F0_00F0,
+            full_bright_light: 0x00F0_00F0,
+            isa,
+            persistent_output: true,
+            path: None,
+        };
+        // SAFETY: `out` is exactly `n * 144` bytes and nothing aliases.
+        unsafe { evaluate_packed(&request, out.as_mut_ptr(), None) }.unwrap();
+    };
+
+    run(&mut first);
+    assert!(
+        first.iter().any(|&b| b != 0xAA),
+        "the first frame must actually write"
+    );
+
+    // Same parameters, different buffer: this one has never been written and must be filled.
+    run(&mut second);
+    assert_eq!(
+        first, second,
+        "the second buffer must receive the same records, not be skipped as 'already current'"
+    );
+
+    // Back to the first buffer with nothing changed: now the early-out is legitimate, and the
+    // records it already holds must still be the ones `second` just received.
+    run(&mut first);
+    assert_eq!(
+        first, second,
+        "a skipped frame must leave the buffer holding the same records"
+    );
+}
