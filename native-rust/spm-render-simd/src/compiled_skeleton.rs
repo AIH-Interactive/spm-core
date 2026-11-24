@@ -24,6 +24,7 @@
 //! * `level_parents[k]` is the parent of `level_order[k]`, pre-decoded so the hot path never
 //!   performs a second lookup.
 use spm_native_abi::Status;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// One contiguous run of `level_order` holding bones of equal tree depth.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -37,6 +38,9 @@ impl LevelSlice {
         self.start + self.len
     }
 }
+
+/// Hands out one identity per compiled skeleton; see [`CompiledSkeleton::identity`].
+static NEXT_IDENTITY: AtomicU64 = AtomicU64::new(1);
 
 /// Pre-decoded skeleton topology. Immutable once built.
 #[derive(Clone, Debug)]
@@ -58,12 +62,15 @@ pub struct CompiledSkeleton {
     level_position: Vec<u32>,
     /// `level_depth[k]` is the tree depth of `level_order[k]`; used only by tests and diagnostics.
     level_depth: Vec<u32>,
-    /// A cheap identity for this skeleton, used to invalidate per-thread caches.
+    /// A unique identity for this compiled instance, used to invalidate per-thread caches.
     ///
-    /// Two skeletons with the same bone count but different topology must not share cached local
-    /// matrices, so the cache keys on this value rather than on the count alone. It is a hash of
-    /// the topology and pivots, not a pointer: a pointer would be reused after a free and could
-    /// alias a different skeleton.
+    /// This is a monotonic counter rather than a hash of the topology. A content hash made two
+    /// separately compiled copies of the same rig share one identity, and the per-thread scratch
+    /// also remembers which output buffers already hold current records. When one of those models
+    /// was dropped and its output buffer's address was handed to the next model — which the 32-bit
+    /// CI job does reliably, because its address space is small — the surviving entry said "this
+    /// buffer is current" and the new model kept the old matrices. A counter can never repeat, so a
+    /// fresh instance always starts from an empty cache.
     identity: u64,
 }
 
@@ -113,7 +120,9 @@ impl CompiledSkeleton {
         for (slot, &bone) in level_order.iter().enumerate() {
             level_position[bone as usize] = slot as u32;
         }
-        let identity = identity_of(parents, pivots, glow);
+        // Unique per compiled instance; see the field's documentation for why this is a counter
+        // and not a hash of the inputs.
+        let identity = NEXT_IDENTITY.fetch_add(1, Ordering::Relaxed);
 
         Ok(Self {
             bone_count: n,
@@ -290,34 +299,6 @@ fn build_levels(parents: &[i32]) -> Result<LevelPlan, Status> {
         return Err(Status::InvalidInput);
     }
     Ok((levels, level_order, level_parents, level_depth))
-}
-
-/// A stable hash of the topology and pivots, used as the cache identity.
-///
-/// FNV-1a over the parent indices and pivot bits. This is not a security hash and does not need to
-/// be: a collision would only mean a stale cache is reused for a skeleton that happens to hash the
-/// same, and the caller would see wrong matrices. To make that impossible in practice the hash
-/// covers every parent index and every pivot bit, so two different skeletons collide only on a
-/// genuine 64-bit FNV collision.
-fn identity_of(parents: &[i32], pivots: &[f32], glow: &[u8]) -> u64 {
-    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const PRIME: u64 = 0x0000_0100_0000_01b3;
-    let mut hash = OFFSET;
-    let mut mix = |bytes: &[u8]| {
-        for &byte in bytes {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(PRIME);
-        }
-    };
-    mix(&(parents.len() as u64).to_le_bytes());
-    for &parent in parents {
-        mix(&parent.to_le_bytes());
-    }
-    for &pivot in pivots {
-        mix(&pivot.to_bits().to_le_bytes());
-    }
-    mix(glow);
-    hash
 }
 
 #[cfg(test)]
