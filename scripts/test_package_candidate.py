@@ -191,6 +191,24 @@ class CandidatePublicationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_native(linux_arm, 'x86_64-unknown-linux-gnu')
 
+    def test_windows_containers_are_checked_by_machine_type(self):
+        """aarch64 Windows is PE machine 0xAA64, not the 0x014C a two-way check would assume."""
+        def pe(machine: int) -> bytearray:
+            data = bytearray(128)
+            data[:2] = b'MZ'
+            struct.pack_into('<I', data, 60, 64)
+            data[64:68] = b'PE\0\0'
+            struct.pack_into('<H', data, 68, machine)
+            return data
+
+        validate_native(pe(0x8664), 'x86_64-pc-windows-msvc')
+        validate_native(pe(0x014C), 'i686-pc-windows-msvc')
+        validate_native(pe(0xAA64), 'aarch64-pc-windows-msvc')
+        with self.assertRaisesRegex(ValueError, 'architecture'):
+            validate_native(pe(0x014C), 'aarch64-pc-windows-msvc')
+        with self.assertRaisesRegex(ValueError, 'architecture'):
+            validate_native(pe(0xAA64), 'x86_64-pc-windows-msvc')
+
     def test_the_cross_compiled_targets_are_checked_by_machine_and_class(self):
         """P1/P2: arm32 is ELF32/EM_ARM, riscv64 and loongarch64 are ELF64 with their own machines.
 

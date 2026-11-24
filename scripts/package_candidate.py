@@ -149,13 +149,26 @@ def validate_module(data: bytes, module: str, version: str, artifacts: dict[str,
         raise ValueError(module + ': missing API/runtime Gradle variants')
 
 
+# PE machine types for the Windows targets. aarch64 is 0xAA64, not the 0x014C a two-way
+# "x86_64 or else" check would assume -- that assumption silently rejected every Windows on ARM
+# build until one was actually packaged.
+WINDOWS_MACHINES = {
+    'x86_64-pc-windows-msvc': 0x8664,
+    'i686-pc-windows-msvc': 0x014C,
+    'aarch64-pc-windows-msvc': 0xAA64,
+}
+
+
 def validate_native(data: bytes, target: str) -> None:
     """Check container architecture, not execution or instruction-set compatibility."""
     valid = False
-    if target in {'x86_64-pc-windows-msvc', 'i686-pc-windows-msvc'} and len(data) >= 64 and data[:2] == b'MZ':
+    if target in WINDOWS_MACHINES and len(data) >= 64 and data[:2] == b'MZ':
         offset = struct.unpack_from('<I', data, 60)[0]
-        expected_machine = 0x8664 if target == 'x86_64-pc-windows-msvc' else 0x014C
-        valid = len(data) >= offset + 24 and data[offset:offset + 4] == b'PE\0\0' and struct.unpack_from('<H', data, offset + 4)[0] == expected_machine
+        valid = (
+            len(data) >= offset + 24
+            and data[offset:offset + 4] == b'PE\0\0'
+            and struct.unpack_from('<H', data, offset + 4)[0] == WINDOWS_MACHINES[target]
+        )
     elif target in {'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu', 'aarch64-linux-android'} and len(data) >= 20:
         machine = 183 if target.startswith('aarch64') else 62
         valid = data[:6] == b'\x7fELF\x02\x01' and struct.unpack_from('<HH', data, 16) == (3, machine)
