@@ -1,5 +1,22 @@
 plugins { id 'base' }
 
+// The versions this build may publish: one of the release versions listed in `gradle.properties`,
+// or the preview form derived from an exact source revision.
+//
+// Declaring the pattern once is what keeps the two publish gates below from drifting apart. They
+// used to carry their own copies, and one of them was still listing 1.1.0 while the build was
+// already on 1.2.0 — so 1.2.0 could not be published by `publishCandidate` at all, and the error
+// message described a state the regex did not implement. Bumping the version is now a single edit
+// to `spmCoreVersion`, plus appending it to `spmCoreReleaseVersions` when it becomes a release.
+def releaseVersions = providers.gradleProperty('spmCoreReleaseVersions').getOrElse('')
+        .split(',').collect { it.trim() }.findAll { it }
+if (releaseVersions.isEmpty()) {
+    throw new GradleException('gradle.properties must list spmCoreReleaseVersions')
+}
+def publishableVersionPattern = '^(0\\.1\\.0-preview\\.[0-9a-f]{12}|' +
+        releaseVersions.collect { java.util.regex.Pattern.quote(it) }.join('|') + ')$'
+def releaseVersionList = releaseVersions.join(', ')
+
 allprojects {
     group = 'dev.spm.core'
     version = providers.gradleProperty('spmCoreVersion').get()
@@ -100,9 +117,11 @@ subprojects {
     tasks.withType(org.gradle.api.publish.maven.tasks.PublishToMavenRepository).configureEach {
         def repoName = repository.name
         def publishedVersion = project.version.toString()
+        def versionPattern = publishableVersionPattern
+        def allowedVersions = releaseVersionList
         doFirst {
-            if (repoName == 'candidate' && !(publishedVersion ==~ /(0\.1\.0-preview\.[0-9a-f]{12}|1\.0\.0|1\.1\.0)/)) {
-                throw new GradleException('Candidate publication requires 1.0.0, 1.1.0, 1.2.0 or -PspmCoreVersion=0.1.0-preview.<source SHA12>')
+            if (repoName == 'candidate' && !publishedVersion.matches(versionPattern)) {
+                throw new GradleException("Candidate publication requires one of ${allowedVersions} or -PspmCoreVersion=0.1.0-preview.<source SHA12>")
             }
         }
     }
@@ -159,9 +178,11 @@ tasks.register('publishCandidate') {
     group = 'publishing'
     description = 'Publish product modules to build/candidate-maven for an immutable preview package.'
     def publishedVersion = project.version.toString()
+    def versionPattern = publishableVersionPattern
+    def allowedVersions = releaseVersionList
     doFirst {
-        if (!(publishedVersion ==~ /(0\.1\.0-preview\.[0-9a-f]{12}|1\.0\.0|1\.1\.0)/)) {
-            throw new GradleException('Use 1.0.0, 1.1.0, 1.2.0 or -PspmCoreVersion=0.1.0-preview.<exact source commit first 12 hex digits>')
+        if (!publishedVersion.matches(versionPattern)) {
+            throw new GradleException("Use one of ${allowedVersions} or -PspmCoreVersion=0.1.0-preview.<exact source commit first 12 hex digits>")
         }
     }
     dependsOn subprojects.findAll { !(it.name in ['verification', 'integration-tests']) }.collect { p ->

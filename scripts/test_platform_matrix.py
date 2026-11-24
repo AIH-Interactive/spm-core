@@ -24,8 +24,9 @@ def manifest(os_name: str, arch: str, target: str | None, checkout: str = 'a' * 
 class PlatformMatrixTest(unittest.TestCase):
     def test_every_plan_required_platform_has_a_row(self) -> None:
         identities = {p['id'] for p in PLATFORMS}
-        for required in ['windows-x64', 'linux-x64', 'macos-arm64', 'macos-x64',
-                         'android-arm64', 'ohos-arm64', 'windows-x86']:
+        for required in ['windows-x64', 'linux-x64', 'linux-arm64', 'linux-riscv64',
+                         'linux-loongarch64', 'macos-arm64', 'macos-x64',
+                         'android-arm64', 'android-arm32', 'ohos-arm64', 'windows-x86']:
             self.assertIn(required, identities)
 
     def test_without_evidence_every_row_stays_not_executed(self) -> None:
@@ -80,6 +81,9 @@ class PlatformMatrixTest(unittest.TestCase):
             manifest('Darwin', 'aarch64', 'aarch64-apple-darwin'),
             manifest('Darwin', 'x86_64', 'x86_64-apple-darwin'),
             manifest('Android', 'aarch64', 'aarch64-linux-android'),
+            manifest('Android', 'armv7', 'armv7-linux-androideabi'),
+            manifest('Linux', 'riscv64', 'riscv64gc-unknown-linux-gnu'),
+            manifest('Linux', 'loongarch64', 'loongarch64-unknown-linux-gnu'),
             manifest('OHOS', 'aarch64', 'aarch64-unknown-linux-ohos'),
             manifest('Windows', 'x86', 'i686-pc-windows-msvc'),
         ]
@@ -131,6 +135,34 @@ class PlatformMatrixTest(unittest.TestCase):
         self.assertEqual('NOT_EXECUTED', android_row['native_execution'])
         self.assertTrue(result['avx512_executed'])
         self.assertEqual(['linux-x64'], result['avx512_platforms'])
+
+    def test_the_android_arm32_cross_build_is_recorded_against_its_own_row(self) -> None:
+        """P1: 32-bit Android is a separate row, and matching it must not touch the arm64 row.
+
+        Both Android manifests carry `os: Android`, so a cross-compile manifest has to be matched on
+        the Rust triple. Matching on the OS and architecture alone would put a second build on the
+        arm64 row and hide the fact that arm32 produced anything.
+        """
+        cross_arm32 = dict(
+            status='CROSS_COMPILED_NOT_EXECUTED',
+            os='Android',
+            architecture='armv7',
+            checkout='b' * 40,
+            native=dict(target='armv7-linux-androideabi', crossCompileOnly=True),
+        )
+        cross_arm64 = dict(
+            status='CROSS_COMPILED_NOT_EXECUTED',
+            os='Android',
+            architecture='aarch64',
+            checkout='b' * 40,
+            native=dict(target='aarch64-linux-android', crossCompileOnly=True),
+        )
+        result = matrix([cross_arm32, cross_arm64])
+        rows = {row['id']: row for row in result['platforms']}
+        self.assertEqual('BUILT', rows['android-arm32']['cross_build'])
+        self.assertEqual('NOT_EXECUTED', rows['android-arm32']['native_execution'])
+        self.assertEqual('BUILT', rows['android-arm64']['cross_build'])
+        self.assertEqual('NOT_EXECUTED', rows['android-arm64']['native_execution'])
 
 
 if __name__ == '__main__':

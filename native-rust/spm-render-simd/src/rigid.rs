@@ -120,6 +120,11 @@ fn finite(value: f64) -> Result<f32, Status> {
     }
 }
 
+/// Reads one column of a column-major matrix, widened to `f64` for the reference arithmetic.
+///
+/// Only the two vector modules call this — each of them rebuilds the column layout once and then
+/// works on `f64` lanes — so a target with neither module has no use for it.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
 fn column(matrix: &[f32], stride: usize, index: usize) -> [f64; 4] {
     let mut result = [0.; 4];
     for row in 0..stride {
@@ -171,6 +176,9 @@ fn kernel(isa: Isa) -> (VertexKernel, crate::KernelId) {
     if isa == Isa::Neon {
         return (neon::render, KernelId::Neon);
     }
+    // 32-bit ARM has no module of its own, so there is nothing for `isa` to select here either.
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")))]
+    let _ = isa;
     (scalar, KernelId::Scalar)
 }
 

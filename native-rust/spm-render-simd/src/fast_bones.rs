@@ -885,10 +885,16 @@ fn uncached_kernel(isa: Isa) -> (UncachedKernel, crate::KernelId) {
             _ => {}
         }
     }
+    #[cfg(target_arch = "aarch64")]
+    {
+        if isa == Isa::Neon {
+            return (neon::evaluate_neon, KernelId::Neon);
+        }
+    }
     // No dedicated kernel exists on this architecture, so there is nothing for `isa` to select and
     // the portable walk serves every tier. That is also the tier reported, because naming the
     // requested tier would claim instructions that never ran.
-    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")))]
     let _ = isa;
     (evaluate_scalar, KernelId::Scalar)
 }
@@ -969,9 +975,15 @@ fn refresh_kernel(isa: Isa) -> (RefreshKernel, crate::KernelId) {
             _ => {}
         }
     }
+    #[cfg(target_arch = "aarch64")]
+    {
+        if isa == Isa::Neon {
+            return (neon::refresh_neon, KernelId::Neon);
+        }
+    }
     // See `uncached_kernel`: on an architecture with no vector rebuild the portable one serves
     // every tier and is the tier reported.
-    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")))]
     let _ = isa;
     (refresh_scalar, KernelId::Scalar)
 }
@@ -1090,9 +1102,15 @@ fn step_kernel(isa: Isa) -> (StepKernel, crate::KernelId) {
             _ => {}
         }
     }
+    #[cfg(target_arch = "aarch64")]
+    {
+        if isa == Isa::Neon {
+            return (neon::step_neon, KernelId::Neon);
+        }
+    }
     // See `uncached_kernel`: the portable fused walk serves every tier on an architecture without
     // a vector kernel, and reports itself rather than the requested tier.
-    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")))]
     let _ = isa;
     (step_scalar, KernelId::Scalar)
 }
@@ -3544,8 +3562,1116 @@ mod x86 {
     }
 }
 
-// There is deliberately no `neon` module here. NEON has no dedicated 8-wide packed kernel, so every
-// aarch64 tier resolves to the portable walk, and that walk reports `Scalar` because that is the
-// code it executes. A module that only forwards to the portable walk would add a name without
-// changing which instructions run, and reporting `Neon` for it would be exactly the N13 defect the
-// tier report exists to prevent.
+/// The aarch64 NEON kernels for the packed path.
+///
+/// # Why four lanes
+///
+/// NEON is 128 bits wide, so a group is four `f32` lanes rather than AVX2's eight. That is a width
+/// and not a structure: levels are still walked as contiguous groups in level order, the local
+/// rebuild still runs over bone order (it has no ordering constraint), and a level tail is still
+/// served by a counted group, so no bone drops to the portable path merely because its level is
+/// narrow.
+///
+/// The group width is a decision inside the kernel and nothing else. [`CompiledSkeleton`] records
+/// each level's exact extent and pads nothing, so a four-lane kernel needs no change to the
+/// compiled plan — which is what made four lanes affordable at all.
+///
+/// # Fused multiply-add
+///
+/// Unlike the x86 tiers there is no separate FMA variant. Fused multiply-accumulate is part of the
+/// ARMv8-A baseline, so `vfmaq_f32` is always available at the `Neon` tier and a second kernel
+/// would select the same instructions. It also removes a rounding step per term, so the vector
+/// result sits closer to the exact product than the unfused portable walk; the cross-tier tests
+/// compare against the reference with a tolerance rather than bit-for-bit for that reason.
+///
+/// # What it replaces
+///
+/// The portable walk is not unvectorised on aarch64 — LLVM does emit NEON for its per-bone inner
+/// loops — but it is still one bone per iteration, so it calls `sin_cos` three times per dirty bone
+/// through the platform `libm`. That is the cost these kernels exist to remove: four rotations are
+/// reduced and evaluated together, once, without a library call. Measured on a Cortex-X2 phone the
+/// portable walk spends 59.8 µs on a 773-bone fully-animated frame; see the module's benchmarks.
+#[cfg(target_arch = "aarch64")]
+mod neon {
+    use std::arch::aarch64::*;
+
+    use super::*;
+
+    /// Floats per group: one `float32x4_t`.
+    pub(super) const LANES: usize = 4;
+
+    /// Returns true if any lane of any of the 12 vectors is NaN or infinite.
+    ///
+    /// The bit test `(bits & 0x7f80_0000) == 0x7f80_0000` matches IEEE-754 non-finite values
+    /// exactly, so twelve columns cost twelve ands, compares and ors with no branch.
+    #[inline]
+    #[target_feature(enable = "neon")]
+    unsafe fn any_nonfinite_12(vecs: [float32x4_t; 12]) -> bool {
+        let exp_mask = vdupq_n_u32(0x7f80_0000);
+        let mut bad = vdupq_n_u32(0);
+        for vec in vecs {
+            let bits = vreinterpretq_u32_f32(vec);
+            bad = vorrq_u32(bad, vceqq_u32(vandq_u32(bits, exp_mask), exp_mask));
+        }
+        vmaxvq_u32(bad) != 0
+    }
+
+    /// `accumulator * scale + addend`, the shape the polynomial chains below are written in.
+    ///
+    /// NEON's `vfmaq_f32(a, b, c)` is `a + b*c`, with the accumulator **first**. That is the
+    /// opposite argument order to x86's `_mm256_fmadd_ps(a, b, c)`, which is `a*b + c`. The chains
+    /// are transcribed from the x86 tier, where they read `a*b + c`, so this wrapper keeps the two
+    /// conventions from being silently transposed — which is exactly the defect this module had on
+    /// its first run: every Horner step evaluated the coefficient as a multiplicand and produced a
+    /// `cos` that was 0.12 off at the worst angle.
+    #[inline]
+    #[target_feature(enable = "neon")]
+    unsafe fn mul_add(
+        accumulator: float32x4_t,
+        scale: float32x4_t,
+        addend: float32x4_t,
+    ) -> float32x4_t {
+        vfmaq_f32(addend, accumulator, scale)
+    }
+
+    /// Four angles at once, returning `(sin, cos)` per lane.
+    ///
+    /// Range reduction is Cody-Waite with a three-part `pi/2` split, then Taylor polynomials on the
+    /// reduced argument — the same construction as the AVX2 tier at half the width. For
+    /// `|r| <= pi/4` the truncation error is below `2e-9` for `sin` and `3e-8` for `cos`, far
+    /// inside the `1e-4` budget the packed path is held to. Lanes outside `|x| <= 8192` radians fall
+    /// back to the platform `sin_cos`, so an extreme input is slow but never wrong.
+    #[inline]
+    #[target_feature(enable = "neon")]
+    pub(super) unsafe fn sin_cos4(angles: float32x4_t) -> (float32x4_t, float32x4_t) {
+        // `pi/2` split into three `f32` parts. `PI_2_HI` is the correctly rounded `f32` value of
+        // `pi/2`; the two corrections carry the bits it dropped. Both are negative because `pi/2`
+        // is slightly larger than `PI_2_HI`.
+        const PI_2_HI: f32 = std::f32::consts::FRAC_PI_2;
+        const PI_2_MID: f32 = -4.371_139e-8;
+        const PI_2_LO: f32 = -1.715_124_5e-15;
+        let abs = vabsq_f32(angles);
+        // Every lane in range is the common case; one out-of-range lane sends the whole group to
+        // the slow path, which is what keeps the rare case correct without branching per lane.
+        if vminvq_u32(vcleq_f32(abs, vdupq_n_f32(8192.0))) == 0 {
+            return sin_cos4_slow(angles);
+        }
+        // q = round(x * 2/pi), then r = x - q * (pi/2) in three parts for accuracy.
+        let q = vrndnq_f32(vmulq_f32(angles, vdupq_n_f32(std::f32::consts::FRAC_2_PI)));
+        let mut r = vfmsq_f32(angles, q, vdupq_n_f32(PI_2_HI));
+        r = vfmsq_f32(r, q, vdupq_n_f32(PI_2_MID));
+        r = vfmsq_f32(r, q, vdupq_n_f32(PI_2_LO));
+
+        let r2 = vmulq_f32(r, r);
+        // sin(r) = r + r^3 * (s1 + r^2*(s2 + r^2*(s3 + r^2*s4))), Taylor coefficients.
+        let mut sin_poly = vdupq_n_f32(1.0 / 362_880.0);
+        sin_poly = mul_add(sin_poly, r2, vdupq_n_f32(-1.0 / 5_040.0));
+        sin_poly = mul_add(sin_poly, r2, vdupq_n_f32(1.0 / 120.0));
+        sin_poly = mul_add(sin_poly, r2, vdupq_n_f32(-1.0 / 6.0));
+        let sin_r = mul_add(vmulq_f32(r2, r), sin_poly, r);
+
+        // cos(r) = 1 + r^2 * (c1 + r^2*(c2 + r^2*(c3 + r^2*c4))), Taylor coefficients.
+        let mut cos_poly = vdupq_n_f32(1.0 / 40_320.0);
+        cos_poly = mul_add(cos_poly, r2, vdupq_n_f32(-1.0 / 720.0));
+        cos_poly = mul_add(cos_poly, r2, vdupq_n_f32(1.0 / 24.0));
+        cos_poly = mul_add(cos_poly, r2, vdupq_n_f32(-0.5));
+        let cos_r = mul_add(r2, cos_poly, vdupq_n_f32(1.0));
+
+        // Quadrant selection, with k = q mod 4:
+        //   sin(x) = [+sin_r, +cos_r, -sin_r, -cos_r]
+        //   cos(x) = [+cos_r, -sin_r, -cos_r, +sin_r]
+        let quadrant = vandq_u32(vreinterpretq_u32_s32(vcvtq_s32_f32(q)), vdupq_n_u32(3));
+        // `vbslq` selects bit by bit, unlike the x86 `blendv` it mirrors, which reads only the sign
+        // bit of each lane. So the mask here has to be a whole-lane all-ones, not `1 << 31`: a
+        // sign-bit mask would take the sign of `cos_r` and the magnitude of `sin_r` and blend them
+        // into a meaningless float.
+        let swap = vceqq_u32(vandq_u32(quadrant, vdupq_n_u32(1)), vdupq_n_u32(1));
+        let sin_base = vbslq_f32(swap, cos_r, sin_r);
+        let cos_base = vbslq_f32(swap, sin_r, cos_r);
+        // sin is negated for k >= 2, which is bit 1 of k.
+        let sin_neg = vshlq_n_u32::<31>(vandq_u32(vshrq_n_u32::<1>(quadrant), vdupq_n_u32(1)));
+        // cos is negated for k == 1 and k == 2, which is bit 0 of ((k + 1) >> 1).
+        let cos_neg = vshlq_n_u32::<31>(vandq_u32(
+            vshrq_n_u32::<1>(vaddq_u32(quadrant, vdupq_n_u32(1))),
+            vdupq_n_u32(1),
+        ));
+        (
+            vreinterpretq_f32_u32(veorq_u32(vreinterpretq_u32_f32(sin_base), sin_neg)),
+            vreinterpretq_f32_u32(veorq_u32(vreinterpretq_u32_f32(cos_base), cos_neg)),
+        )
+    }
+
+    /// The out-of-range fallback for [`sin_cos4`], kept out of line.
+    ///
+    /// `#[inline(never)]` matters: the x86 tier measured that inlining the four `sincosf` calls
+    /// into the polynomial path cost several microseconds per frame even though the branch is
+    /// never taken for real rotations.
+    #[inline(never)]
+    #[target_feature(enable = "neon")]
+    unsafe fn sin_cos4_slow(angles: float32x4_t) -> (float32x4_t, float32x4_t) {
+        let mut lanes = [0_f32; LANES];
+        let mut sin_lanes = [0_f32; LANES];
+        let mut cos_lanes = [0_f32; LANES];
+        vst1q_f32(lanes.as_mut_ptr(), angles);
+        for lane in 0..LANES {
+            let (sin, cos) = lanes[lane].sin_cos();
+            sin_lanes[lane] = sin;
+            cos_lanes[lane] = cos;
+        }
+        (vld1q_f32(sin_lanes.as_ptr()), vld1q_f32(cos_lanes.as_ptr()))
+    }
+
+    /// The local matrix built from one group's rotations, scales and pivots.
+    ///
+    /// Returns the twelve columns that are not the identity row: `l00, l10, l20, l01, l11, l21,
+    /// l02, l12, l22, l03, l13, l23` in that order, matching the column-major layout the callers
+    /// store into.
+    ///
+    /// This is `super::local_linear` plus the pivot translation, vectorised over four bones. It is
+    /// the single hottest piece of the module: it is the only place that pays for trigonometry, and
+    /// every dirty bone in every scenario goes through it.
+    // The twelve gathered columns are passed separately on purpose. Bundling them into a struct
+    // was the `RecordSink` experiment in the performance summary, which cost 6 µs per frame by
+    // stopping the compiler keeping the values it had already materialised in registers; the
+    // gather arrays are cheap to pass by reference and the callee is always inlined.
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    #[target_feature(enable = "neon")]
+    unsafe fn local_columns(
+        rx: &[f32; LANES],
+        ry: &[f32; LANES],
+        rz: &[f32; LANES],
+        sx: &[f32; LANES],
+        sy: &[f32; LANES],
+        sz: &[f32; LANES],
+        dx: &[f32; LANES],
+        dy: &[f32; LANES],
+        dz: &[f32; LANES],
+        px: &[f32; LANES],
+        py: &[f32; LANES],
+        pz: &[f32; LANES],
+        any_rotation: bool,
+    ) -> ([float32x4_t; 12], bool) {
+        let zero = vdupq_n_f32(0.);
+        // SAFETY: this function's `#[target_feature]` includes neon, which is all `sin_cos4`
+        // requires.
+        let (sin_x, cos_x, sin_y, cos_y, sin_z, cos_z) = if any_rotation {
+            let (sin_x, cos_x) = sin_cos4(vld1q_f32(rx.as_ptr()));
+            let (sin_y, cos_y) = sin_cos4(vld1q_f32(ry.as_ptr()));
+            let (sin_z, cos_z) = sin_cos4(vld1q_f32(rz.as_ptr()));
+            (sin_x, cos_x, sin_y, cos_y, sin_z, cos_z)
+        } else {
+            let one = vdupq_n_f32(1.);
+            (zero, one, zero, one, zero, one)
+        };
+        let vsx = vld1q_f32(sx.as_ptr());
+        let vsy = vld1q_f32(sy.as_ptr());
+        let vsz = vld1q_f32(sz.as_ptr());
+        let l00 = vmulq_f32(vmulq_f32(cos_z, cos_y), vsx);
+        let l10 = vmulq_f32(vmulq_f32(sin_z, cos_y), vsx);
+        let l20 = vmulq_f32(vnegq_f32(sin_y), vsx);
+        let l01 = vmulq_f32(
+            vfmsq_f32(vmulq_f32(vmulq_f32(cos_z, sin_y), sin_x), sin_z, cos_x),
+            vsy,
+        );
+        let l11 = vmulq_f32(
+            vfmaq_f32(vmulq_f32(vmulq_f32(sin_z, sin_y), sin_x), cos_z, cos_x),
+            vsy,
+        );
+        let l21 = vmulq_f32(vmulq_f32(cos_y, sin_x), vsy);
+        let l02 = vmulq_f32(
+            vfmaq_f32(vmulq_f32(vmulq_f32(cos_z, sin_y), cos_x), sin_z, sin_x),
+            vsz,
+        );
+        let l12 = vmulq_f32(
+            vfmsq_f32(vmulq_f32(vmulq_f32(sin_z, sin_y), cos_x), cos_z, sin_x),
+            vsz,
+        );
+        let l22 = vmulq_f32(vmulq_f32(cos_y, cos_x), vsz);
+        let vpx = vld1q_f32(px.as_ptr());
+        let vpy = vld1q_f32(py.as_ptr());
+        let vpz = vld1q_f32(pz.as_ptr());
+        let vdx = vld1q_f32(dx.as_ptr());
+        let vdy = vld1q_f32(dy.as_ptr());
+        let vdz = vld1q_f32(dz.as_ptr());
+        // `l03 = (px + dx) - (l00*px + l01*py + l02*pz)`, and likewise for the other two rows.
+        let a0 = vfmaq_f32(vfmaq_f32(vmulq_f32(l00, vpx), l01, vpy), l02, vpz);
+        let a1 = vfmaq_f32(vfmaq_f32(vmulq_f32(l10, vpx), l11, vpy), l12, vpz);
+        let a2 = vfmaq_f32(vfmaq_f32(vmulq_f32(l20, vpx), l21, vpy), l22, vpz);
+        let l03 = vsubq_f32(vaddq_f32(vpx, vdx), a0);
+        let l13 = vsubq_f32(vaddq_f32(vpy, vdy), a1);
+        let l23 = vsubq_f32(vaddq_f32(vpz, vdz), a2);
+        let cols = [l00, l10, l20, l01, l11, l21, l02, l12, l22, l03, l13, l23];
+        // SAFETY: this function's `#[target_feature]` includes neon.
+        let nonfinite = any_nonfinite_12(cols);
+        (cols, nonfinite)
+    }
+
+    /// The local-matrix rebuild over bone order, four bones at a time.
+    ///
+    /// A bone's local matrix depends only on that bone, so there is no ordering constraint and the
+    /// grouping can follow bone index. Grouping by level instead (as the composition must) would
+    /// leave every narrow level on the scalar path, and a real 25-level rig has many narrow levels.
+    #[target_feature(enable = "neon")]
+    unsafe fn refresh_body(
+        skeleton: &CompiledSkeleton,
+        params: &[f32],
+        scratch: &mut Scratch,
+    ) -> Result<(), Status> {
+        let n = skeleton.bone_count();
+        let pivots_x = skeleton.pivots_x();
+        let pivots_y = skeleton.pivots_y();
+        let pivots_z = skeleton.pivots_z();
+        let mut base_bone = 0;
+        while base_bone + LANES <= n {
+            let mut any_dirty = false;
+            for lane in 0..LANES {
+                any_dirty |= scratch.dirty[base_bone + lane] != 0;
+            }
+            if !any_dirty {
+                base_bone += LANES;
+                continue;
+            }
+            let mut rx = [0_f32; LANES];
+            let mut ry = [0_f32; LANES];
+            let mut rz = [0_f32; LANES];
+            let mut sx = [0_f32; LANES];
+            let mut sy = [0_f32; LANES];
+            let mut sz = [0_f32; LANES];
+            let mut dx = [0_f32; LANES];
+            let mut dy = [0_f32; LANES];
+            let mut dz = [0_f32; LANES];
+            let mut px = [0_f32; LANES];
+            let mut py = [0_f32; LANES];
+            let mut pz = [0_f32; LANES];
+            let mut any_rotation = false;
+            for lane in 0..LANES {
+                let bone = base_bone + lane;
+                let p = bone * BONE_PARAM_STRIDE;
+                rx[lane] = params[p];
+                ry[lane] = params[p + 1];
+                rz[lane] = params[p + 2];
+                dx[lane] = -params[p + 3] * 0.0625;
+                dy[lane] = params[p + 4] * 0.0625;
+                dz[lane] = params[p + 5] * 0.0625;
+                sx[lane] = params[p + 6];
+                sy[lane] = params[p + 7];
+                sz[lane] = params[p + 8];
+                px[lane] = pivots_x[bone];
+                py[lane] = pivots_y[bone];
+                pz[lane] = pivots_z[bone];
+                any_rotation |= rx[lane] != 0. || ry[lane] != 0. || rz[lane] != 0.;
+            }
+            let (cols, nonfinite) = local_columns(
+                &rx,
+                &ry,
+                &rz,
+                &sx,
+                &sy,
+                &sz,
+                &dx,
+                &dy,
+                &dz,
+                &px,
+                &py,
+                &pz,
+                any_rotation,
+            );
+            let mut built = [[0_f32; LANES]; 12];
+            for (index, column) in cols.into_iter().enumerate() {
+                vst1q_f32(built[index].as_mut_ptr(), column);
+            }
+            for lane in 0..LANES {
+                let bone = base_bone + lane;
+                if scratch.dirty[bone] == 0 {
+                    continue;
+                }
+                let base = bone * 16;
+                if sx[lane] == 0. || sy[lane] == 0. || sz[lane] == 0. {
+                    // A zero scale makes the bone invisible; the matrix is never read, but it must
+                    // not carry a stale value either.
+                    scratch.locals[base..base + 16].fill(0.);
+                    continue;
+                }
+                let m = &mut scratch.locals[base..base + 16];
+                m[0] = built[0][lane];
+                m[1] = built[1][lane];
+                m[2] = built[2][lane];
+                m[3] = 0.;
+                m[4] = built[3][lane];
+                m[5] = built[4][lane];
+                m[6] = built[5][lane];
+                m[7] = 0.;
+                m[8] = built[6][lane];
+                m[9] = built[7][lane];
+                m[10] = built[8][lane];
+                m[11] = 0.;
+                m[12] = built[9][lane];
+                m[13] = built[10][lane];
+                m[14] = built[11][lane];
+                m[15] = 1.;
+                if nonfinite && !m.iter().all(|v| v.is_finite()) {
+                    return Err(Status::NonFinite);
+                }
+            }
+            base_bone += LANES;
+        }
+        // Tail: scalar, so a bone count that is not a multiple of four is not truncated.
+        while base_bone < n {
+            if scratch.dirty[base_bone] != 0 {
+                // SAFETY: `refresh_one` re-derives everything from the bone's own parameters.
+                refresh_one(skeleton, params, scratch, base_bone)?;
+            }
+            base_bone += 1;
+        }
+        Ok(())
+    }
+
+    /// The fused step: compose the affected world matrices from the cached local matrices.
+    ///
+    /// Walking `level_order` means a parent's world matrix is final before any child in a later
+    /// level is visited, which is what lets a group of four siblings be composed without a
+    /// dependency between lanes. A group in which no bone is subtree-dirty is skipped whole, which
+    /// is what keeps a static frame cheap.
+    #[target_feature(enable = "neon")]
+    unsafe fn step_body(
+        skeleton: &CompiledSkeleton,
+        params: &[f32],
+        scratch: &mut Scratch,
+    ) -> Result<(), Status> {
+        let order = skeleton.level_order();
+        let level_parents = skeleton.level_parents();
+        let level_position = skeleton.level_position();
+        for level in skeleton.levels() {
+            let mut slot = level.start;
+            while slot + LANES <= level.end() {
+                let mut any_subtree = false;
+                for lane in 0..LANES {
+                    let bone = order[slot + lane] as usize;
+                    any_subtree |= scratch.subtree_dirty[bone] != 0;
+                }
+                if !any_subtree {
+                    slot += LANES;
+                    continue;
+                }
+
+                // ---- gather this group's cached local matrices and scales ----
+                let mut sx = [0_f32; LANES];
+                let mut sy = [0_f32; LANES];
+                let mut sz = [0_f32; LANES];
+                let mut bone_lane = [0_usize; LANES];
+                let mut parent_lane = [0_i32; LANES];
+                let mut local_cols = [[0_f32; LANES]; 12];
+                for lane in 0..LANES {
+                    let bone = order[slot + lane] as usize;
+                    bone_lane[lane] = bone;
+                    parent_lane[lane] = level_parents[slot + lane];
+                    let p = bone * BONE_PARAM_STRIDE;
+                    sx[lane] = params[p + 6];
+                    sy[lane] = params[p + 7];
+                    sz[lane] = params[p + 8];
+                    let l = &scratch.locals[bone * 16..bone * 16 + 16];
+                    local_cols[0][lane] = l[0];
+                    local_cols[1][lane] = l[1];
+                    local_cols[2][lane] = l[2];
+                    local_cols[3][lane] = l[4];
+                    local_cols[4][lane] = l[5];
+                    local_cols[5][lane] = l[6];
+                    local_cols[6][lane] = l[8];
+                    local_cols[7][lane] = l[9];
+                    local_cols[8][lane] = l[10];
+                    local_cols[9][lane] = l[12];
+                    local_cols[10][lane] = l[13];
+                    local_cols[11][lane] = l[14];
+                }
+
+                // ---- gather the parent world matrices, with the identity for roots ----
+                let mut parent_cols = [[0_f32; LANES]; 12];
+                for lane in 0..LANES {
+                    let parent = parent_lane[lane];
+                    if parent < 0 {
+                        parent_cols[0][lane] = 1.;
+                        parent_cols[4][lane] = 1.;
+                        parent_cols[8][lane] = 1.;
+                        continue;
+                    }
+                    let po = level_position[parent as usize] as usize * 16;
+                    let t = &scratch.transforms[po..po + 16];
+                    parent_cols[0][lane] = t[0];
+                    parent_cols[1][lane] = t[1];
+                    parent_cols[2][lane] = t[2];
+                    parent_cols[3][lane] = t[4];
+                    parent_cols[4][lane] = t[5];
+                    parent_cols[5][lane] = t[6];
+                    parent_cols[6][lane] = t[8];
+                    parent_cols[7][lane] = t[9];
+                    parent_cols[8][lane] = t[10];
+                    parent_cols[9][lane] = t[12];
+                    parent_cols[10][lane] = t[13];
+                    parent_cols[11][lane] = t[14];
+                }
+
+                // ---- world = parent * local, four lanes at a time ----
+                let world_vecs = multiply_twelve(&local_cols, &parent_cols);
+                let world_has_nonfinite = any_nonfinite_12(world_vecs);
+                let mut world = [[0_f32; LANES]; 12];
+                for (index, vector) in world_vecs.into_iter().enumerate() {
+                    vst1q_f32(world[index].as_mut_ptr(), vector);
+                }
+
+                // ---- per lane: store the world matrix, derive the normal, set the flags ----
+                for lane in 0..LANES {
+                    let bone = bone_lane[lane];
+                    if scratch.subtree_dirty[bone] == 0 {
+                        continue;
+                    }
+                    let parent = parent_lane[lane];
+                    let p = bone * BONE_PARAM_STRIDE;
+                    let lsx = sx[lane];
+                    let lsy = sy[lane];
+                    let lsz = sz[lane];
+                    let s = slot + lane;
+                    let m_off = s * 16;
+                    let n_off = s * 9;
+                    scratch.visible[bone] = 0;
+                    scratch.descendants[bone] = 0;
+                    scratch.uniform_scale[bone] = 0.;
+                    scratch.locator_mask[bone] = 0;
+                    let parent_hidden = parent >= 0 && scratch.descendants[parent as usize] == 0;
+                    if parent_hidden || lsx == 0. || lsy == 0. || lsz == 0. {
+                        scratch.transforms[m_off..m_off + 16].fill(0.);
+                        scratch.normals[n_off..n_off + 9].fill(0.);
+                        continue;
+                    }
+                    let w: [f32; 12] = [
+                        world[0][lane],
+                        world[1][lane],
+                        world[2][lane],
+                        world[3][lane],
+                        world[4][lane],
+                        world[5][lane],
+                        world[6][lane],
+                        world[7][lane],
+                        world[8][lane],
+                        world[9][lane],
+                        world[10][lane],
+                        world[11][lane],
+                    ];
+                    if world_has_nonfinite && !w.iter().all(|v| v.is_finite()) {
+                        return Err(Status::NonFinite);
+                    }
+                    let m = &mut scratch.transforms[m_off..m_off + 16];
+                    m[0] = w[0];
+                    m[1] = w[1];
+                    m[2] = w[2];
+                    m[3] = 0.;
+                    m[4] = w[3];
+                    m[5] = w[4];
+                    m[6] = w[5];
+                    m[7] = 0.;
+                    m[8] = w[6];
+                    m[9] = w[7];
+                    m[10] = w[8];
+                    m[11] = 0.;
+                    m[12] = w[9];
+                    m[13] = w[10];
+                    m[14] = w[11];
+                    m[15] = 1.;
+                    let uniform_local = lsx == lsy && lsy == lsz;
+                    let mut world_uniform = 0_f32;
+                    if uniform_local {
+                        let base = if parent < 0 {
+                            1.
+                        } else {
+                            scratch.uniform_scale[parent as usize]
+                        };
+                        if base != 0. {
+                            let candidate = base * lsx;
+                            let abs = candidate.abs();
+                            if candidate.is_finite() && (1e-6..=1e6).contains(&abs) {
+                                world_uniform = candidate;
+                            }
+                        }
+                    }
+                    scratch.uniform_scale[bone] = world_uniform;
+                    if world_uniform == 1. || world_uniform == -1. {
+                        scratch.normals[n_off..n_off + 9].copy_from_slice(&w[..9]);
+                    } else if world_uniform != 0. {
+                        let inv = 1. / (world_uniform * world_uniform);
+                        for (value_out, value_in) in
+                            scratch.normals[n_off..n_off + 9].iter_mut().zip(&w[..9])
+                        {
+                            *value_out = value_in * inv;
+                        }
+                    } else {
+                        // Non-uniform scale: the cofactor path is rare, and keeping one definition
+                        // of it in `compose_one` is worth the call.
+                        // SAFETY: `compose_one` re-derives everything from the bone's parameters.
+                        compose_one(skeleton, params, scratch, bone, parent, s)?;
+                        continue;
+                    }
+                    let own_visible = params[p + 9] == 0.;
+                    scratch.visible[bone] = u8::from(own_visible);
+                    scratch.descendants[bone] = u8::from(params[p + 10] == 0.);
+                    if own_visible && params[p + 11] == 1. {
+                        let piv_x = skeleton.pivots_x()[bone];
+                        let piv_y = skeleton.pivots_y()[bone];
+                        let piv_z = skeleton.pivots_z()[bone];
+                        let q = bone * 4;
+                        scratch.locators[q] =
+                            -(w[9] + w[0] * piv_x + w[3] * piv_y + w[6] * piv_z) * 16.;
+                        scratch.locators[q + 1] =
+                            (w[10] + w[1] * piv_x + w[4] * piv_y + w[7] * piv_z) * 16.;
+                        scratch.locators[q + 2] =
+                            (w[11] + w[2] * piv_x + w[5] * piv_y + w[8] * piv_z) * 16.;
+                        scratch.locator_mask[bone] = 1;
+                    }
+                }
+                slot += LANES;
+            }
+            // Tail lanes stay scalar, so a level whose width is not a multiple of four is not
+            // silently truncated.
+            while slot < level.end() {
+                let bone = order[slot] as usize;
+                if scratch.subtree_dirty[bone] != 0 {
+                    // SAFETY: `bone` and `slot` come from the skeleton's own level plan.
+                    compose_one(skeleton, params, scratch, bone, level_parents[slot], slot)?;
+                }
+                slot += 1;
+            }
+        }
+        Ok(())
+    }
+
+    /// `p0*l0 + p1*l1 + p2*l2`: one row of a 3x3 row-times-column product.
+    #[inline]
+    #[target_feature(enable = "neon")]
+    unsafe fn dot3(
+        p0: float32x4_t,
+        l0: float32x4_t,
+        p1: float32x4_t,
+        l1: float32x4_t,
+        p2: float32x4_t,
+        l2: float32x4_t,
+    ) -> float32x4_t {
+        vfmaq_f32(vfmaq_f32(vmulq_f32(p0, l0), p1, l1), p2, l2)
+    }
+
+    /// The twelve non-identity columns of `parent * local`, four lanes at a time.
+    ///
+    /// Both inputs are in the same column order as [`local_columns`] returns; the output is
+    /// `w00, w10, w20, w01, w11, w21, w02, w12, w22, w03, w13, w23`.
+    #[inline]
+    #[target_feature(enable = "neon")]
+    unsafe fn multiply_twelve(
+        local: &[[f32; LANES]; 12],
+        parent: &[[f32; LANES]; 12],
+    ) -> [float32x4_t; 12] {
+        let l00 = vld1q_f32(local[0].as_ptr());
+        let l10 = vld1q_f32(local[1].as_ptr());
+        let l20 = vld1q_f32(local[2].as_ptr());
+        let l01 = vld1q_f32(local[3].as_ptr());
+        let l11 = vld1q_f32(local[4].as_ptr());
+        let l21 = vld1q_f32(local[5].as_ptr());
+        let l02 = vld1q_f32(local[6].as_ptr());
+        let l12 = vld1q_f32(local[7].as_ptr());
+        let l22 = vld1q_f32(local[8].as_ptr());
+        let l03 = vld1q_f32(local[9].as_ptr());
+        let l13 = vld1q_f32(local[10].as_ptr());
+        let l23 = vld1q_f32(local[11].as_ptr());
+        let p00 = vld1q_f32(parent[0].as_ptr());
+        let p10 = vld1q_f32(parent[1].as_ptr());
+        let p20 = vld1q_f32(parent[2].as_ptr());
+        let p01 = vld1q_f32(parent[3].as_ptr());
+        let p11 = vld1q_f32(parent[4].as_ptr());
+        let p21 = vld1q_f32(parent[5].as_ptr());
+        let p02 = vld1q_f32(parent[6].as_ptr());
+        let p12 = vld1q_f32(parent[7].as_ptr());
+        let p22 = vld1q_f32(parent[8].as_ptr());
+        let p03 = vld1q_f32(parent[9].as_ptr());
+        let p13 = vld1q_f32(parent[10].as_ptr());
+        let p23 = vld1q_f32(parent[11].as_ptr());
+        [
+            dot3(p00, l00, p01, l10, p02, l20),
+            dot3(p10, l00, p11, l10, p12, l20),
+            dot3(p20, l00, p21, l10, p22, l20),
+            dot3(p00, l01, p01, l11, p02, l21),
+            dot3(p10, l01, p11, l11, p12, l21),
+            dot3(p20, l01, p21, l11, p22, l21),
+            dot3(p00, l02, p01, l12, p02, l22),
+            dot3(p10, l02, p11, l12, p12, l22),
+            dot3(p20, l02, p21, l12, p22, l22),
+            vaddq_f32(dot3(p00, l03, p01, l13, p02, l23), p03),
+            vaddq_f32(dot3(p10, l03, p11, l13, p12, l23), p13),
+            vaddq_f32(dot3(p20, l03, p21, l13, p22, l23), p23),
+        ]
+    }
+
+    /// One group of the uncached kernel: rebuild the locals, compose the worlds, write the records.
+    ///
+    /// `COUNT` is the number of lanes that will be committed. It is a const generic rather than a
+    /// runtime count so the full group and each possible level tail are separate, fully unrolled
+    /// instantiations: the level walk calls `<4>` for a whole group and then dispatches one of
+    /// `<1>`, `<2>`, `<3>` for the remainder. Uncommitted lanes are padded with zero rotation and
+    /// unit scale, which keeps their arithmetic on the identity and therefore finite, and they are
+    /// never stored.
+    ///
+    /// The record write is fused in here rather than left to [`write_records`]. On a frame where
+    /// every bone is dirty that separate pass re-reads every world matrix and normal from memory
+    /// for no reason, which the x86 tier measured at ~10 µs for a 773-bone rig.
+    ///
+    /// # Safety
+    ///
+    /// `1 <= COUNT <= LANES`, `slot + COUNT <= skeleton.level_order().len()`, `scratch` must be
+    /// sized for `skeleton.bone_count()` bones, and `out` must be valid for `bone_count * 144`
+    /// writable bytes.
+    // The arguments are deliberately not bundled: the x86 tier measured that wrapping the
+    // record-writing context in a struct cost 6 µs on a fully-animated 773-bone rig, because the
+    // indirection stopped the compiler keeping the root columns in registers across the group.
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    #[target_feature(enable = "neon")]
+    unsafe fn evaluate_group<const COUNT: usize>(
+        skeleton: &CompiledSkeleton,
+        params: &[f32],
+        scratch: &mut Scratch,
+        slot: usize,
+        out: *mut u8,
+        request: &PackedRequest<'_>,
+        hidden: &[u8; PACKED_BONE_STRIDE],
+        root_cols: &RootColumns,
+    ) -> Result<(), Status> {
+        let order = skeleton.level_order();
+        let level_parents = skeleton.level_parents();
+        let level_position = skeleton.level_position();
+        let pivots_x = skeleton.pivots_x();
+        let pivots_y = skeleton.pivots_y();
+        let pivots_z = skeleton.pivots_z();
+        let glow = skeleton.glow_mask();
+
+        // ---- gather this group's parameters ----
+        let mut rx = [0_f32; LANES];
+        let mut ry = [0_f32; LANES];
+        let mut rz = [0_f32; LANES];
+        let mut dx = [0_f32; LANES];
+        let mut dy = [0_f32; LANES];
+        let mut dz = [0_f32; LANES];
+        let mut sx = [1_f32; LANES];
+        let mut sy = [1_f32; LANES];
+        let mut sz = [1_f32; LANES];
+        let mut px = [0_f32; LANES];
+        let mut py = [0_f32; LANES];
+        let mut pz = [0_f32; LANES];
+        let mut bone_lane = [0_usize; LANES];
+        let mut parent_lane = [-1_i32; LANES];
+        let mut any_rotation = false;
+        for lane in 0..COUNT {
+            let bone = order[slot + lane] as usize;
+            bone_lane[lane] = bone;
+            parent_lane[lane] = level_parents[slot + lane];
+            let p = bone * BONE_PARAM_STRIDE;
+            rx[lane] = params[p];
+            ry[lane] = params[p + 1];
+            rz[lane] = params[p + 2];
+            dx[lane] = -params[p + 3] * 0.0625;
+            dy[lane] = params[p + 4] * 0.0625;
+            dz[lane] = params[p + 5] * 0.0625;
+            sx[lane] = params[p + 6];
+            sy[lane] = params[p + 7];
+            sz[lane] = params[p + 8];
+            px[lane] = pivots_x[bone];
+            py[lane] = pivots_y[bone];
+            pz[lane] = pivots_z[bone];
+            any_rotation |= rx[lane] != 0. || ry[lane] != 0. || rz[lane] != 0.;
+        }
+
+        // ---- local matrices, four lanes at a time ----
+        let (local_vecs, local_nonfinite) = local_columns(
+            &rx,
+            &ry,
+            &rz,
+            &sx,
+            &sy,
+            &sz,
+            &dx,
+            &dy,
+            &dz,
+            &px,
+            &py,
+            &pz,
+            any_rotation,
+        );
+        let mut local_cols = [[0_f32; LANES]; 12];
+        for (index, vector) in local_vecs.into_iter().enumerate() {
+            vst1q_f32(local_cols[index].as_mut_ptr(), vector);
+        }
+        if local_nonfinite {
+            for lane in 0..COUNT {
+                if sx[lane] == 0. || sy[lane] == 0. || sz[lane] == 0. {
+                    local_cols.iter_mut().for_each(|column| column[lane] = 0.);
+                    continue;
+                }
+                if !local_cols.iter().all(|column| column[lane].is_finite()) {
+                    return Err(Status::NonFinite);
+                }
+            }
+        }
+
+        // ---- gather the parent world matrices, with the identity for roots ----
+        let mut parent_cols = [[0_f32; LANES]; 12];
+        for lane in 0..COUNT {
+            let parent = parent_lane[lane];
+            if parent < 0 {
+                parent_cols[0][lane] = 1.;
+                parent_cols[4][lane] = 1.;
+                parent_cols[8][lane] = 1.;
+                continue;
+            }
+            let po = level_position[parent as usize] as usize * 16;
+            let t = &scratch.transforms[po..po + 16];
+            parent_cols[0][lane] = t[0];
+            parent_cols[1][lane] = t[1];
+            parent_cols[2][lane] = t[2];
+            parent_cols[3][lane] = t[4];
+            parent_cols[4][lane] = t[5];
+            parent_cols[5][lane] = t[6];
+            parent_cols[6][lane] = t[8];
+            parent_cols[7][lane] = t[9];
+            parent_cols[8][lane] = t[10];
+            parent_cols[9][lane] = t[12];
+            parent_cols[10][lane] = t[13];
+            parent_cols[11][lane] = t[14];
+        }
+
+        // ---- world = parent * local ----
+        let world_vecs = multiply_twelve(&local_cols, &parent_cols);
+        let world_has_nonfinite = any_nonfinite_12(world_vecs);
+        let mut world = [[0_f32; LANES]; 12];
+        for (index, vector) in world_vecs.into_iter().enumerate() {
+            vst1q_f32(world[index].as_mut_ptr(), vector);
+        }
+
+        // ---- per lane: store the world matrix, derive the normal, set the flags, write the record
+        // ----
+        for lane in 0..COUNT {
+            let bone = bone_lane[lane];
+            let parent = parent_lane[lane];
+            let p = bone * BONE_PARAM_STRIDE;
+            let lsx = sx[lane];
+            let lsy = sy[lane];
+            let lsz = sz[lane];
+            let s = slot + lane;
+            let m_off = s * 16;
+            let n_off = s * 9;
+            // SAFETY: `bone < bone_count`, so this is this bone's 144-byte slot.
+            let record = out.add(bone * PACKED_BONE_STRIDE);
+            let pass_visible = match request.pass {
+                BonePassFilter::All => true,
+                BonePassFilter::NonGlow => glow[bone] == 0,
+                BonePassFilter::Glow => glow[bone] != 0,
+            };
+            scratch.visible[bone] = 0;
+            scratch.descendants[bone] = 0;
+            scratch.uniform_scale[bone] = 0.;
+            scratch.locator_mask[bone] = 0;
+            let parent_hidden = parent >= 0 && scratch.descendants[parent as usize] == 0;
+            if parent_hidden || lsx == 0. || lsy == 0. || lsz == 0. || !pass_visible {
+                scratch.transforms[m_off..m_off + 16].fill(0.);
+                scratch.normals[n_off..n_off + 9].fill(0.);
+                std::ptr::copy_nonoverlapping(hidden.as_ptr(), record, PACKED_BONE_STRIDE);
+                continue;
+            }
+            let w: [f32; 12] = [
+                world[0][lane],
+                world[1][lane],
+                world[2][lane],
+                world[3][lane],
+                world[4][lane],
+                world[5][lane],
+                world[6][lane],
+                world[7][lane],
+                world[8][lane],
+                world[9][lane],
+                world[10][lane],
+                world[11][lane],
+            ];
+            if world_has_nonfinite && !w.iter().all(|v| v.is_finite()) {
+                return Err(Status::NonFinite);
+            }
+            let m = &mut scratch.transforms[m_off..m_off + 16];
+            m[0] = w[0];
+            m[1] = w[1];
+            m[2] = w[2];
+            m[3] = 0.;
+            m[4] = w[3];
+            m[5] = w[4];
+            m[6] = w[5];
+            m[7] = 0.;
+            m[8] = w[6];
+            m[9] = w[7];
+            m[10] = w[8];
+            m[11] = 0.;
+            m[12] = w[9];
+            m[13] = w[10];
+            m[14] = w[11];
+            m[15] = 1.;
+            let uniform_local = lsx == lsy && lsy == lsz;
+            let mut world_uniform = 0_f32;
+            if uniform_local {
+                let base = if parent < 0 {
+                    1.
+                } else {
+                    scratch.uniform_scale[parent as usize]
+                };
+                if base != 0. {
+                    let candidate = base * lsx;
+                    let abs = candidate.abs();
+                    if candidate.is_finite() && (1e-6..=1e6).contains(&abs) {
+                        world_uniform = candidate;
+                    }
+                }
+            }
+            scratch.uniform_scale[bone] = world_uniform;
+            // The normal is derived into a local array rather than into `scratch.normals`. On a
+            // fully-animated frame nothing reads `scratch.normals` afterwards — the record is the
+            // only consumer — so storing it and reading it straight back is a 36-byte round trip
+            // per bone for nothing. The non-uniform branch below still fills it, because
+            // `compose_one_with` reads it.
+            let mut normal = [0_f32; 9];
+            if world_uniform == 1. || world_uniform == -1. {
+                normal.copy_from_slice(&w[..9]);
+            } else if world_uniform != 0. {
+                let inv = 1. / (world_uniform * world_uniform);
+                for (value_out, value_in) in normal.iter_mut().zip(&w[..9]) {
+                    *value_out = value_in * inv;
+                }
+            } else {
+                // Non-uniform scale: the cofactor path is rare, and keeping one definition of it
+                // in `compose_one_with` is worth the call.
+                let local: [f32; 16] = [
+                    local_cols[0][lane],
+                    local_cols[1][lane],
+                    local_cols[2][lane],
+                    0.,
+                    local_cols[3][lane],
+                    local_cols[4][lane],
+                    local_cols[5][lane],
+                    0.,
+                    local_cols[6][lane],
+                    local_cols[7][lane],
+                    local_cols[8][lane],
+                    0.,
+                    local_cols[9][lane],
+                    local_cols[10][lane],
+                    local_cols[11][lane],
+                    1.,
+                ];
+                // SAFETY: `compose_one_with` re-derives everything from `local` and the
+                // parameters, and `bone` and `s` come from the skeleton's own level plan.
+                compose_one_with(skeleton, params, scratch, bone, parent, s, &local)?;
+                let light = if glow[bone] != 0 {
+                    request.full_bright_light
+                } else {
+                    request.packed_light
+                };
+                root_cols.write_record_neon(
+                    record,
+                    &scratch.transforms[m_off..m_off + 16],
+                    &scratch.normals[n_off..n_off + 9],
+                    light,
+                    request.layout,
+                );
+                continue;
+            }
+            scratch.normals[n_off..n_off + 9].copy_from_slice(&normal);
+            let own_visible = params[p + 9] == 0.;
+            scratch.visible[bone] = u8::from(own_visible);
+            scratch.descendants[bone] = u8::from(params[p + 10] == 0.);
+            if own_visible && params[p + 11] == 1. {
+                let piv_x = px[lane];
+                let piv_y = py[lane];
+                let piv_z = pz[lane];
+                let q = bone * 4;
+                scratch.locators[q] = -(w[9] + w[0] * piv_x + w[3] * piv_y + w[6] * piv_z) * 16.;
+                scratch.locators[q + 1] =
+                    (w[10] + w[1] * piv_x + w[4] * piv_y + w[7] * piv_z) * 16.;
+                scratch.locators[q + 2] =
+                    (w[11] + w[2] * piv_x + w[5] * piv_y + w[8] * piv_z) * 16.;
+                scratch.locator_mask[bone] = 1;
+            }
+            // A bone that is itself hidden still gets its matrices composed — its children may be
+            // visible — but its record must be the canonical hidden one, exactly as `write_records`
+            // would emit. Writing a visible record here would make the two kernels disagree on any
+            // rig with a hidden bone.
+            if !own_visible {
+                std::ptr::copy_nonoverlapping(hidden.as_ptr(), record, PACKED_BONE_STRIDE);
+                continue;
+            }
+            let light = if glow[bone] != 0 {
+                request.full_bright_light
+            } else {
+                request.packed_light
+            };
+            root_cols.write_record_neon(
+                record,
+                &scratch.transforms[m_off..m_off + 16],
+                &normal,
+                light,
+                request.layout,
+            );
+        }
+        Ok(())
+    }
+
+    /// Walks the level plan, calling the group kernel for whole groups and a counted one for tails.
+    ///
+    /// # Safety
+    ///
+    /// `scratch` must be sized for `skeleton.bone_count()` bones, and `out` must be valid for
+    /// `bone_count * 144` writable bytes.
+    #[target_feature(enable = "neon")]
+    unsafe fn evaluate_body(
+        skeleton: &CompiledSkeleton,
+        params: &[f32],
+        scratch: &mut Scratch,
+        out: *mut u8,
+        request: &PackedRequest<'_>,
+    ) -> Result<(), Status> {
+        let hidden = hidden_record(request.layout);
+        let root_cols = RootColumns::new(request.root);
+        for level in skeleton.levels() {
+            let mut slot = level.start;
+            while slot + LANES <= level.end() {
+                // SAFETY: `slot + LANES <= level.end() <= order.len()`, `scratch` is sized for
+                // this skeleton, and `out` holds `bone_count * 144` bytes.
+                evaluate_group::<LANES>(
+                    skeleton, params, scratch, slot, out, request, &hidden, &root_cols,
+                )?;
+                slot += LANES;
+            }
+            // A level tail is 1..=3 lanes. Padding it into a full group would compute up to three
+            // identity lanes and commit nothing, which is cheaper than four scalar bones and, more
+            // importantly, keeps the tail's trigonometry on the vector path.
+            match level.end() - slot {
+                0 => {}
+                1 => {
+                    evaluate_group::<1>(
+                        skeleton, params, scratch, slot, out, request, &hidden, &root_cols,
+                    )?;
+                }
+                2 => {
+                    evaluate_group::<2>(
+                        skeleton, params, scratch, slot, out, request, &hidden, &root_cols,
+                    )?;
+                }
+                _ => {
+                    evaluate_group::<3>(
+                        skeleton, params, scratch, slot, out, request, &hidden, &root_cols,
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The local-matrix rebuild, NEON tier.
+    ///
+    /// # Safety
+    ///
+    /// `scratch` must be sized for `skeleton.bone_count()` bones.
+    #[target_feature(enable = "neon")]
+    pub(super) unsafe fn refresh_neon(
+        skeleton: &CompiledSkeleton,
+        params: &[f32],
+        scratch: &mut Scratch,
+    ) -> Result<(), Status> {
+        refresh_body(skeleton, params, scratch)
+    }
+
+    /// The fused cached step, NEON tier.
+    ///
+    /// # Safety
+    ///
+    /// `scratch` must be sized for `skeleton.bone_count()` bones.
+    #[target_feature(enable = "neon")]
+    pub(super) unsafe fn step_neon(
+        skeleton: &CompiledSkeleton,
+        params: &[f32],
+        scratch: &mut Scratch,
+    ) -> Result<(), Status> {
+        step_body(skeleton, params, scratch)
+    }
+
+    /// The uncached kernel, NEON tier.
+    ///
+    /// # Safety
+    ///
+    /// `scratch` must be sized for `skeleton.bone_count()` bones.
+    #[target_feature(enable = "neon")]
+    pub(super) unsafe fn evaluate_neon(
+        skeleton: &CompiledSkeleton,
+        params: &[f32],
+        scratch: &mut Scratch,
+        out: *mut u8,
+        request: &PackedRequest<'_>,
+    ) -> Result<(), Status> {
+        evaluate_body(skeleton, params, scratch, out, request)
+    }
+}
+
+#[cfg(all(test, target_arch = "aarch64"))]
+mod neon_tests {
+    use super::neon::*;
+    use std::arch::aarch64::*;
+
+    /// The vector trigonometry must agree with the platform pair inside the packed path's budget.
+    ///
+    /// This is the only direct check of [`sin_cos4`]: every other test sees its effect through a
+    /// whole matrix, where an error in one quadrant can be masked by the magnitudes around it. The
+    /// budget is the packed path's `1e-4`, and the polynomial is expected to be two orders of
+    /// magnitude better than that.
+    #[test]
+    fn sin_cos4_matches_the_platform_pair() {
+        let mut worst = 0_f32;
+        let mut detail = String::new();
+        for step in -8000..=8000 {
+            let angle = step as f32 * 0.001;
+            let angles = [angle, angle + 0.25, angle - 0.5, angle * 0.5];
+            // SAFETY: NEON is part of the aarch64 baseline, so the kernel's target feature holds.
+            let (sin, cos) = unsafe { sin_cos4(vld1q_f32(angles.as_ptr())) };
+            let mut sin_lanes = [0_f32; LANES];
+            let mut cos_lanes = [0_f32; LANES];
+            // SAFETY: both arrays hold exactly one vector.
+            unsafe {
+                vst1q_f32(sin_lanes.as_mut_ptr(), sin);
+                vst1q_f32(cos_lanes.as_mut_ptr(), cos);
+            }
+            for lane in 0..LANES {
+                let (expected_sin, expected_cos) = angles[lane].sin_cos();
+                for (error, what) in [
+                    (
+                        (sin_lanes[lane] - expected_sin).abs(),
+                        format!(
+                            "sin at {:.6}: got {} want {}",
+                            angles[lane], sin_lanes[lane], expected_sin
+                        ),
+                    ),
+                    (
+                        (cos_lanes[lane] - expected_cos).abs(),
+                        format!(
+                            "cos at {:.6}: got {} want {}",
+                            angles[lane], cos_lanes[lane], expected_cos
+                        ),
+                    ),
+                ] {
+                    if error > worst {
+                        worst = error;
+                        detail = what;
+                    }
+                }
+            }
+        }
+        println!("sin_cos4 worst error {worst:e}: {detail}");
+        assert!(worst < 1e-5, "sin_cos4 error {worst:e} exceeds the budget");
+    }
+}

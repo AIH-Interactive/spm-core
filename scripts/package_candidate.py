@@ -22,11 +22,29 @@ from ci_core import NATIVE_TARGETS, candidate_inputs, validate_checkout
 
 GROUP = 'dev.spm.core'
 SOURCE = 'https://github.com/AIH-Interactive/spm-core'
-# Release versions this packaging path may produce. A preview version derived from the exact source
-# revision is always allowed; the release versions are listed explicitly so publishing one is a
-# deliberate edit rather than an accident. Keep this in step with the publishCandidate gate in
-# build.gradle, which rejects anything else before packaging runs.
-RELEASE_VERSIONS = frozenset({'1.2.0'})
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _release_versions() -> frozenset[str]:
+    """Release versions this packaging path may produce, read from the single version file.
+
+    A preview version derived from the exact source revision is always allowed; the release versions
+    are listed explicitly so publishing one is a deliberate edit rather than an accident. Reading
+    them from `gradle.properties` instead of repeating them here is what keeps this list and the
+    publish gates in `build.gradle` from drifting apart — they used to each carry their own copy, and
+    one of them was still listing 1.1.0 while the build was already on 1.2.0.
+    """
+    text = (PROJECT_ROOT / 'gradle.properties').read_text(encoding='utf-8')
+    match = re.search(r'^spmCoreReleaseVersions[ \t]*=[ \t]*(.+)$', text, re.MULTILINE)
+    if not match:
+        raise ValueError('gradle.properties must declare spmCoreReleaseVersions')
+    versions = frozenset(part.strip() for part in match.group(1).split(',') if part.strip())
+    if not versions:
+        raise ValueError('spmCoreReleaseVersions must name at least one release version')
+    return versions
+
+
+RELEASE_VERSIONS = _release_versions()
 
 SCHEMA = 'spm-core-candidate/1'
 SCOPE = 'LOCAL_RESOLVED_INVENTORY; preview only; full dependency licensing and source origin certification remain pending'
@@ -141,6 +159,16 @@ def validate_native(data: bytes, target: str) -> None:
     elif target in {'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu', 'aarch64-linux-android'} and len(data) >= 20:
         machine = 183 if target.startswith('aarch64') else 62
         valid = data[:6] == b'\x7fELF\x02\x01' and struct.unpack_from('<HH', data, 16) == (3, machine)
+    elif target == 'armv7-linux-androideabi' and len(data) >= 20:
+        # ELF32 little-endian: byte 4 is the class (1 = 32-bit) and EM_ARM is 40. Checking the class
+        # as well as the machine is the point — a 64-bit container with e_machine 183 would pass an
+        # aarch64 check, and an arm32 build that accidentally produced ELF64 must not slip through.
+        valid = data[:6] == b'\x7fELF\x01\x01' and struct.unpack_from('<HH', data, 16) == (3, 40)
+    elif target in {'riscv64gc-unknown-linux-gnu', 'loongarch64-unknown-linux-gnu'} and len(data) >= 20:
+        # ELF64 little-endian. EM_RISCV is 243 and EM_LOONGARCH is 258; both targets are 64-bit only,
+        # so the class byte is checked as a precondition rather than assumed.
+        machine = 243 if target.startswith('riscv64') else 258
+        valid = data[:6] == b'\x7fELF\x02\x01' and struct.unpack_from('<HH', data, 16) == (3, machine)
     elif target in {'aarch64-apple-darwin', 'x86_64-apple-darwin'} and len(data) >= 16:
         cpu = 0x0100000C if target.startswith('aarch64') else 0x01000007
         valid = struct.unpack_from('<IIII', data)[:2] == (0xFEEDFACF, cpu) and struct.unpack_from('<I', data, 12)[0] == 6
@@ -254,7 +282,9 @@ def main() -> int:
     parser.add_argument('--repository', type=Path, help='Default: <root>/build/candidate-maven')
     parser.add_argument('--output', type=Path, help='Default: <root>/build/candidate-dist')
     parser.add_argument('--revision', required=True)
-    parser.add_argument('--version', help='Explicit release version (one of RELEASE_VERSIONS, e.g. 1.1.0); defaults to 0.1.0-preview.<sha12>')
+    parser.add_argument('--version', help='Explicit release version (one of '
+                        + ', '.join(sorted(RELEASE_VERSIONS))
+                        + '); defaults to 0.1.0-preview.<sha12>')
     parser.add_argument('--native', action='append', default=[], help='Explicit supported-target=library path; repeat for multiple targets')
     args = parser.parse_args()
     root = args.root.resolve()

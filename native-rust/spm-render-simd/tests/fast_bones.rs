@@ -687,8 +687,8 @@ fn an_empty_skeleton_writes_nothing() {
 
 /// The reported tier is a projection of the selected kernel, exactly as for the other kernels.
 ///
-/// The packed path only has 8-wide composition kernels for AVX2 and AVX2+FMA. SSE2, AVX and NEON
-/// fall back to the scalar walk, and reporting those as the requested tier would claim
+/// The packed path has 8-wide composition kernels for AVX2 and AVX2+FMA, and 4-wide ones for NEON.
+/// SSE2 and AVX fall back to the scalar walk, and reporting those as the requested tier would claim
 /// instructions that never ran — which is precisely the defect the N13 rule exists to prevent. So
 /// this asserts the weaker but honest property: the report equals the tier of the kernel that
 /// actually executed, and only the tiers with a real vector kernel report themselves.
@@ -700,7 +700,7 @@ fn the_reported_tier_is_the_tier_of_the_selected_kernel() {
         }
         assert_eq!(packed_executed(isa), packed_kernel_id(isa).tier());
         match isa {
-            Isa::Avx2 | Isa::Avx2Fma => assert_eq!(
+            Isa::Avx2 | Isa::Avx2Fma | Isa::Neon => assert_eq!(
                 packed_executed(isa),
                 isa,
                 "forced {isa:?} has a vector kernel and must report itself"

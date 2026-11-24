@@ -51,8 +51,13 @@ jobs:
         env:
           CONSUMER_RUNTIME_HOME: ${{ steps.consumer_runtime.outputs.path }}
         run: |
-          bash ./gradlew clean publishCandidate -PspmCoreVersion="1.2.0" --no-build-cache --rerun-tasks --console=plain
-          python scripts/package_candidate.py --revision "$GITHUB_SHA" --version "1.2.0"
+          # Read the version from its single declaration instead of repeating it here: a hardcoded
+          # copy in this step is how the packaging path came to hardcode 1.2.0 while the build was
+          # already on a newer one.
+          version=$(sed -n 's/^spmCoreVersion=//p' gradle.properties | tr -d '[:space:]')
+          test -n "$version" || { echo 'spmCoreVersion missing from gradle.properties' >&2; exit 1; }
+          bash ./gradlew clean publishCandidate -PspmCoreVersion="$version" --no-build-cache --rerun-tasks --console=plain
+          python scripts/package_candidate.py --revision "$GITHUB_SHA" --version "$version"
           python -c 'import hashlib,os,subprocess,sys; from pathlib import Path; p=Path("build/candidate-dist").resolve(); subprocess.run([sys.executable,"scripts/validate_candidate_consumer.py","--repository",p.as_uri(),"--revision",os.environ["GITHUB_SHA"],"--manifest-sha256",hashlib.sha256((p/"manifest.json").read_bytes()).hexdigest(),"--gradle",str(Path("gradlew").resolve()),"--compiler-home",os.environ["JAVA_HOME"],"--runtime-home",os.environ["CONSUMER_RUNTIME_HOME"],"--output","build/consumer-evidence.json"],check=True)'
       - name: Preserve the preview and consumer result
         if: ${{ always() }}
@@ -229,9 +234,136 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  android-arm32:
+    name: native-cross-android-arm32
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Cross-compile and inspect Android ARM32 native shared library
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}"
+          if [[ -z "$NDK" || ! -d "$NDK" ]]; then
+            echo "ANDROID_NDK_LATEST_HOME not found on runner" >&2
+            exit 1
+          fi
+          TOOLS="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          rustup toolchain install 1.98.1 --profile minimal --component clippy --target armv7-linux-androideabi
+          export CARGO_TARGET_DIR="$PWD/native-rust/target"
+          export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="$TOOLS/armv7a-linux-androideabi24-clang"
+          export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_AR="$TOOLS/llvm-ar"
+          cargo +1.98.1 clippy --manifest-path native-rust/Cargo.toml --workspace --locked --target armv7-linux-androideabi -- -D warnings
+          cargo +1.98.1 build --manifest-path native-rust/Cargo.toml --release --locked --target armv7-linux-androideabi
+          LIB="native-rust/target/armv7-linux-androideabi/release/libspm_core_native.so"
+          test -f "$LIB"
+          readelf -h "$LIB"
+          mkdir -p .gradle/android-ci/artifact
+          cp "$LIB" .gradle/android-ci/artifact/libspm_core_native.so
+          python -c 'import hashlib,json,os; p=".gradle/android-ci/artifact/libspm_core_native.so"; rec=dict(schema=1,status="CROSS_COMPILED_NOT_EXECUTED",checkout=os.environ["GITHUB_SHA"],runId=os.environ.get("GITHUB_RUN_ID"),runAttempt=os.environ.get("GITHUB_RUN_ATTEMPT"),os="Android",architecture="armv7",native=dict(target="armv7-linux-androideabi",crossCompileOnly=True,sha256=hashlib.sha256(open(p,"rb").read()).hexdigest())); open(".gradle/android-ci/artifact/candidate.json","w",encoding="utf-8").write(json.dumps(rec,indent=2)+"\n")'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: core-android-arm32-${{ github.sha }}-${{ github.run_attempt }}
+          path: .gradle/android-ci/artifact/
+          if-no-files-found: error
+          retention-days: 14
+
+  linux-cross:
+    name: native-cross-${{ matrix.label }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # P2: the 信创 targets. Both are cross-compiled with Ubuntu's own cross toolchain, so no
+          # external sysroot or Docker image is involved, and neither can ever be promoted past
+          # CROSS_COMPILED_NOT_EXECUTED — no runner in this matrix executes them.
+          - label: linux-riscv64
+            target: riscv64gc-unknown-linux-gnu
+            cargo_env: RISCV64GC_UNKNOWN_LINUX_GNU
+            cross_pkg: gcc-13-riscv64-linux-gnu
+            cross_cc: riscv64-linux-gnu-gcc
+            architecture: riscv64
+          - label: linux-loongarch64
+            target: loongarch64-unknown-linux-gnu
+            cargo_env: LOONGARCH64_UNKNOWN_LINUX_GNU
+            cross_pkg: gcc-13-loongarch64-linux-gnu
+            cross_cc: loongarch64-linux-gnu-gcc
+            architecture: loongarch64
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install the cross toolchain and its libc headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          # No --no-install-recommends: on Ubuntu the target libc headers arrive as a Recommends of
+          # the gcc package, and without them the final link fails for a missing crt object.
+          sudo apt-get update
+          sudo apt-get install -y "${{ matrix.cross_pkg }}"
+          command -v "${{ matrix.cross_cc }}" >/dev/null || {
+            echo "${{ matrix.cross_cc }} is missing after installing ${{ matrix.cross_pkg }}" >&2
+            exit 1
+          }
+      - name: Cross-compile and inspect ${{ matrix.label }} native shared library
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          CARGO_ENV: ${{ matrix.cargo_env }}
+          CROSS_CC: ${{ matrix.cross_cc }}
+          ARCH: ${{ matrix.architecture }}
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.1 --profile minimal --component clippy --target "$TARGET"
+          export CARGO_TARGET_DIR="$PWD/native-rust/target"
+          export "CARGO_TARGET_${CARGO_ENV}_LINKER=$(command -v "$CROSS_CC")"
+          cargo +1.98.1 clippy --manifest-path native-rust/Cargo.toml --workspace --locked --target "$TARGET" -- -D warnings
+          cargo +1.98.1 build --manifest-path native-rust/Cargo.toml --release --locked --target "$TARGET"
+          LIB="native-rust/target/$TARGET/release/libspm_core_native.so"
+          test -f "$LIB"
+          readelf -h "$LIB"
+          OUT=".gradle/cross-ci/$TARGET/artifact"
+          mkdir -p "$OUT"
+          cp "$LIB" "$OUT/libspm_core_native.so"
+          python - "$OUT/libspm_core_native.so" "$TARGET" "$ARCH" "$OUT/candidate.json" <<'PY'
+          import hashlib, json, os, sys
+          lib, target, arch, destination = sys.argv[1:5]
+          record = dict(
+              schema=1,
+              status="CROSS_COMPILED_NOT_EXECUTED",
+              checkout=os.environ["GITHUB_SHA"],
+              runId=os.environ.get("GITHUB_RUN_ID"),
+              runAttempt=os.environ.get("GITHUB_RUN_ATTEMPT"),
+              os="Linux",
+              architecture=arch,
+              native=dict(target=target, crossCompileOnly=True,
+                          sha256=hashlib.sha256(open(lib, "rb").read()).hexdigest()),
+          )
+          open(destination, "w", encoding="utf-8").write(json.dumps(record, indent=2) + "\n")
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: core-${{ matrix.label }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: .gradle/cross-ci/
+          if-no-files-found: error
+          retention-days: 14
+
   core-ci:
     name: Core CI
-    needs: [candidate, android-arm64]
+    needs: [candidate, android-arm64, android-arm32, linux-cross]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -241,7 +373,13 @@ jobs:
         env:
           MATRIX_RESULT: ${{ needs.candidate.result }}
           ANDROID_RESULT: ${{ needs.android-arm64.result }}
-        run: test "$MATRIX_RESULT" = success && test "$ANDROID_RESULT" = success
+          ANDROID_ARM32_RESULT: ${{ needs.android-arm32.result }}
+          LINUX_CROSS_RESULT: ${{ needs.linux-cross.result }}
+        run: |
+          test "$MATRIX_RESULT" = success
+          test "$ANDROID_RESULT" = success
+          test "$ANDROID_ARM32_RESULT" = success
+          test "$LINUX_CROSS_RESULT" = success
       - name: Check out the same exact SHA to assemble the platform matrix
         if: ${{ always() }}
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5

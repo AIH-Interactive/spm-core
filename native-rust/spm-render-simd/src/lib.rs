@@ -192,6 +192,9 @@ fn kernel(isa: Isa) -> (TransformKernel, crate::KernelId) {
     if isa == Isa::Neon {
         return (neon, KernelId::Neon);
     }
+    // 32-bit ARM has no module of its own, so there is nothing for `isa` to select here either.
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")))]
+    let _ = isa;
     (scalar, KernelId::Scalar)
 }
 

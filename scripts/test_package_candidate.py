@@ -191,6 +191,37 @@ class CandidatePublicationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_native(linux_arm, 'x86_64-unknown-linux-gnu')
 
+    def test_the_cross_compiled_targets_are_checked_by_machine_and_class(self):
+        """P1/P2: arm32 is ELF32/EM_ARM, riscv64 and loongarch64 are ELF64 with their own machines.
+
+        The class byte matters independently of the machine: an arm32 build that somehow produced a
+        64-bit container must be rejected, and so must a 32-bit container claiming to be riscv64.
+        """
+        def elf64(machine: int) -> bytearray:
+            data = bytearray(64)
+            data[:6] = b'\x7fELF\x02\x01'
+            struct.pack_into('<HH', data, 16, 3, machine)
+            return data
+
+        def elf32(machine: int) -> bytearray:
+            data = bytearray(52)
+            data[:6] = b'\x7fELF\x01\x01'
+            struct.pack_into('<HH', data, 16, 3, machine)
+            return data
+
+        validate_native(elf32(40), 'armv7-linux-androideabi')
+        validate_native(elf64(243), 'riscv64gc-unknown-linux-gnu')
+        validate_native(elf64(258), 'loongarch64-unknown-linux-gnu')
+
+        with self.assertRaisesRegex(ValueError, 'architecture'):
+            validate_native(elf64(40), 'armv7-linux-androideabi')
+        with self.assertRaisesRegex(ValueError, 'architecture'):
+            validate_native(elf32(243), 'riscv64gc-unknown-linux-gnu')
+        with self.assertRaisesRegex(ValueError, 'architecture'):
+            validate_native(elf64(243), 'loongarch64-unknown-linux-gnu')
+        with self.assertRaisesRegex(ValueError, 'architecture'):
+            validate_native(elf64(258), 'riscv64gc-unknown-linux-gnu')
+
     def test_published_jvm25_variant_is_rejected_despite_java17_bytecode(self):
         data = dict(formatVersion='1.1', component=dict(group=GROUP, module='api', version=VERSION, attributes={'org.gradle.status': 'release'}),
                     variants=[dict(attributes={'org.gradle.category': 'library', 'org.gradle.usage': 'java-runtime', 'org.gradle.jvm.version': 25})])

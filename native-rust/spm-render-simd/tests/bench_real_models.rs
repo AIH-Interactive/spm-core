@@ -19,7 +19,8 @@ use spm_native_abi::{
     BonePassFilter, Isa, PackedLayout, Status, BONE_PARAM_STRIDE, PACKED_BONE_STRIDE, ROOT_FLOATS,
 };
 use spm_render_simd::{
-    evaluate_packed, packed_preferred_isa, CompiledSkeleton, PackedPath, PackedRequest,
+    evaluate_packed, packed_executed, packed_preferred_isa, CompiledSkeleton, PackedPath,
+    PackedRequest,
 };
 
 const IDENTITY_ROOT: [f32; ROOT_FLOATS] = [
@@ -50,8 +51,30 @@ impl RealSkeleton {
     }
 }
 
-/// Locates the dumped skeletons, walking up from the crate directory.
+/// Points the benchmark at a skeleton directory that is not the build tree.
+///
+/// `CARGO_MANIFEST_DIR` is a *compile-time* absolute path, so the walk below only ever succeeds on
+/// the machine and in the checkout that built the binary. A cross-compiled test binary pushed to a
+/// phone, or a CI job that builds in one place and runs in another, finds nothing — and because
+/// every benchmark here reports that and returns, the run exits successfully having measured
+/// nothing at all. That silent pass has already been mistaken for a real measurement, so an
+/// explicit override is the supported way to run these on non-host targets. When it is set but
+/// does not name a directory the test fails loudly instead of skipping: asking for a directory and
+/// silently measuring nothing is exactly the failure this variable exists to prevent.
+const SKELETON_DIR_ENV: &str = "SPM_SKELETON_DIR";
+
+/// Locates the dumped skeletons: the `SPM_SKELETON_DIR` override first, then up from the crate
+/// directory.
 fn skeleton_dir() -> Option<PathBuf> {
+    if let Some(raw) = std::env::var_os(SKELETON_DIR_ENV) {
+        let dir = PathBuf::from(raw);
+        assert!(
+            dir.is_dir(),
+            "{SKELETON_DIR_ENV}={} is not a directory",
+            dir.display()
+        );
+        return Some(dir);
+    }
     let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     for _ in 0..4 {
         let candidate = dir.join("integration-tests/build/real-skeletons");
@@ -61,6 +84,37 @@ fn skeleton_dir() -> Option<PathBuf> {
         dir = dir.parent()?.to_path_buf();
     }
     None
+}
+
+/// Pins the tier the timing benchmarks run under.
+///
+/// The documented "scalar" baseline used to be produced by editing `preferred_isa()` in the library
+/// and reverting it afterwards, which is both easy to leave behind and impossible to reproduce for
+/// two platforms in one run. `SPM_BENCH_ISA` does it per process instead, so a phone and a desktop
+/// can be compared on the same commit without touching the library. Unset means the host's
+/// preferred tier, which is what a real caller gets.
+fn bench_isa() -> Isa {
+    let Some(raw) = std::env::var_os("SPM_BENCH_ISA") else {
+        return packed_preferred_isa();
+    };
+    let raw = raw.to_string_lossy();
+    let isa = match raw.trim().to_ascii_lowercase().as_str() {
+        "auto" => Isa::Auto,
+        "scalar" => Isa::Scalar,
+        "sse2" => Isa::Sse2,
+        "avx" => Isa::Avx,
+        "avx2" => Isa::Avx2,
+        "avx2fma" | "fma" => Isa::Avx2Fma,
+        "neon" => Isa::Neon,
+        "avx512" => Isa::Avx512,
+        other => panic!("SPM_BENCH_ISA={other} is not a tier"),
+    };
+    // `Auto` is a request rather than a tier, so resolve it the way a real call would.
+    if isa == Isa::Auto {
+        packed_preferred_isa()
+    } else {
+        isa
+    }
 }
 
 fn load(path: &Path) -> Option<RealSkeleton> {
@@ -392,7 +446,9 @@ fn time_packed_animated_path(
 #[ignore = "timing benchmark; run with --release --ignored"]
 fn real_models_measure_the_current_kernel() {
     let Some(dir) = skeleton_dir() else {
-        println!("[real] no dumped skeletons found; run the Java harness first");
+        println!(
+            "[real] no dumped skeletons found; run the Java harness first, or set {SKELETON_DIR_ENV}"
+        );
         return;
     };
     let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)
@@ -406,8 +462,15 @@ fn real_models_measure_the_current_kernel() {
         return;
     }
 
-    let isa = packed_preferred_isa();
-    println!("\n=== real models, tier {isa:?} ===");
+    let isa = bench_isa();
+    // The requested tier and the tier that actually runs are printed separately: a host that
+    // requests `Neon` and executes the portable walk would otherwise publish a vector number for
+    // scalar code, which is the N13 failure this crate is supposed to make impossible.
+    println!(
+        "\n=== real models, requested {isa:?}, executes {:?} ===",
+        packed_executed(isa)
+    );
+    println!("=== skeletons: {} ===", dir.display());
     println!(
         "{:<30} {:>5} {:>5} {:>6} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8}",
         "model", "bones", "depth", "width", "static", "leaves", "1/10", "limb", "chain", "all"
@@ -482,7 +545,9 @@ fn real_models_measure_the_current_kernel() {
 #[ignore = "timing benchmark; run with --release --ignored"]
 fn real_models_compare_tiers() {
     let Some(dir) = skeleton_dir() else {
-        println!("[real] no dumped skeletons found; run the Java harness first");
+        println!(
+            "[real] no dumped skeletons found; run the Java harness first, or set {SKELETON_DIR_ENV}"
+        );
         return;
     };
     let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)
@@ -509,12 +574,18 @@ fn real_models_compare_tiers() {
             real.depth,
             real.mean_level_width()
         );
-        for isa in [Isa::Scalar, Isa::Avx2, Isa::Avx2Fma] {
+        // Every tier the crate can name, so a fallback is visible as the same number twice rather
+        // than as a missing row. `Avx` is included because the packed path deliberately has no
+        // AVX-only kernel, and that gap is one of the findings this benchmark has to keep showing.
+        for isa in [Isa::Scalar, Isa::Neon, Isa::Avx, Isa::Avx2, Isa::Avx2Fma] {
             if !spm_render_simd::supported(isa) {
                 continue;
             }
             let us = time_packed(&skeleton, &params, isa, iterations);
-            println!("  {isa:?}: {us:.2} µs");
+            println!(
+                "  {isa:?} (executes {:?}): {us:.2} µs",
+                packed_executed(isa)
+            );
         }
     }
 }
@@ -538,7 +609,9 @@ fn a_cyclic_real_skeleton_is_rejected() {
 #[ignore = "timing benchmark; run with --release --ignored"]
 fn design_c_crossover_on_real_rigs() {
     let Some(dir) = skeleton_dir() else {
-        println!("[real] no dumped skeletons found; run the Java harness first");
+        println!(
+            "[real] no dumped skeletons found; run the Java harness first, or set {SKELETON_DIR_ENV}"
+        );
         return;
     };
     let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)
@@ -551,7 +624,7 @@ fn design_c_crossover_on_real_rigs() {
     loaded.sort_by_key(|real| std::cmp::Reverse(real.bone_count()));
     loaded.truncate(2);
 
-    let isa = packed_preferred_isa();
+    let isa = bench_isa();
     for real in &loaded {
         let glow = vec![0_u8; real.bone_count()];
         let skeleton = CompiledSkeleton::compile(&real.parents, &real.pivots, &glow).unwrap();
@@ -636,7 +709,7 @@ fn dirty_ratio(skeleton: &CompiledSkeleton, base: &[f32], motion: Motion) -> f64
             pass: BonePassFilter::All,
             packed_light: 0x00F0_00F0,
             full_bright_light: 0x00F0_00F0,
-            isa: packed_preferred_isa(),
+            isa: bench_isa(),
             persistent_output: true,
             path: None,
         };
@@ -657,7 +730,9 @@ fn dirty_ratio(skeleton: &CompiledSkeleton, base: &[f32], motion: Motion) -> f64
 #[ignore = "timing benchmark; run with --release --ignored"]
 fn static_frame_persistence_delta() {
     let Some(dir) = skeleton_dir() else {
-        println!("[real] no dumped skeletons found; run the Java harness first");
+        println!(
+            "[real] no dumped skeletons found; run the Java harness first, or set {SKELETON_DIR_ENV}"
+        );
         return;
     };
     let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)
@@ -666,8 +741,11 @@ fn static_frame_persistence_delta() {
         .filter(|path| path.to_string_lossy().ends_with(".skeleton.txt"))
         .collect();
     paths.sort();
-    let isa = packed_preferred_isa();
-    println!("\n=== static frame, tier {isa:?} ===");
+    let isa = bench_isa();
+    println!(
+        "\n=== static frame, requested {isa:?}, executes {:?} ===",
+        packed_executed(isa)
+    );
     println!(
         "{:<30} {:>5} {:>12} {:>12} {:>12} {:>10}",
         "model", "bones", "resend", "persist-1", "persist-2", "2 vs 1"

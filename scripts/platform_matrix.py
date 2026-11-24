@@ -21,9 +21,17 @@ PLATFORMS = [
     dict(id='windows-x64', os='Windows', arch='x86_64', target='x86_64-pc-windows-msvc'),
     dict(id='linux-x64', os='Linux', arch='x86_64', target='x86_64-unknown-linux-gnu'),
     dict(id='linux-arm64', os='Linux', arch='aarch64', target='aarch64-unknown-linux-gnu'),
+    # P2: both are cross-compiled only. LoongArch and RISC-V are the 信创 targets — a scalar kernel
+    # is still a real speedup there, and the point of these rows is to record what was actually
+    # built without ever claiming a host execution that did not happen.
+    dict(id='linux-riscv64', os='Linux', arch='riscv64', target='riscv64gc-unknown-linux-gnu'),
+    dict(id='linux-loongarch64', os='Linux', arch='loongarch64', target='loongarch64-unknown-linux-gnu'),
     dict(id='macos-arm64', os='Darwin', arch='aarch64', target='aarch64-apple-darwin'),
     dict(id='macos-x64', os='Darwin', arch='x86_64', target='x86_64-apple-darwin'),
     dict(id='android-arm64', os='Android', arch='aarch64', target='aarch64-linux-android'),
+    # 32-bit Android is a real target (armeabi-v7a devices and low-end hardware), and it is
+    # cross-compiled like arm64, so it can never be promoted past BUILT here.
+    dict(id='android-arm32', os='Android', arch='armv7', target='armv7-linux-androideabi'),
     dict(id='ohos-arm64', os='OHOS', arch='aarch64', target='aarch64-unknown-linux-ohos'),
     # Deliberately separate: the plan requires an explicit conclusion, not silence.
     dict(id='windows-x86', os='Windows', arch='x86', target='i686-pc-windows-msvc'),
