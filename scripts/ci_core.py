@@ -22,6 +22,7 @@ NATIVE_TARGETS = {
     'aarch64-unknown-linux-gnu': ('Linux', {'aarch64', 'arm64'}, 'libspm_core_native.so'),
     'x86_64-pc-windows-msvc': ('Windows', {'x86_64', 'amd64'}, 'spm_core_native.dll'),
     'i686-pc-windows-msvc': ('Windows', {'x86', 'i686', 'amd64', 'x86_64'}, 'spm_core_native.dll'),
+    'aarch64-pc-windows-msvc': ('Windows', {'aarch64', 'arm64'}, 'spm_core_native.dll'),
     'aarch64-apple-darwin': ('Darwin', {'aarch64', 'arm64'}, 'libspm_core_native.dylib'),
     'x86_64-apple-darwin': ('Darwin', {'x86_64', 'amd64'}, 'libspm_core_native.dylib'),
 }

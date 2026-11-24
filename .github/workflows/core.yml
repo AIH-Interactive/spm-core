@@ -111,6 +111,11 @@ jobs:
             java: '25'
             java_arch: x64
             native_target: x86_64-pc-windows-msvc
+          - label: native-25-windows-arm64
+            runner: windows-11-arm
+            java: '25'
+            java_arch: aarch64
+            native_target: aarch64-pc-windows-msvc
           - label: native-25-macos-arm64
             runner: macos-15
             java: '25'
