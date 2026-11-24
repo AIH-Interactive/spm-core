@@ -26,7 +26,7 @@ SOURCE = 'https://github.com/AIH-Interactive/spm-core'
 # revision is always allowed; the release versions are listed explicitly so publishing one is a
 # deliberate edit rather than an accident. Keep this in step with the publishCandidate gate in
 # build.gradle, which rejects anything else before packaging runs.
-RELEASE_VERSIONS = frozenset({'1.1.0'})
+RELEASE_VERSIONS = frozenset({'1.2.0'})
 
 SCHEMA = 'spm-core-candidate/1'
 SCOPE = 'LOCAL_RESOLVED_INVENTORY; preview only; full dependency licensing and source origin certification remain pending'

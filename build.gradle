@@ -102,7 +102,7 @@ subprojects {
         def publishedVersion = project.version.toString()
         doFirst {
             if (repoName == 'candidate' && !(publishedVersion ==~ /(0\.1\.0-preview\.[0-9a-f]{12}|1\.0\.0|1\.1\.0)/)) {
-                throw new GradleException('Candidate publication requires 1.0.0, 1.1.0 or -PspmCoreVersion=0.1.0-preview.<source SHA12>')
+                throw new GradleException('Candidate publication requires 1.0.0, 1.1.0, 1.2.0 or -PspmCoreVersion=0.1.0-preview.<source SHA12>')
             }
         }
     }
@@ -161,7 +161,7 @@ tasks.register('publishCandidate') {
     def publishedVersion = project.version.toString()
     doFirst {
         if (!(publishedVersion ==~ /(0\.1\.0-preview\.[0-9a-f]{12}|1\.0\.0|1\.1\.0)/)) {
-            throw new GradleException('Use 1.0.0, 1.1.0 or -PspmCoreVersion=0.1.0-preview.<exact source commit first 12 hex digits>')
+            throw new GradleException('Use 1.0.0, 1.1.0, 1.2.0 or -PspmCoreVersion=0.1.0-preview.<exact source commit first 12 hex digits>')
         }
     }
     dependsOn subprojects.findAll { !(it.name in ['verification', 'integration-tests']) }.collect { p ->
