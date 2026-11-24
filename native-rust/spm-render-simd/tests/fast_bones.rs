@@ -1059,6 +1059,54 @@ fn the_switch_selects_both_kernels() {
     );
 }
 
+/// The homogeneous row of every emitted transform must be exactly `0 0 0 1`.
+///
+/// The record layout is shared with the host's shader and with the Java writer, which writes those
+/// four floats as constants. Summing products by zero can produce `-0.0`, and a `-0.0` there makes
+/// the two writers disagree byte for byte while looking numerically identical — which is exactly the
+/// shape the 32-bit CI job caught. This pins the constants rather than comparing two writers, so it
+/// holds on every instruction set.
+#[test]
+fn the_homogeneous_row_is_the_identity_constant() {
+    let (parents, pivots, glow) = fan_skeleton(4, 8);
+    let n = parents.len();
+    let skeleton = CompiledSkeleton::compile(&parents, &pivots, &glow).unwrap();
+    let params = params_for(n, 0);
+    let mut out = vec![0_u8; n * PACKED_BONE_STRIDE];
+    let request = PackedRequest {
+        skeleton: &skeleton,
+        root: &IDENTITY_ROOT,
+        params: &params,
+        layout: PackedLayout::FloatTail,
+        pass: BonePassFilter::All,
+        packed_light: 0x00F0_00F0,
+        full_bright_light: 0x00F0_00F0,
+        isa: packed_preferred_isa(),
+        persistent_output: false,
+        path: None,
+    };
+    // SAFETY: `out` is exactly `n * 144` bytes and nothing aliases.
+    unsafe { evaluate_packed(&request, out.as_mut_ptr(), None) }.unwrap();
+
+    for bone in 0..n {
+        let base = bone * PACKED_BONE_STRIDE;
+        // A hidden bone is the canonical hidden record: identity transform, so the same constants.
+        for (label, float_index) in [("m[3]", 3_usize), ("m[7]", 7), ("m[11]", 11)] {
+            let bits = u32::from_le_bytes(
+                out[base + float_index * 4..base + float_index * 4 + 4]
+                    .try_into()
+                    .unwrap(),
+            );
+            assert_eq!(
+                bits, 0,
+                "bone {bone} {label} must be +0.0, not {:#010x}",
+                bits
+            );
+        }
+        let w_bits = u32::from_le_bytes(out[base + 15 * 4..base + 15 * 4 + 4].try_into().unwrap());
+        assert_eq!(w_bits, 1.0_f32.to_bits(), "bone {bone} m[15] must be 1.0");
+    }
+}
 /// The early-out must be per output buffer, because the host alternates between two of them.
 ///
 /// `persistent_output` means "the buffer you are handing me still holds the records you wrote into

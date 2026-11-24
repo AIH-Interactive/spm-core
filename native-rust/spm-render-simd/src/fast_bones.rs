@@ -574,10 +574,16 @@ impl RootColumns {
         let r1 = _mm_loadu_ps(self.pose[1].as_ptr());
         let r2 = _mm_loadu_ps(self.pose[2].as_ptr());
         let r3 = _mm_loadu_ps(self.pose[3].as_ptr());
+        // The fourth lane of each of the first three columns is the homogeneous row: it must be
+        // exactly `0.0`, not whatever the accumulation produced. Summing products by zero can land
+        // on `-0.0`, and the scalar writer emits `+0.0`, so leaving it unmasked makes the two
+        // record writers disagree byte for byte.
+        let keep_xyz = _mm_castsi128_ps(_mm_setr_epi32(-1, -1, -1, 0));
         for col in 0..3 {
             let mut acc = _mm_mul_ps(r0, _mm_set1_ps(m[col * 4]));
             acc = _mm_add_ps(acc, _mm_mul_ps(r1, _mm_set1_ps(m[col * 4 + 1])));
             acc = _mm_add_ps(acc, _mm_mul_ps(r2, _mm_set1_ps(m[col * 4 + 2])));
+            acc = _mm_and_ps(acc, keep_xyz);
             // SAFETY: `col * 16` is at most 32, so the 16-byte store stays inside the slot.
             unsafe { _mm_storeu_ps(record.add(col * 16).cast::<f32>(), acc) };
         }
@@ -586,6 +592,8 @@ impl RootColumns {
             acc = _mm_add_ps(acc, _mm_mul_ps(r1, _mm_set1_ps(m[13])));
             acc = _mm_add_ps(acc, _mm_mul_ps(r2, _mm_set1_ps(m[14])));
             acc = _mm_add_ps(acc, r3);
+            // The translation column's fourth lane is `1.0`, again fixed rather than accumulated.
+            acc = _mm_or_ps(_mm_and_ps(acc, keep_xyz), _mm_setr_ps(0., 0., 0., 1.));
             // SAFETY: bytes 48..64 stay inside the 144-byte slot.
             unsafe { _mm_storeu_ps(record.add(48).cast::<f32>(), acc) };
         }
@@ -638,10 +646,16 @@ impl RootColumns {
         let r1 = _mm_loadu_ps(self.pose[1].as_ptr());
         let r2 = _mm_loadu_ps(self.pose[2].as_ptr());
         let r3 = _mm_loadu_ps(self.pose[3].as_ptr());
+        // The fourth lane of each of the first three columns is the homogeneous row: it must be
+        // exactly `0.0`, not whatever the accumulation produced. Summing products by zero can land
+        // on `-0.0`, and the scalar writer emits `+0.0`, so leaving it unmasked makes the two
+        // record writers disagree byte for byte.
+        let keep_xyz = _mm_castsi128_ps(_mm_setr_epi32(-1, -1, -1, 0));
         for col in 0..3 {
             let mut acc = _mm_mul_ps(r0, _mm_set1_ps(m[col * 4]));
             acc = _mm_add_ps(acc, _mm_mul_ps(r1, _mm_set1_ps(m[col * 4 + 1])));
             acc = _mm_add_ps(acc, _mm_mul_ps(r2, _mm_set1_ps(m[col * 4 + 2])));
+            acc = _mm_and_ps(acc, keep_xyz);
             // SAFETY: `col * 16` is at most 32, so the 16-byte store stays inside the slot.
             unsafe { _mm_storeu_ps(record.add(col * 16).cast::<f32>(), acc) };
         }
@@ -650,6 +664,8 @@ impl RootColumns {
             acc = _mm_add_ps(acc, _mm_mul_ps(r1, _mm_set1_ps(m[13])));
             acc = _mm_add_ps(acc, _mm_mul_ps(r2, _mm_set1_ps(m[14])));
             acc = _mm_add_ps(acc, r3);
+            // The translation column's fourth lane is `1.0`, again fixed rather than accumulated.
+            acc = _mm_or_ps(_mm_and_ps(acc, keep_xyz), _mm_setr_ps(0., 0., 0., 1.));
             // SAFETY: bytes 48..64 stay inside the 144-byte slot.
             unsafe { _mm_storeu_ps(record.add(48).cast::<f32>(), acc) };
         }
