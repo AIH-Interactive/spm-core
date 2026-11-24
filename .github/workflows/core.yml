@@ -290,13 +290,13 @@ jobs:
             target: riscv64gc-unknown-linux-gnu
             cargo_env: RISCV64GC_UNKNOWN_LINUX_GNU
             cross_pkg: gcc-13-riscv64-linux-gnu
-            cross_cc: riscv64-linux-gnu-gcc
+            cross_prefix: riscv64-linux-gnu
             architecture: riscv64
           - label: linux-loongarch64
             target: loongarch64-unknown-linux-gnu
             cargo_env: LOONGARCH64_UNKNOWN_LINUX_GNU
             cross_pkg: gcc-13-loongarch64-linux-gnu
-            cross_cc: loongarch64-linux-gnu-gcc
+            cross_prefix: loongarch64-linux-gnu
             architecture: loongarch64
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -314,22 +314,28 @@ jobs:
           # the gcc package, and without them the final link fails for a missing crt object.
           sudo apt-get update
           sudo apt-get install -y "${{ matrix.cross_pkg }}"
-          command -v "${{ matrix.cross_cc }}" >/dev/null || {
-            echo "${{ matrix.cross_cc }} is missing after installing ${{ matrix.cross_pkg }}" >&2
+          # `gcc-13-<triple>` installs the versioned `gcc-13` driver; the unversioned `-gcc` symlink
+          # comes from the metapackage, which does not exist for every architecture on noble (there
+          # is no `gcc-loongarch64-linux-gnu`). Accept either and report what is actually there.
+          cc="$(command -v '${{ matrix.cross_prefix }}-gcc' || command -v '${{ matrix.cross_prefix }}-gcc-13' || true)"
+          if [[ -z "$cc" ]]; then
+            echo "no ${{ matrix.cross_prefix }}-gcc after installing ${{ matrix.cross_pkg }}; installed:" >&2
+            ls /usr/bin/"${{ matrix.cross_prefix }}"-* >&2 || true
             exit 1
-          }
+          fi
+          echo "cross compiler: $cc"
+          echo "CROSS_CC=$cc" >> "$GITHUB_ENV"
       - name: Cross-compile and inspect ${{ matrix.label }} native shared library
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
           CARGO_ENV: ${{ matrix.cargo_env }}
-          CROSS_CC: ${{ matrix.cross_cc }}
           ARCH: ${{ matrix.architecture }}
         run: |
           set -euo pipefail
           rustup toolchain install 1.98.1 --profile minimal --component clippy --target "$TARGET"
           export CARGO_TARGET_DIR="$PWD/native-rust/target"
-          export "CARGO_TARGET_${CARGO_ENV}_LINKER=$(command -v "$CROSS_CC")"
+          export "CARGO_TARGET_${CARGO_ENV}_LINKER=$CROSS_CC"
           cargo +1.98.1 clippy --manifest-path native-rust/Cargo.toml --workspace --locked --target "$TARGET" -- -D warnings
           cargo +1.98.1 build --manifest-path native-rust/Cargo.toml --release --locked --target "$TARGET"
           LIB="native-rust/target/$TARGET/release/libspm_core_native.so"
