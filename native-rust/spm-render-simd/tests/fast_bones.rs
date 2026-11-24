@@ -1118,3 +1118,58 @@ fn every_output_buffer_is_tracked_separately() {
         "a skipped frame must leave the buffer holding the same records"
     );
 }
+
+/// A buffer address alone is not an identity: the same address can be handed to another model.
+///
+/// The scratch that remembers "this buffer is current" is thread-local and outlives every skeleton,
+/// and the allocator reuses a freed block. Without the skeleton identity in the key, a new model
+/// that landed on the old address would be told its records were already written and would keep the
+/// previous model's matrices. That is the shape that failed on 32-bit, where the address space is
+/// small enough for reuse to happen inside a single test run.
+#[test]
+fn a_reused_output_address_belongs_to_the_new_skeleton() {
+    let (parents_a, pivots_a, glow_a) = fan_skeleton(3, 4);
+    let (parents_b, pivots_b, glow_b) = fan_skeleton(3, 5);
+    let skeleton_a = CompiledSkeleton::compile(&parents_a, &pivots_a, &glow_a).unwrap();
+    let skeleton_b = CompiledSkeleton::compile(&parents_b, &pivots_b, &glow_b).unwrap();
+    let bytes_a = parents_a.len() * PACKED_BONE_STRIDE;
+    let bytes_b = parents_b.len() * PACKED_BONE_STRIDE;
+    let isa = packed_preferred_isa();
+    let params_a = params_for(parents_a.len(), 0);
+    let params_b = params_for(parents_b.len(), 1);
+
+    let run = |skeleton: &CompiledSkeleton, params: &[f32], out: &mut [u8]| {
+        let request = PackedRequest {
+            skeleton,
+            root: &IDENTITY_ROOT,
+            params,
+            layout: PackedLayout::FloatTail,
+            pass: BonePassFilter::All,
+            packed_light: 0x00F0_00F0,
+            full_bright_light: 0x00F0_00F0,
+            isa,
+            persistent_output: true,
+            path: None,
+        };
+        // SAFETY: `out` is exactly `skeleton.bone_count() * 144` bytes and nothing aliases.
+        unsafe { evaluate_packed(&request, out.as_mut_ptr(), None) }.unwrap();
+    };
+
+    let mut buffer = vec![0_u8; bytes_a.max(bytes_b)];
+    run(&skeleton_a, &params_a, &mut buffer[..bytes_a]);
+    let from_a = buffer[..bytes_a].to_vec();
+
+    // Deliberately reuse the same allocation for the second model. `skeleton_b` is a different
+    // skeleton, so its records must be written even though the address matches.
+    buffer[..bytes_b].fill(0xAA);
+    run(&skeleton_b, &params_b, &mut buffer[..bytes_b]);
+    assert!(
+        buffer[..bytes_b].iter().any(|&b| b != 0xAA),
+        "the new skeleton must write its own records into the reused address"
+    );
+    assert_ne!(
+        &buffer[..from_a.len().min(bytes_b)],
+        &from_a[..from_a.len().min(bytes_b)],
+        "the reused address must not still hold the previous skeleton's records"
+    );
+}

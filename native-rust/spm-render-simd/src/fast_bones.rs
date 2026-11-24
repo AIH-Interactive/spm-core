@@ -119,7 +119,12 @@ struct Scratch {
     /// from an older frame — so the host had to pass `persistent_output = false` and pay a full
     /// rewrite on every static frame. Tracking addresses makes the cheap early-out safe for the
     /// real callers: a static scene settles as soon as every buffer has been written once.
-    valid_outputs: [usize; MAX_VALID_OUTPUTS],
+    /// Each entry is the buffer address paired with the skeleton identity it was written for.
+    ///
+    /// The identity is not redundant: this scratch is thread-local and outlives any one skeleton, so
+    /// a freed buffer's address can be handed to a different model. Without the identity that reuse
+    /// would read as "this buffer is already current" and the new model would keep the old records.
+    valid_outputs: [(usize, u64); MAX_VALID_OUTPUTS],
     /// Number of entries in [`Scratch::valid_outputs`].
     valid_output_count: u8,
     /// True when `locals` no longer describes the last frame's parameters.
@@ -165,9 +170,11 @@ impl Scratch {
         }
     }
 
-    /// Whether `out` already holds records written for the mirrored parameters.
-    fn output_is_valid(&self, out: usize) -> bool {
-        self.valid_outputs[..self.valid_output_count as usize].contains(&out)
+    /// Whether `out` already holds records written for the mirrored parameters of `identity`.
+    fn output_is_valid(&self, out: usize, identity: u64) -> bool {
+        self.valid_outputs[..self.valid_output_count as usize]
+            .iter()
+            .any(|&(address, owner)| address == out && owner == identity)
     }
 
     /// Forgets every buffer, used when an input that shapes every record changed.
@@ -175,22 +182,22 @@ impl Scratch {
         self.valid_output_count = 0;
     }
 
-    /// Forgets every buffer except `keep`.
+    /// Forgets every buffer except the one `keep` that belongs to `identity`.
     ///
     /// A parameter change leaves the other buffers holding records for the previous frame, so they
     /// must be rewritten wholesale when they come around. The buffer being written now is different:
     /// only the bones that moved are stale in it, and the caller's dirty-only write repairs exactly
     /// those. Dropping its entry too would force a full record rewrite on every animated frame.
-    fn invalidate_other_outputs(&mut self, keep: usize) {
+    fn invalidate_other_outputs(&mut self, keep: usize, identity: u64) {
         let count = self.valid_output_count as usize;
-        if !self.valid_outputs[..count].contains(&keep) {
+        if !self.output_is_valid(keep, identity) {
             self.valid_output_count = 0;
             return;
         }
         let mut next = 0;
         for index in 0..count {
             let candidate = self.valid_outputs[index];
-            if candidate == keep {
+            if candidate == (keep, identity) {
                 self.valid_outputs[next] = candidate;
                 next += 1;
             }
@@ -198,16 +205,16 @@ impl Scratch {
         self.valid_output_count = next as u8;
     }
 
-    /// Records that `out` now holds correct records, evicting the oldest entry when full.
-    fn mark_output(&mut self, out: usize) {
-        if self.output_is_valid(out) {
+    /// Records that `out` now holds correct records for `identity`, evicting the oldest when full.
+    fn mark_output(&mut self, out: usize, identity: u64) {
+        if self.output_is_valid(out, identity) {
             return;
         }
         if (self.valid_output_count as usize) >= MAX_VALID_OUTPUTS {
             self.valid_outputs.rotate_left(1);
-            self.valid_outputs[MAX_VALID_OUTPUTS - 1] = out;
+            self.valid_outputs[MAX_VALID_OUTPUTS - 1] = (out, identity);
         } else {
-            self.valid_outputs[self.valid_output_count as usize] = out;
+            self.valid_outputs[self.valid_output_count as usize] = (out, identity);
             self.valid_output_count += 1;
         }
     }
@@ -1409,12 +1416,14 @@ unsafe fn evaluate_cached(
         scratch.invalidate_outputs();
     }
     let out_addr = out as usize;
+    let identity = skeleton.identity();
     // A full rewrite is needed when the caller cannot guarantee *this* buffer still holds last
     // frame's records, or when an input that shapes every record changed. "This buffer" is the
     // important part: the host alternates between two output buffers for the same model, so a
     // blanket "the records are current" flag would let the second buffer keep older records.
-    let full_write =
-        !request.persistent_output || settings_changed || !scratch.output_is_valid(out_addr);
+    let full_write = !request.persistent_output
+        || settings_changed
+        || !scratch.output_is_valid(out_addr, identity);
 
     // Fast path: if the whole parameter array is bit-identical to last frame's, nothing can have
     // changed, so the per-bone scan is unnecessary. This one contiguous comparison replaces a
@@ -1456,14 +1465,14 @@ unsafe fn evaluate_cached(
         // be rewritten. Nothing needs recomposing.
         // SAFETY: `out` is valid for the whole buffer and `scratch` holds `n` bones of data.
         unsafe { write_records(skeleton, request, scratch, out, false) };
-        scratch.mark_output(out_addr);
+        scratch.mark_output(out_addr, identity);
         return Ok(PackedPath::Cached);
     }
 
     // The parameters changed, so every buffer except this one now holds records for an older frame.
     // This buffer is repaired below by the dirty-only write, so keeping it valid is what lets an
     // animated frame rewrite only the bones that actually moved.
-    scratch.invalidate_other_outputs(out_addr);
+    scratch.invalidate_other_outputs(out_addr, identity);
 
     let n = skeleton.bone_count();
     // A stale cache means every local matrix must be rebuilt, because the uncached kernel does not
@@ -1528,7 +1537,7 @@ unsafe fn evaluate_cached(
     }
     // The uncached kernel already wrote every record while its matrices were in registers, so
     // there is nothing left to emit here. Either way this buffer now holds this frame's records.
-    scratch.mark_output(out_addr);
+    scratch.mark_output(out_addr, identity);
     Ok(path)
 }
 
