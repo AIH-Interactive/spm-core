@@ -30,14 +30,24 @@ public final class PoseAnimationLibrary {
     }
     record Vector(Scalar x, Scalar y, Scalar z) {
         double[] value(MolangContext context) { return new double[] {x.value(context), y.value(context), z.value(context)}; }
+        void valueInto(MolangContext context, double[] out) {
+            out[0] = x.value(context);
+            out[1] = y.value(context);
+            out[2] = z.value(context);
+        }
     }
     record Key(double time, Vector pre, Vector post, Interpolation mode) { }
     record Track(List<Key> keys,InterpolationProfile profile) {
         double endTime() { return keys.get(keys.size()-1).time; }
         double[] value(double time, MolangContext context) {
+            double[] out = new double[3];
+            valueInto(time, context, new double[3], new double[3], new double[3], new double[3], out);
+            return out;
+        }
+        void valueInto(double time, MolangContext context, double[] a, double[] b, double[] p0, double[] p3, double[] result) {
             context.budget().step();
             Key first = keys.get(0);
-            if (time < first.time) return first.pre.value(context);
+            if (time < first.time) { first.pre.valueInto(context, result); return; }
             int low=0, high=keys.size();
             while (low<high) {
                 context.budget().step();
@@ -46,45 +56,51 @@ public final class PoseAnimationLibrary {
             }
             int leftIndex=low-1;
             Key left=keys.get(leftIndex);
-            if (left.time==time || low==keys.size()) return left.post.value(context);
+            if (left.time==time || low==keys.size()) { left.post.valueInto(context, result); return; }
             Key right=keys.get(low);
             Interpolation mode=right.mode==Interpolation.CATMULL_ROM ? right.mode : left.mode;
-            double[] a=left.post.value(context);
-            if (mode==Interpolation.STEP) return a;
-            double[] b=right.pre.value(context);
+            left.post.valueInto(context, a);
+            if (mode==Interpolation.STEP) { result[0]=a[0]; result[1]=a[1]; result[2]=a[2]; return; }
+            right.pre.valueInto(context, b);
             double t=(time-left.time)/(right.time-left.time);
-            double[] result=new double[3];
             if (mode==Interpolation.CATMULL_ROM) {
                 if(profile==InterpolationProfile.HISTORICAL_YSM) {
                     // d253 EasingType.buildCatmullRomKeyFrame and MathUtil.catmullRom: time
                     // normalizes this segment only, and neighboring values use uniform tangents.
-                    double[] p0=leftIndex==0?a:keys.get(leftIndex-1).post.value(context);
-                    double[] p3=low+1==keys.size()?b:keys.get(low+1).pre.value(context);
+                    double[] pv0;
+                    if (leftIndex==0) { pv0 = a; } else { keys.get(leftIndex-1).post.valueInto(context, p0); pv0 = p0; }
+                    double[] pv3;
+                    if (low+1==keys.size()) { pv3 = b; } else { keys.get(low+1).pre.valueInto(context, p3); pv3 = p3; }
+                    double t2 = t * t, t3 = t2 * t;
                     for(int axis=0;axis<3;axis++) {
-                        double m0=(b[axis]-p0[axis])/2,m1=(p3[axis]-a[axis])/2;
-                        result[axis]=MolangContext.finite((2*a[axis]-2*b[axis]+m0+m1)*t*t*t+(-3*a[axis]+3*b[axis]-2*m0-m1)*t*t+m0*t+a[axis]);
+                        double m0=(b[axis]-pv0[axis])/2,m1=(pv3[axis]-a[axis])/2;
+                        result[axis]=MolangContext.finite((2*a[axis]-2*b[axis]+m0+m1)*t3+(-3*a[axis]+3*b[axis]-2*m0-m1)*t2+m0*t+a[axis]);
                     }
-                    return result;
+                    return;
                 }
                 // Non-uniform Catmull-Rom (Barry-Goldman). Tangents are scaled by the real key
                 // intervals, so unevenly spaced Bedrock keys do not overshoot; a clamped endpoint
                 // reuses its own key so the outer tangent degenerates to the inner secant.
                 int beforeIndex=Math.max(0,leftIndex-1), afterIndex=Math.min(keys.size()-1,low+1);
-                double[] p0=beforeIndex==leftIndex?a:keys.get(beforeIndex).post.value(context);
-                double[] p3=afterIndex==low?b:keys.get(afterIndex).pre.value(context);
+                double[] pv0;
+                if (beforeIndex==leftIndex) { pv0 = a; } else { keys.get(beforeIndex).post.valueInto(context, p0); pv0 = p0; }
+                double[] pv3;
+                if (afterIndex==low) { pv3 = b; } else { keys.get(afterIndex).pre.valueInto(context, p3); pv3 = p3; }
                 double t1=left.time, t2=right.time, h12=t2-t1;
                 double t0=beforeIndex==leftIndex?t1-h12:keys.get(beforeIndex).time;
                 double t3=afterIndex==low?t2+h12:keys.get(afterIndex).time;
                 for (int axis=0;axis<3;axis++) {
-                    double a1=((t1-time)*p0[axis]+(time-t0)*a[axis])/(t1-t0);
+                    double a1=((t1-time)*pv0[axis]+(time-t0)*a[axis])/(t1-t0);
                     double a2=((t2-time)*a[axis]+(time-t1)*b[axis])/h12;
-                    double a3=((t3-time)*b[axis]+(time-t2)*p3[axis])/(t3-t2);
+                    double a3=((t3-time)*b[axis]+(time-t2)*pv3[axis])/(t3-t2);
                     double b1=((t2-time)*a1+(time-t0)*a2)/(t2-t0);
                     double b2=((t3-time)*a2+(time-t1)*a3)/(t3-t1);
                     result[axis]=MolangContext.finite(((t2-time)*b1+(time-t1)*b2)/h12);
                 }
-            } else for (int axis=0;axis<3;axis++) result[axis]=MolangContext.finite(a[axis]*(1-t)+b[axis]*t);
-            return result;
+            } else {
+                double oneMinusT = 1 - t;
+                for (int axis=0;axis<3;axis++) result[axis]=MolangContext.finite(a[axis]*oneMinusT+b[axis]*t);
+            }
         }
     }
     record BoneTracks(int index, Track rotation, Track position, Track scale) { }
@@ -104,13 +120,49 @@ public final class PoseAnimationLibrary {
         double localTime(double elapsed) { return loop==Loop.LOOP ? elapsed%duration : Math.min(elapsed,duration); }
         boolean delayed() { return startDelay!=null || loopDelay!=null; }
     }
-    record Sample(BonePose pose, boolean[] driven) { }
+    record Sample(float[] rotations, float[] translations, float[] scales, boolean[] driven) {
+        BonePose toPose(BonePose template) {
+            return new BonePose(rotations, translations, scales,
+                    template.ownHidden(), template.childrenHidden(), template.glow(), template.colorsRgba());
+        }
+    }
+    static final class SparseSample {
+        static final byte HAS_ROT = 1;
+        static final byte HAS_POS = 2;
+        static final byte HAS_SCALE = 4;
+        static final SparseSample EMPTY = new SparseSample(new int[0], new byte[0], new float[0], new float[0], new float[0]);
+        final int[] boneIndices;
+        final byte[] channels;
+        final float[] rotations;
+        final float[] translations;
+        final float[] scales;
+        SparseSample(int[] boneIndices, byte[] channels, float[] rotations, float[] translations, float[] scales) {
+            this.boneIndices = boneIndices;
+            this.channels = channels;
+            this.rotations = rotations;
+            this.translations = translations;
+            this.scales = scales;
+        }
+        int count() { return boneIndices.length; }
+    }
     private final Skeleton skeleton;
     private final Map<String,Clip> clips;
+    private final java.util.concurrent.ConcurrentHashMap<String, ClipSummary> summaryCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final boolean[] emptyMask;
+    private final float[] identityZero;
+    private final float[] identityOne;
     private PoseAnimationLibrary(Skeleton skeleton, Map<String,Clip> clips) {
         this.skeleton=skeleton;
         this.clips=Collections.unmodifiableMap(new LinkedHashMap<>(clips));
+        int components = Math.multiplyExact(skeleton.boneCount(), 3);
+        this.emptyMask = new boolean[components];
+        this.identityZero = new float[components];
+        this.identityOne = new float[components];
+        java.util.Arrays.fill(this.identityOne, 1.0f);
     }
+    boolean[] emptyMask() { return emptyMask; }
+    float[] identityZero() { return identityZero; }
+    float[] identityOne() { return identityOne; }
     public static PoseAnimationLibrary fromModel(ModelDocument model, ScriptBudget budget) {
         Objects.requireNonNull(model);
         return fromModel(model,budget,model.sourceFormat().startsWith("ysm-")
@@ -142,11 +194,11 @@ public final class PoseAnimationLibrary {
     public boolean hasClip(String name) { return name != null && clips.containsKey(name); }
     public ClipSummary clipSummary(String name) {
         Clip clip = clip(name);
-        return summarize(clip);
+        return summaryCache.computeIfAbsent(clip.name, ignored -> summarize(clip));
     }
     public Map<String, ClipSummary> summaries() {
         var result = new LinkedHashMap<String, ClipSummary>(clips.size());
-        clips.forEach((key, value) -> result.put(key, summarize(value)));
+        clips.forEach((key, value) -> result.put(key, summaryCache.computeIfAbsent(key, ignored -> summarize(value))));
         return Map.copyOf(result);
     }
     private ClipSummary summarize(Clip clip) {
@@ -187,39 +239,122 @@ public final class PoseAnimationLibrary {
             MolangContext local=context.sampling(Map.of("life_time",elapsedSeconds));
             PoseClipPlayback playback=new PoseClipPlayback(clip,local);
             playback.advance(elapsedSeconds,0,local,new ArrayList<>(),false);
-            return sample(clip,playback.localTime(),local.overlay(Map.of("anim_time",playback.localTime())),bindPose,playback.driven(elapsedSeconds)).pose;
+            return sample(clip,playback.localTime(),local.overlay(Map.of("anim_time",playback.localTime())),bindPose,playback.driven(elapsedSeconds)).toPose(bindPose);
         }
         boolean drive=clip.loop!=Loop.ONCE || elapsedSeconds<=clip.duration;
         MolangContext local=context.sampling(Map.of("anim_time",clip.localTime(elapsedSeconds),"life_time",elapsedSeconds));
-        return sample(clip,clip.localTime(elapsedSeconds),local,bindPose,drive).pose;
+        return sample(clip,clip.localTime(elapsedSeconds),local,bindPose,drive).toPose(bindPose);
+    }
+    SparseSample sampleSparse(Clip clip, double localTime, MolangContext context, boolean drive) {
+        context.budget().step();
+        context.budget().steps(boneCount());
+        double weight = drive && clip != null && clip.blendWeight != null ? Math.max(0, clip.blendWeight.value(context)) : 1;
+        if (!drive || clip == null || clip.bones.isEmpty()) {
+            return SparseSample.EMPTY;
+        }
+        List<BoneTracks> bones = clip.bones;
+        int kCount = bones.size();
+        int[] boneIndices = new int[kCount];
+        byte[] channels = new byte[kCount];
+        float[] rotations = new float[kCount * 3];
+        float[] positions = new float[kCount * 3];
+        float[] scales = new float[kCount * 3];
+        double[] sa = new double[3], sb = new double[3], sp0 = new double[3], sp3 = new double[3], out = new double[3];
+        double radWeight = weight * (Math.PI / 180.0);
+        double posWeight = weight / 16.0;
+        for (int k = 0; k < kCount; k++) {
+            context.budget().step();
+            BoneTracks bone = bones.get(k);
+            boneIndices[k] = bone.index;
+            int offset = k * 3;
+            byte ch = 0;
+            int prevScope = context.boneScope();
+            context.boneScope(bone.index);
+            try {
+                if (bone.rotation != null) {
+                    bone.rotation.valueInto(localTime, context, sa, sb, sp0, sp3, out);
+                    rotations[offset]     = representable(-out[0] * radWeight);
+                    rotations[offset + 1] = representable(-out[1] * radWeight);
+                    rotations[offset + 2] = representable( out[2] * radWeight);
+                    ch |= SparseSample.HAS_ROT;
+                }
+                if (bone.position != null) {
+                    bone.position.valueInto(localTime, context, sa, sb, sp0, sp3, out);
+                    positions[offset]     = representable(-out[0] * posWeight);
+                    positions[offset + 1] = representable( out[1] * posWeight);
+                    positions[offset + 2] = representable( out[2] * posWeight);
+                    ch |= SparseSample.HAS_POS;
+                }
+                if (bone.scale != null) {
+                    bone.scale.valueInto(localTime, context, sa, sb, sp0, sp3, out);
+                    scales[offset]     = representable(1 + (out[0] - 1) * weight);
+                    scales[offset + 1] = representable(1 + (out[1] - 1) * weight);
+                    scales[offset + 2] = representable(1 + (out[2] - 1) * weight);
+                    ch |= SparseSample.HAS_SCALE;
+                }
+            } finally {
+                context.boneScope(prevScope);
+            }
+            channels[k] = ch;
+        }
+        return new SparseSample(boneIndices, channels, rotations, positions, scales);
+    }
+    Sample sampleIdentity(Clip clip, double localTime, MolangContext context, boolean drive) {
+        int count = boneCount();
+        int components = count * 3;
+        float[] rotations = new float[components];
+        float[] positions = new float[components];
+        float[] scales = identityOne.clone();
+        return sampleInto(clip, localTime, context, rotations, positions, scales, drive);
     }
     Sample sample(Clip clip,double localTime,MolangContext context,BonePose bindPose,boolean drive) {
-        context.budget().step();
         if (bindPose.boneCount()!=boneCount()) throw new IllegalArgumentException("Animation bind pose does not match skeleton");
-        for (int bone=0;bone<boneCount();bone++) context.budget().step();
-        float[] rotations=bindPose.rotations(), positions=bindPose.translations(), scales=bindPose.scales();
-        boolean[] driven=new boolean[Math.multiplyExact(boneCount(),3)];
+        return sampleInto(clip, localTime, context, bindPose.rotations(), bindPose.translations(), bindPose.scales(), drive);
+    }
+    private Sample sampleInto(Clip clip, double localTime, MolangContext context,
+                              float[] rotations, float[] positions, float[] scales, boolean drive) {
+        context.budget().step();
+        int count = boneCount();
+        context.budget().steps(count);
+        boolean[] driven=new boolean[Math.multiplyExact(count,3)];
         double weight=drive && clip!=null && clip.blendWeight!=null ? Math.max(0,clip.blendWeight.value(context)) : 1;
-        if (drive && clip!=null) for (BoneTracks bone:clip.bones) {
-            context.budget().step();
-            int offset=bone.index*3;
-            if (bone.rotation!=null) {
-                double[] delta=bone.rotation.value(localTime,context);
-                for (int axis=0;axis<3;axis++) rotations[offset+axis]=representable(rotations[offset+axis]+delta[axis]*weight*(axis==2?1:-1)*Math.PI/180);
-                driven[offset]=true;
-            }
-            if (bone.position!=null) {
-                double[] delta=bone.position.value(localTime,context);
-                for (int axis=0;axis<3;axis++) positions[offset+axis]=representable(positions[offset+axis]+delta[axis]*weight*(axis==0?-1:1)/16);
-                driven[offset+1]=true;
-            }
-            if (bone.scale!=null) {
-                double[] factor=bone.scale.value(localTime,context);
-                for (int axis=0;axis<3;axis++) scales[offset+axis]=representable(scales[offset+axis]*(1+(factor[axis]-1)*weight));
-                driven[offset+2]=true;
+        if (drive && clip!=null && !clip.bones.isEmpty()) {
+            double[] sa = new double[3], sb = new double[3], sp0 = new double[3], sp3 = new double[3], out = new double[3];
+            double radWeight = weight * (Math.PI / 180.0);
+            double posWeight = weight / 16.0;
+            for (BoneTracks bone:clip.bones) {
+                context.budget().step();
+                int offset=bone.index*3;
+                int prevScope = context.boneScope();
+                context.boneScope(bone.index);
+                try {
+                    if (bone.rotation!=null) {
+                        bone.rotation.valueInto(localTime,context,sa,sb,sp0,sp3,out);
+                        rotations[offset]=representable(rotations[offset]-out[0]*radWeight);
+                        rotations[offset+1]=representable(rotations[offset+1]-out[1]*radWeight);
+                        rotations[offset+2]=representable(rotations[offset+2]+out[2]*radWeight);
+                        driven[offset]=true;
+                    }
+                    if (bone.position!=null) {
+                        bone.position.valueInto(localTime,context,sa,sb,sp0,sp3,out);
+                        positions[offset]=representable(positions[offset]-out[0]*posWeight);
+                        positions[offset+1]=representable(positions[offset+1]+out[1]*posWeight);
+                        positions[offset+2]=representable(positions[offset+2]+out[2]*posWeight);
+                        driven[offset+1]=true;
+                    }
+                    if (bone.scale!=null) {
+                        bone.scale.valueInto(localTime,context,sa,sb,sp0,sp3,out);
+                        scales[offset]=representable(scales[offset]*(1+(out[0]-1)*weight));
+                        scales[offset+1]=representable(scales[offset+1]*(1+(out[1]-1)*weight));
+                        scales[offset+2]=representable(scales[offset+2]*(1+(out[2]-1)*weight));
+                        driven[offset+2]=true;
+                    }
+                } finally {
+                    context.boneScope(prevScope);
+                }
             }
         }
-        return new Sample(new BonePose(rotations,positions,scales,bindPose.ownHidden(),bindPose.childrenHidden(),bindPose.glow(),bindPose.colorsRgba()),driven);
+        return new Sample(rotations,positions,scales,driven);
     }
     static float representable(double value) {
         float result=(float)value;

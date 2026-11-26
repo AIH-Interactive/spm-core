@@ -8,7 +8,16 @@ import java.util.Objects;
 
 /** One owner-confined script state; query snapshots are immutable and children share state and budget. */
 public final class MolangContext {
+    private static final Map<String, MolangValue> CTRL_CONSTANTS = Map.of(
+            "ctrl.state_continue", MolangValue.number(2),
+            "ctrl.state_stop", MolangValue.number(3),
+            "ctrl.state_pause", MolangValue.number(4),
+            "ctrl.state_bypass", MolangValue.number(5),
+            "ctrl.loop", MolangValue.number(10),
+            "ctrl.play_once", MolangValue.number(11),
+            "ctrl.hold_on_last_frame", MolangValue.number(12));
     private final Map<String, Double> queries;
+    private final Map<String, Double> queryOverrides;
     private final Map<String, MolangValue> variables;
     private final MolangBindings bindings;
     private final MolangPhysics physics;
@@ -62,10 +71,14 @@ public final class MolangContext {
     }
     private CodedControl codedControl;
     private String controllerScope="";
+    private int boneScope=-1;
     private Map<String,MolangValue> contextVariables;
-    private MolangContext shareHooks(MolangContext child) {child.hookState=hookState;child.deferredCount=deferredCount;child.codedControl=codedControl;child.controllerScope=controllerScope;child.contextVariables=contextVariables;return child;}
+    private MolangContext shareHooks(MolangContext child) {child.hookState=hookState;child.deferredCount=deferredCount;child.codedControl=codedControl;child.controllerScope=controllerScope;child.boneScope=boneScope;child.contextVariables=contextVariables;return child;}
+    int boneScope() {return boneScope;}
+    void boneScope(int value) {boneScope=value;}
     MolangContext memberScope(String name,Map<String,MolangValue> contextState,java.util.List<java.util.List<MolangValue>> deferred) {
-        MolangContext child=child(queries);child.controllerScope=name;child.contextVariables=contextState;child.hookState=new HookState(hookState.handlers,hookState.syncMode,deferred);child.hookState.phaseArguments=hookState.phaseArguments;return child;
+        MolangContext child=shareHooks(new MolangContext(queries,queryOverrides,variables,functions,parameters,budget,random,bindings,physics,effectsAllowed,pending));
+        child.controllerScope=name;child.contextVariables=contextState;child.hookState=new HookState(hookState.handlers,hookState.syncMode,deferred);child.hookState.phaseArguments=hookState.phaseArguments;return child;
     }
     MolangValue contextVariable(String name) {return contextVariables==null?parameter(name):lookup(contextVariables,name);}
     void contextVariable(String name,MolangValue value) {if(contextVariables!=null)assign(contextVariables,name,value,true);}
@@ -83,7 +96,12 @@ public final class MolangContext {
     }
     private MolangContext(Map<String, Double> queries, Map<String, MolangValue> variables,
                           Map<String, MolangProgram> functions, Map<String, MolangValue> parameters, ScriptBudget budget, RandomState random, MolangBindings bindings, MolangPhysics physics,boolean effectsAllowed,java.util.List<PendingCall> pending) {
-        this.queries = Collections.unmodifiableMap(queries);
+        this(Collections.unmodifiableMap(queries), null, variables, functions, parameters, budget, random, bindings, physics, effectsAllowed, pending);
+    }
+    private MolangContext(Map<String, Double> queries, Map<String, Double> queryOverrides, Map<String, MolangValue> variables,
+                          Map<String, MolangProgram> functions, Map<String, MolangValue> parameters, ScriptBudget budget, RandomState random, MolangBindings bindings, MolangPhysics physics,boolean effectsAllowed,java.util.List<PendingCall> pending) {
+        this.queries = queries;
+        this.queryOverrides = queryOverrides;
         this.variables = variables;
         this.functions = functions;
         this.parameters = parameters;
@@ -95,18 +113,40 @@ public final class MolangContext {
         return shareHooks(new MolangContext(boundedCopy(childQueries), variables, functions, parameters, budget, random, bindings, physics,effectsAllowed,pending));
     }
     MolangContext overlay(Map<String, Double> overrides) {
-        Map<String, Double> combined = new HashMap<>(queries);
-        combined.putAll(overrides);
-        if(overrides.containsKey("life_time")) physics.advance(overrides.get("life_time"),budget);
-        return child(combined);
+        Map<String, Double> normalized = numericCopy(overrides);
+        Double lifeTime = normalized.get("life_time");
+        if (lifeTime != null) physics.advance(lifeTime, budget);
+        Map<String, Double> nextOverrides;
+        if (queryOverrides == null) {
+            nextOverrides = normalized;
+        } else {
+            nextOverrides = new HashMap<>(queryOverrides.size() + normalized.size() + 2);
+            nextOverrides.putAll(queryOverrides);
+            nextOverrides.putAll(normalized);
+        }
+        return shareHooks(new MolangContext(queries, nextOverrides, variables, functions, parameters, budget, random, bindings, physics, effectsAllowed, pending));
+    }
+    /** Fast overlay for internal callers passing already-lowercase finite double entries. */
+    MolangContext overlayKnown(Map<String, Double> lowercaseOverrides) {
+        Double lifeTime = lowercaseOverrides.get("life_time");
+        if (lifeTime != null) physics.advance(finite(lifeTime), budget);
+        Map<String, Double> nextOverrides;
+        if (queryOverrides == null) {
+            nextOverrides = lowercaseOverrides;
+        } else {
+            nextOverrides = new HashMap<>(queryOverrides.size() + lowercaseOverrides.size() + 2);
+            nextOverrides.putAll(queryOverrides);
+            nextOverrides.putAll(lowercaseOverrides);
+        }
+        return shareHooks(new MolangContext(queries, nextOverrides, variables, functions, parameters, budget, random, bindings, physics, effectsAllowed, pending));
     }
     MolangContext sampling(Map<String,Double> overrides) {
         // Random-access library sampling has no persistent simulation clock.
-        var context=new MolangContext(queries,variables,functions,parameters,budget,random,bindings,new MolangPhysics(),false,new java.util.ArrayList<>());
+        var context=new MolangContext(queries,queryOverrides,variables,functions,parameters,budget,random,bindings,new MolangPhysics(),false,new java.util.ArrayList<>());
         return context.overlay(overrides);
     }
     MolangContext invocation(Map<String, MolangValue> arguments) {
-        return shareHooks(new MolangContext(queries, variables, functions,
+        return shareHooks(new MolangContext(queries, queryOverrides, variables, functions,
                 Collections.unmodifiableMap(new HashMap<>(arguments)), budget, random, bindings, physics,effectsAllowed,pending));
     }
     public ScriptBudget budget() { return budget; }
@@ -121,7 +161,7 @@ public final class MolangContext {
         hookState=new HookState(MolangHooks.empty(),inputs.syncMode());hookState.phaseArguments=inputs.hookArguments();
     }
     MolangContext(SceneInputs inputs,MolangState prior,Map<String,MolangProgram> functions,ScriptBudget budget,long seed) {
-        this(inputs.queries(),new HashMap<>(prior.variables),functionCopy(functions),Map.of(),budget,new RandomState(seed),inputs.bindings(),prior.physics.copy(),inputs.effectsAllowed(),new java.util.ArrayList<>());
+        this(inputs.queries(),null,new HashMap<>(prior.variables),functions,Map.of(),budget,new RandomState(seed),inputs.bindings(),prior.physics.copy(),inputs.effectsAllowed(),new java.util.ArrayList<>());
         hookState=new HookState(MolangHooks.empty(),inputs.syncMode());hookState.phaseArguments=inputs.hookArguments();
     }
     MolangContext(SceneInputs inputs,MolangState prior,Map<String,MolangProgram> functions,ScriptBudget budget,long seed,MolangHooks hooks) {
@@ -132,6 +172,7 @@ public final class MolangContext {
     void afterStepHooks() {invokeHooks(hookState.handlers.afterStep(),hookState.phaseArguments.getOrDefault(MolangHooks.Phase.AFTER_STEP,java.util.List.of()));}
     void afterFrameHooks() {invokeHooks(hookState.handlers.afterFrame(),hookState.phaseArguments.getOrDefault(MolangHooks.Phase.AFTER_FRAME,java.util.List.of()));}
     private void invokeHooks(java.util.List<MolangProgram> programs,java.util.List<MolangValue> arguments) {
+        if (programs.isEmpty()) return;
         Map<String,MolangValue> parameters=new HashMap<>();
         for(int index=0;index<arguments.size();index++)parameters.put("arg"+index,arguments.get(index));
         MolangContext invocation=invocation(parameters);
@@ -189,8 +230,8 @@ public final class MolangContext {
         }
         long low = Math.min((int) first, (int) second);
         long high = Math.max((int) first, (int) second);
-        long bound = high - low;
-        if (bound == 0) return low;
+        long bound = high - low + 1L;
+        if (bound <= 1L) return low;
         long bits;
         long result;
         do {
@@ -201,7 +242,7 @@ public final class MolangContext {
         return low + result;
     }
     double roll(double count, double low, double high, boolean integer) {
-        long times = (long) Math.max(0, count);
+        long times = integer ? Math.round(Math.max(0, count)) : (long) Math.max(0, count);
         double result = 0;
         for (long i = 0; i < times; i++) {
             budget.step();
@@ -209,16 +250,26 @@ public final class MolangContext {
         }
         return result;
     }
+    private Double lookupQuery(String name) {
+        if (queryOverrides != null) {
+            Double override = queryOverrides.get(name);
+            if (override != null) return override;
+        }
+        return queries.get(name);
+    }
     MolangValue query(String name) {
-        if(queries.containsKey(name)) return MolangValue.number(queries.get(name));
+        Double direct = lookupQuery(name);
+        if (direct != null) return MolangValue.number(direct);
         MolangValue typed=bindings.value("query."+name);
-        return typed!=MolangValue.missing()?typed:queries.containsKey(name)?MolangValue.number(queries.get(name)):MolangValue.missing();
+        return typed!=MolangValue.missing()?typed:MolangValue.missing();
     }
     MolangValue boundValue(String name) {
-        Map<String,Integer> constants=Map.of("ctrl.state_continue",2,"ctrl.state_stop",3,"ctrl.state_pause",4,"ctrl.state_bypass",5,"ctrl.loop",10,"ctrl.play_once",11,"ctrl.hold_on_last_frame",12);
-        if(constants.containsKey(name)) return MolangValue.number(constants.get(name));
+        MolangValue constant = CTRL_CONSTANTS.get(name);
+        if (constant != null) return constant;
         MolangValue typed=bindings.value(name);
-        return typed!=MolangValue.missing()?typed:queries.containsKey(name)?MolangValue.number(queries.get(name)):MolangValue.missing();
+        if (typed!=MolangValue.missing()) return typed;
+        Double direct = lookupQuery(name);
+        return direct != null ? MolangValue.number(direct) : MolangValue.missing();
     }
     MolangValue parameter(String name) { return lookup(parameters,name); }
     static MolangValue lookup(Map<String,MolangValue> values,String name) {
@@ -322,7 +373,8 @@ public final class MolangContext {
             if(effectsAllowed) {
                 budget.step();
                 if(pending.size()>=4096) throw new MolangException(MolangException.Reason.CAPACITY,"Effect queue capacity exceeded");
-                double time=queries.getOrDefault("life_time",0.0);
+                Double lifeVal = lookupQuery("life_time");
+                double time = lifeVal != null ? lifeVal : 0.0;
                 pending.add(new PendingCall(Math.max(0,Math.round(time*60)),name,name,Map.of(),java.util.List.copyOf(arguments),controllerScope));
             }
             return result;
@@ -336,7 +388,7 @@ public final class MolangContext {
             if(name.equals("ysm.first_order")) return MolangValue.number(physics.first(key,input,a,budget));
             double b=arguments.size()>3?arguments.get(3).number():1;
             double c=arguments.size()>4?arguments.get(4).number():1;
-            return MolangValue.number(physics.second(key,input,a,b,c,budget));
+            return MolangValue.number(physics.second(boneScope,key,input,a,b,c,budget));
         }
         if(name.equals("ysm.perlin_noise")) {
             double x=arguments.get(0).number();
@@ -373,7 +425,7 @@ public final class MolangContext {
     }
     void resetAnimationContext() {flushDeferred();if(contextVariables!=null)contextVariables.clear();}
     void timelineEffects(java.util.List<EffectTimeline.Pending> effects) {
-        for(var effect:effects){budget.step();if(pending.size()>=4096)throw new MolangException(MolangException.Reason.CAPACITY,"Effect capacity exceeded");var cue=effect.cue();pending.add(new PendingCall(effect.step(),cue.kind(),cue.resource(),cue.parameters(),java.util.List.of(),controllerScope));}
+        for(var effect:effects){budget.step();if(pending.size()>=4096)throw new MolangException(MolangException.Reason.CAPACITY,"Effect capacity exceeded");var cue=effect.cue();pending.add(new PendingCall(effect.step(),cue.kind(),cue.resource(),cue.parameters(),effect.arguments(),controllerScope));}
     }
     void appendEffects(java.util.List<EffectCommand> target,long owner,long generation,long sequence) {
         for(PendingCall call:pending) {
@@ -407,7 +459,7 @@ public final class MolangContext {
         if (source.size() > 4096) throw new IllegalArgumentException("At most 4096 numeric slots");
         return numericCopy(source);
     }
-    private static Map<String, MolangProgram> functionCopy(Map<String, MolangProgram> source) {
+    static Map<String, MolangProgram> functionCopy(Map<String, MolangProgram> source) {
         if (source.size() > 4096) throw new IllegalArgumentException("At most 4096 functions");
         Map<String, MolangProgram> normalized = new HashMap<>();
         source.forEach((name, program) -> {

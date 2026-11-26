@@ -114,11 +114,24 @@ class MolangRuntimeTest {
             assertEquals(value, random.evaluate(b));
             assertTrue(value >= -3 && value < 7);
             double integer = MolangProgram.compile("math.randomi(5, -2)").evaluate(a);
-            assertTrue(integer >= -2 && integer < 5 && integer == Math.floor(integer));
+            assertTrue(integer >= -2 && integer <= 5 && integer == Math.floor(integer));
             MolangProgram.compile("math.random_integer(5, -2)").evaluate(b);
         }
         assertEquals(4, MolangProgram.compile("math.random_integer(4,4)").evaluate(a));
         assertEquals(6, MolangProgram.compile("math.roll(3,2,2)").evaluate(a));
+        // Inclusive upper bound verification for math.random_integer(0, 1)
+        boolean sawZero = false, sawOne = false;
+        MolangProgram coin = MolangProgram.compile("math.random_integer(0, 1)");
+        for (int i = 0; i < 64 && !(sawZero && sawOne); i++) {
+            double v = coin.evaluate(a);
+            if (v == 0.0) sawZero = true;
+            else if (v == 1.0) sawOne = true;
+            else fail("Out of inclusive range [0, 1]: " + v);
+        }
+        assertTrue(sawZero && sawOne, "math.random_integer(low, high) must be inclusive of high");
+        assertEquals(0.0, MolangProgram.compile("this").evaluate(a));
+        assertEquals(-0.0, MolangProgram.compile("-this").evaluate(a), 0.0);
+        assertEquals(3.0, MolangProgram.compile("math.die_roll_integer(2.6, 1, 1)").evaluate(a));
         assertThrows(MolangException.class, () -> MolangProgram.compile("math.die_roll(10000000,0,1)").evaluate(context(budget(100))));
     }
     @Test void commonAliasesConstantsAndBooleanNumericCoercionAreDefined() {

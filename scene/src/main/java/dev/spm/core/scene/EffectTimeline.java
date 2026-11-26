@@ -5,7 +5,9 @@ import java.util.List;
 /** Shared scalar clip instruction traversal, separate from host dispatch. */
 final class EffectTimeline {
     private static final int MAX_EFFECTS_PER_FRAME = 4096;
-    record Pending(long step, AnimationClip.Cue cue) { }
+    record Pending(long step, AnimationClip.Cue cue, List<MolangValue> arguments) {
+        Pending(long step, AnimationClip.Cue cue) { this(step, cue, List.of()); }
+    }
     private EffectTimeline() { }
     static void append(AnimationClip clip, double start, double end, boolean initial, long step,
                        List<Pending> effects, ScriptBudget budget) {

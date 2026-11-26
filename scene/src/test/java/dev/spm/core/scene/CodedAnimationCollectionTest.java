@@ -343,4 +343,131 @@ class CodedAnimationCollectionTest {
         assertEquals(first,second,1e-12);
         assertTrue(Double.isFinite(first));
     }
+    @Test void particleEffectForwardsLocatorAndZeroStepReusesPoseWithoutRepeatingEffects() {
+        var doc=new dev.spm.core.api.ModelDocument("test","ysm-raw-v2",
+                new dev.spm.core.api.Skeleton(List.of("root"),new int[]{-1},new float[]{0,0,0}),
+                List.of(),BonePose.identity(1),List.of(),List.of(),
+                obj("animations",obj(
+                        "spark",obj("loop",true,"animation_length",1,
+                                "particle_effects",obj("0.0",obj("effect","minecraft:flame","locator","hand_tip")),
+                                "bones",obj("root",obj("position",List.of(0,16,0)))))));
+        var library=PoseAnimationLibrary.fromModel(doc,budget());
+        assertSame(library.clipSummary("spark"),library.clipSummary("spark"));
+        var main=CodedControllerDefinition.hostDriven("main",0);
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),List.of(main),60,42);
+        var cmds=Map.of("main",CodedControllerCommand.play("spark",CodedLoopMode.LOOP,0,1.0));
+        var inputs=new SceneInputs(Map.of(),MolangBindings.empty(),true,SceneInputs.SyncMode.HOST,Map.of(),cmds);
+        var f0=owner.evaluate(0,0,inputs,budget());
+        assertEquals(1,f0.effects().size());
+        var particle=f0.effects().get(0);
+        assertEquals("particle",particle.kind());
+        assertEquals("minecraft:flame",particle.resource());
+        assertEquals(List.of(MolangValue.text("hand_tip")),particle.arguments());
+        // Zero-step frame at 8ms (< 16.67ms): reuses exact pose, emits no duplicate effects.
+        var f1=owner.evaluate(1,8_000_000L,inputs,budget());
+        assertEquals(0L,f1.step());
+        assertTrue(f1.effects().isEmpty());
+        assertArrayEquals(f0.pose().translations(),f1.pose().translations());
+    }
+    @Test void additiveLayerAddsRotationOnlyWhileOverwritingScaleAndPosition() {
+        var doc=new dev.spm.core.api.ModelDocument("test","ysm-raw-v2",
+                new dev.spm.core.api.Skeleton(List.of("Wing"),new int[]{-1},new float[]{0,0,0}),
+                List.of(),BonePose.identity(1),List.of(),List.of(),
+                obj("animations",obj(
+                        "hide",obj("loop",true,"animation_length",1,"bones",obj("Wing",obj("rotation",List.of(0,0,30),"position",List.of(0,16,0),"scale",List.of(0,0,0)))),
+                        "show",obj("loop",true,"animation_length",1,"bones",obj("Wing",obj("rotation",List.of(0,0,15),"position",List.of(0,32,0),"scale",List.of(1,1,1)))))));
+        var library=PoseAnimationLibrary.fromModel(doc,budget());
+        var pre=CodedControllerDefinition.hostDriven("pre",0,false);
+        var par=CodedControllerDefinition.hostDriven("par",0,true);
+        var owner=new CodedAnimationCollection(library,BonePose.identity(1),List.of(pre,par),60,42);
+        var cmds=Map.of(
+                "pre",CodedControllerCommand.play("hide",CodedLoopMode.LOOP,0,1.0),
+                "par",CodedControllerCommand.play("show",CodedLoopMode.LOOP,0,1.0));
+        var frame=owner.evaluate(0,0,new SceneInputs(Map.of(),MolangBindings.empty(),true,SceneInputs.SyncMode.HOST,Map.of(),cmds),budget());
+        // Rotation is additive: 30 + 15 = 45 deg
+        assertEquals(Math.toRadians(45.0),frame.pose().rotations()[2],1e-5);
+        // Position overwrites: 32px = 2.0m (not 1 + 2 = 3m)
+        assertEquals(2.0f,frame.pose().translations()[1],1e-5);
+        // Scale overwrites: 1.0 (not 0.0 * 1.0 = 0.0!)
+        assertEquals(1.0f,frame.pose().scales()[0],1e-5);
+        assertEquals(1.0f,frame.pose().scales()[1],1e-5);
+        assertEquals(1.0f,frame.pose().scales()[2],1e-5);
+    }
+    @Test void hybridJsonAndCodedMembersShareVariablesPreserveBindEqualChannelsAndRespectOrder() {
+        var doc=new dev.spm.core.api.ModelDocument("test","ysm-raw-v2",
+                new dev.spm.core.api.Skeleton(List.of("Wing","Leg"),new int[]{-1,-1},new float[]{0,0,0,0,0,0}),
+                List.of(),BonePose.identity(2),List.of(),List.of(),
+                obj("animations",obj(
+                        "hide",obj("loop",true,"animation_length",1,"bones",obj("Wing",obj("scale",List.of(0,0,0)),"Leg",obj("position",List.of(0,16,0)))),
+                        "hide_wing",obj("loop",true,"animation_length",1,"bones",obj("Wing",obj("scale",List.of(0,0,0)))),
+                        "unfold",obj("loop",false,"animation_length",0.05,"bones",obj("Wing",obj("scale",List.of(1,1,1)))),
+                        "walk_fwd",obj("loop",true,"animation_length",1,"bones",obj("Leg",obj("position",List.of(0,0,0)))),
+                        "walk_bwd",obj("loop",true,"animation_length",1,"bones",obj("Leg",obj("position",List.of(0,-16,0)))),
+                        "parallel_writer",obj("loop",true,"animation_length",0.01,"timeline",obj("0","v.dir = q.dir;"),
+                                "bones",obj("Wing",obj("scale",List.of("q.has_elytra ? 1 : 0","q.has_elytra ? 1 : 0","q.has_elytra ? 1 : 0")))))));
+        var library=PoseAnimationLibrary.fromModel(doc,budget());
+        var walkJson=PoseControllerDefinition.decode(obj("animation_controllers",obj("walk_ctrl",obj(
+                "initial_state","default",
+                "states",obj(
+                        "default",obj("transitions",List.of(obj("fwd","v.dir > -0.1"),obj("bwd","v.dir < -0.1"))),
+                        "fwd",obj("animations",List.of("walk_fwd"),"transitions",List.of(obj("default","v.dir < -0.1"))),
+                        "bwd",obj("animations",List.of("walk_bwd"),"transitions",List.of(obj("default","v.dir > -0.1"))))))),
+                "walk_ctrl",library,budget());
+        var armorJson=PoseControllerDefinition.decode(obj("animation_controllers",obj("armor_ctrl",obj(
+                "initial_state","off",
+                "states",obj(
+                        "off",obj("animations",List.of("hide_wing"),"transitions",List.of(obj("unfold","q.has_elytra"))),
+                        "unfold",obj("animations",List.of("unfold"),"transitions",List.of(obj("idle","q.all_animations_finished"))),
+                        "idle",obj("transitions",List.of(obj("off","!q.has_elytra"))))))),
+                "armor_ctrl",library,budget());
+        var slots=List.of(
+                CodedControllerDefinition.hostDriven("pre_hide",0,false),
+                CodedControllerDefinition.hostDriven("walk_ctrl",0,false,walkJson),
+                CodedControllerDefinition.hostDriven("parallel_writer",0,true),
+                CodedControllerDefinition.hostDriven("armor_ctrl",0,false,armorJson));
+        var owner=new CodedAnimationCollection(library,BonePose.identity(2),slots,60,42);
+        var cmds=Map.of(
+                "pre_hide",CodedControllerCommand.play("hide",CodedLoopMode.LOOP,0,1.0),
+                "parallel_writer",CodedControllerCommand.play("parallel_writer",CodedLoopMode.LOOP,0,1.0));
+        // Step 0: walk_ctrl traverses empty initial state -> fwd (Leg pos=[0,0,0] == bind, NOT dropped!), armor_ctrl initializes in 'off'.
+        var f0=owner.evaluate(0,0,new SceneInputs(Map.of("dir",1.0,"has_elytra",1.0),MolangBindings.empty(),true,SceneInputs.SyncMode.HOST,Map.of(),cmds),budget());
+        assertEquals(0.0f,f0.pose().translations()[4],1e-5); // walk_fwd Leg pos=[0,0,0] overrides pre_hide's +1.0m!
+        // Step 1: armor_ctrl transitions off -> unfold (Wing scale=[1,1,1] == bind, NOT dropped!), parallel_writer writes v.dir=-1.
+        var f1=owner.evaluate(1,16_666_667L,new SceneInputs(Map.of("dir",-1.0,"has_elytra",1.0),MolangBindings.empty(),true,SceneInputs.SyncMode.HOST,Map.of(),cmds),budget());
+        assertEquals("unfold",f1.controllers().get(3).selectedClip());
+        assertEquals(1.0f,f1.pose().scales()[0],1e-5); // Wing scale=[1,1,1] NOT dropped by bind-pose equality!
+        // Step 2: walk_ctrl sees shared v.dir=-1 written by parallel_writer and transitions fwd -> default -> bwd!
+        var f2=owner.evaluate(2,33_333_334L,new SceneInputs(Map.of("dir",-1.0,"has_elytra",1.0),MolangBindings.empty(),true,SceneInputs.SyncMode.HOST,Map.of(),cmds),budget());
+        assertEquals(-1.0f,f2.pose().translations()[4],1e-5); // walk_bwd Leg pos=-16px=-1.0m
+        // After unfold finishes (0.05s = 3 steps after step 1 -> step 4), armor_ctrl enters idle (empty) and parallel_writer keeps Wing scale=1.0!
+        var f4=owner.evaluate(3,66_666_667L,new SceneInputs(Map.of("dir",-1.0,"has_elytra",1.0),MolangBindings.empty(),true,SceneInputs.SyncMode.HOST,Map.of(),cmds),budget());
+        assertEquals("idle",f4.controllers().get(3).selectedClip());
+        assertEquals(1.0f,f4.pose().scales()[0],1e-5);
+    }
+    @Test void shortLoopingClipExecutesTimelineOncePerStepAndPhysicsScopesSecondOrderPerBone() {
+        var doc=new dev.spm.core.api.ModelDocument("test","ysm-raw-v2",
+                new dev.spm.core.api.Skeleton(List.of("Left","Right"),new int[]{-1,-1},new float[]{0,0,0,0,0,0}),
+                List.of(),BonePose.identity(2),List.of(),List.of(),
+                obj("animations",obj(
+                        "tick_script",obj("loop",true,"animation_length",0.01,"timeline",obj("0","v.ticks=(v.ticks??0)+1; v.fast=ysm.first_order('f',10,0.005);"),
+                                "bones",obj(
+                                        "Left",obj("rotation",List.of(0,0,"ysm.second_order('shared', 30, 2, 0.8, 0)")),
+                                        "Right",obj("rotation",List.of(0,0,"ysm.second_order('shared', -30, 2, 0.8, 0)")))))));
+        var library=PoseAnimationLibrary.fromModel(doc,budget());
+        var owner=new CodedAnimationCollection(library,BonePose.identity(2),
+                List.of(CodedControllerDefinition.hostDriven("p0",0,false)),60,42);
+        var cmds=Map.of("p0",CodedControllerCommand.play("tick_script",CodedLoopMode.LOOP,0,1.0));
+        var inputs=new SceneInputs(Map.of(),MolangBindings.empty(),true,SceneInputs.SyncMode.HOST,Map.of(),cmds);
+        CodedPoseFrame last=null;
+        for (int i=0;i<=10;i++) {
+            last=owner.evaluate(i,Math.round(i*(1_000_000_000.0/60.0)),inputs,budget());
+        }
+        // 11 pulses (step 0..10) -> exactly 11 executions of 0.01s timeline, never 17-18 bursts!
+        assertEquals(11.0,last.variables().get("ticks"),1e-9);
+        // FirstOrder with response=0.005 < 1/60 must clamp to input (10.0) instead of oscillating negatively!
+        assertEquals(10.0,last.variables().get("fast"),1e-6);
+        // Per-bone second_order filters on 'shared' produce opposite symmetric rotations!
+        assertTrue(last.pose().rotations()[2] > 0.05f, "Left should be positive: " + last.pose().rotations()[2]);
+        assertEquals(-last.pose().rotations()[2], last.pose().rotations()[5], 1e-5);
+    }
 }

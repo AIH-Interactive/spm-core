@@ -352,6 +352,7 @@ public final class MolangProgram {
             }
             if (name.equals("true")) return node(e -> 1);
             if (name.equals("false")) return node(e -> 0);
+            if (name.equals("this")) return node(e -> 0);
             if (name.equals("math.pi")) return node(e -> Math.PI);
             if (name.equals("math.e")) return node(e -> Math.E);
             int dot = name.indexOf('.');

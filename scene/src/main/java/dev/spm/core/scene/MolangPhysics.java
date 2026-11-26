@@ -45,7 +45,13 @@ final class MolangPhysics {
 
     double second(String key, double input, double frequency, double damping,
                   double response, ScriptBudget budget) {
-        return call(key, input, frequency, damping, response, true, budget);
+        return second(-1, key, input, frequency, damping, response, budget);
+    }
+
+    double second(int boneScope, String key, double input, double frequency, double damping,
+                  double response, ScriptBudget budget) {
+        String scopedKey = (boneScope >= 0 && key != null && !key.isEmpty()) ? (boneScope + "\0" + key) : key;
+        return call(scopedKey, input, frequency, damping, response, true, budget);
     }
 
     private double call(String key, double input, double a, double b, double c,
@@ -97,7 +103,8 @@ final class MolangPhysics {
         void advance(double elapsed, ScriptBudget budget) {
             if (!second) {
                 budget.step();
-                double fraction = finite(elapsed / a);
+                double step = Math.min(elapsed, a);
+                double fraction = finite(step / a);
                 position = finite((1 - fraction) * position + fraction * input);
                 return;
             }

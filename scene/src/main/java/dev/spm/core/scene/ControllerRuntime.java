@@ -70,7 +70,7 @@ final class ControllerRuntime<P> {
             any |= finished;
             all &= finished;
         }
-        return context.overlay(Map.of("state_time", elapsed, "anim_time", elapsed,
+        return context.overlayKnown(Map.of("state_time", elapsed, "anim_time", elapsed,
                 "any_animation_finished", any || !applied ? 1.0 : 0.0,
                 "all_animations_finished", all ? 1.0 : 0.0));
     }
@@ -90,10 +90,12 @@ final class ControllerRuntime<P> {
         Set<String> visited = new HashSet<>();
         visited.add(state);
         boolean transitioned = false;
+        MolangContext lastSourceContext = null;
         while (true) {
             budget.step();
             ControllerDefinition.State source = definition.states().get(state);
             MolangContext sourceContext = contextAt(context, step);
+            lastSourceContext = sourceContext;
             ControllerDefinition.Transition selected = null;
             for (ControllerDefinition.Transition transition : source.transitions()) {
                 budget.step();
@@ -110,22 +112,31 @@ final class ControllerRuntime<P> {
             state = selected.target();
             enteredStep = step;
             blendFrom = pose;
-            run(target.onEntry(), contextAt(context, step));
-            execution.enter(state,step,contextAt(context,step),effects);
-            weights(contextAt(context, step));
-            execution.begin(active,contextAt(context,step));
-            initialEffects(step, effects, contextAt(context,step));
+            MolangContext entryContext = contextAt(context, step);
+            run(target.onEntry(), entryContext);
+            execution.enter(state,step,entryContext,effects);
+            weights(entryContext);
+            MolangContext postWeight = contextAt(context, step);
+            execution.begin(active,postWeight);
+            initialEffects(step, effects, postWeight);
             transitioned = true;
             if (!target.animations().isEmpty()) break;
         }
         if (!transitioned) {
-            weights(contextAt(context, step));
-            for (WeightedClip animation : active) {
-                budget.step();
-                execution.emit(animation,Math.max(0,timeAt(step-1)),timeAt(step),false,step,contextAt(context,step),effects);
+            weights(lastSourceContext);
+            if (!active.isEmpty()) {
+                MolangContext emitContext = contextAt(context, step);
+                for (WeightedClip animation : active) {
+                    budget.step();
+                    execution.emit(animation,Math.max(0,timeAt(step-1)),timeAt(step),false,step,emitContext,effects);
+                }
+                sample(step, context, emitContext);
+                return;
             }
+            sample(step, context, lastSourceContext);
+            return;
         }
-        sample(step, context);
+        sample(step, context, contextAt(context, step));
     }
     private static void run(List<MolangProgram> scripts, MolangContext context) {
         for (MolangProgram script : scripts) { context.budget().step(); script.evaluate(context); }
@@ -147,7 +158,10 @@ final class ControllerRuntime<P> {
         }
     }
     private void sample(long step,MolangContext context) {
-        P target=execution.sample(active,timeAt(step),contextAt(context,step));
+        sample(step, context, contextAt(context, step));
+    }
+    private void sample(long step,MolangContext context,MolangContext sampleContext) {
+        P target=execution.sample(active,timeAt(step),sampleContext);
         blendProgress=blendSeconds==0?1:Math.min(1,timeAt(step)/blendSeconds);
         pose=blendProgress==1?target:execution.blend(blendFrom,target,blendProgress,context.budget());
         if (blendProgress==1) blendFrom=execution.empty();

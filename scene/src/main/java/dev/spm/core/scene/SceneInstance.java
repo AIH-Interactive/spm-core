@@ -11,6 +11,7 @@ import java.util.TreeMap;
 public final class SceneInstance {
     private final long instanceId = SceneIdentity.next();
     private final SceneDefinition definition;
+    private final Map<String, MolangProgram> normalizedFunctions;
     private FixedStepClock clock;
     private Map<String, Double> variables = Map.of();
     private FrameEvaluation lastFrame;
@@ -36,6 +37,7 @@ public final class SceneInstance {
     }
     public SceneInstance(SceneDefinition definition, ControllerDefinition controller, int maximumCatchUpSteps, long randomSeed) {
         this.definition = Objects.requireNonNull(definition);
+        this.normalizedFunctions = MolangContext.functionCopy(this.definition.functions());
         maximumCatchUp=maximumCatchUpSteps; initialSeed=randomSeed;
         clock = new FixedStepClock(maximumCatchUpSteps);
         this.controller = controller == null ? null : new ControllerRuntime<>(controller,ControllerRuntime.scalarExecution());
@@ -56,7 +58,7 @@ public final class SceneInstance {
         FixedStepClock candidateClock = clock.copy();
         FixedStepClock.Advance advance = candidateClock.advance(nowNanos);
         long firstStep = advance.totalSteps() - advance.executedSteps();
-        MolangContext context = new MolangContext(inputs,scriptState,definition.functions(),budget,randomState,definition.hooks());
+        MolangContext context = new MolangContext(inputs,scriptState,normalizedFunctions,budget,randomState,definition.hooks());
         ControllerRuntime<Map<String,Double>> candidateController = controller == null ? null : controller.copy();
         List<EffectTimeline.Pending> pending = new ArrayList<>();
         if (lastFrame == null) {

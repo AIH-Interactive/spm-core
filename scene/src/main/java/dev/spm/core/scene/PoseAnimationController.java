@@ -33,7 +33,7 @@ public final class PoseAnimationController {
     public PoseAnimationController(PoseAnimationLibrary library,PoseControllerDefinition definition,BonePose bindPose,int maximumCatchUpSteps,long randomSeed,
                                    Map<String,MolangProgram> functions,MolangHooks hooks) {
         Objects.requireNonNull(library); Objects.requireNonNull(definition); Objects.requireNonNull(bindPose);
-        this.functions=Map.copyOf(functions);this.hooks=Objects.requireNonNull(hooks);
+        this.functions=MolangContext.functionCopy(functions);this.hooks=Objects.requireNonNull(hooks);
         if(definition.library!=library) throw new IllegalArgumentException("Controller was decoded against another animation library");
         if(bindPose.boneCount()!=library.boneCount()) throw new IllegalArgumentException("Controller bind pose does not match skeleton");
         controller=new ControllerRuntime<>(definition.graph,new PoseClipExecution(library,bindPose,definition));
@@ -48,6 +48,16 @@ public final class PoseAnimationController {
         Objects.requireNonNull(inputs); Objects.requireNonNull(budget).step();
         FixedStepClock candidateClock=clock.copy();
         var advance=candidateClock.advance(nowNanos);
+        if (lastFrame != null && advance.executedSteps() == 0 && hooks.afterFrame().isEmpty()) {
+            budget.checkCancelled();
+            PoseFrame frame = new PoseFrame(instanceId, generation, frameId, advance.totalSteps(),
+                    advance.totalSteps() / 60.0, advance.interpolation(), advance.droppedSteps(),
+                    lastFrame.animation(), lastFrame.animationTimeSeconds(), lastFrame.finished(),
+                    lastFrame.pose(), lastFrame.variables(), List.of());
+            clock = candidateClock;
+            lastFrame = frame;
+            return frame;
+        }
         long firstStep=advance.totalSteps()-advance.executedSteps();
         var candidate=controller.copy();
         var context=new MolangContext(inputs,scriptState,functions,budget,randomState,hooks);
@@ -61,7 +71,7 @@ public final class PoseAnimationController {
         List<EffectCommand> effects=new ArrayList<>(pending.size());
         for(var effect:pending) {
             budget.step(); var cue=effect.cue();
-            effects.add(new EffectCommand(instanceId,generation,Math.addExact(sequence,effects.size()),effect.step(),cue.kind(),cue.resource(),cue.parameters()));
+            effects.add(new EffectCommand(instanceId,generation,Math.addExact(sequence,effects.size()),effect.step(),cue.kind(),cue.resource(),cue.parameters(),effect.arguments()));
         }
         context.appendEffects(effects,instanceId,generation,sequence);
         if(!inputs.effectsAllowed()) effects.clear();
@@ -79,6 +89,6 @@ public final class PoseAnimationController {
         sequence=0; lastFrame=null; controller=initialController.copy();
     }
     private static MolangContext at(MolangContext context,long step) {
-        return context.overlay(Map.of("life_time",step/60.0,"delta_time",1.0/60));
+        return context.overlayKnown(Map.of("life_time",step/60.0,"delta_time",1.0/60));
     }
 }

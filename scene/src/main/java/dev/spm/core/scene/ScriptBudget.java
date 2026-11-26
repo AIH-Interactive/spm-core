@@ -45,6 +45,22 @@ public final class ScriptBudget {
         }
     }
 
+    /** Charges {@code count} steps atomically (equivalent to {@code count} calls to {@link #step()}). */
+    void steps(long count) {
+        if (count <= 0L) return;
+        cancellation.check();
+        while (true) {
+            long before = remaining.get();
+            if (before < count) {
+                if (remaining.compareAndSet(before, 0L)) {
+                    throw new MolangException(MolangException.Reason.STEPS, "Script step budget exhausted");
+                }
+                continue;
+            }
+            if (remaining.compareAndSet(before, before - count)) return;
+        }
+    }
+
     void enter() {
         step();
         int[] current = depth.get();

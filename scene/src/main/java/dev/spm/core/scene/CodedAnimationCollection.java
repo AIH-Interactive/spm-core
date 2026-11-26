@@ -31,14 +31,14 @@ public final class CodedAnimationCollection {
     }
     public CodedAnimationCollection(PoseAnimationLibrary library,BonePose bind,List<CodedControllerDefinition> definitions,int maximumCatchUpSteps,long seed,
                                     Map<String,MolangProgram> functions,MolangHooks hooks) {
-        this.functions=Map.copyOf(functions);this.hooks=Objects.requireNonNull(hooks);
+        this.functions=MolangContext.functionCopy(functions);this.hooks=Objects.requireNonNull(hooks);
         this.library=Objects.requireNonNull(library);this.bind=Objects.requireNonNull(bind);this.definitions=List.copyOf(definitions);
         if(bind.boneCount()!=library.boneCount()||definitions.size()>4096)throw new IllegalArgumentException("Invalid coded collection shape");
-        var names=new HashSet<String>();for(var definition:this.definitions)if(!names.add(definition.name()))throw new IllegalArgumentException("Duplicate coded controller name");
+        var names=new HashSet<String>();for(var definition:this.definitions){if(!names.add(definition.name()))throw new IllegalArgumentException("Duplicate coded controller name");if(definition.jsonController()!=null&&definition.jsonController().library!=library)throw new IllegalArgumentException("Controller was decoded against another animation library");}
         maximumCatchUp=maximumCatchUpSteps;this.seed=seed;random=seed;clock=new FixedStepClock(maximumCatchUpSteps);members=initial();mixer=new CodedPoseMixer(bind);
     }
     private List<CodedPlayback> initial() {
-        return definitions.stream().map(definition->new CodedPlayback(library,bind.boneCount(),definition.beginningTransitionTicks(),definition.additive())).toList();
+        return definitions.stream().map(definition->new CodedPlayback(library,bind.boneCount(),definition.beginningTransitionTicks(),definition.additive(),bind,definition.jsonController())).toList();
     }
     public synchronized long generation() {return generation;}
     public synchronized Map<String,MolangValue> typedVariables() {return scripts.variables;}
@@ -47,17 +47,33 @@ public final class CodedAnimationCollection {
         if(lastFrame!=null&&frameId==lastFrame.frameId())return lastFrame;
         Objects.requireNonNull(inputs);Objects.requireNonNull(budget).step();
         var nextClock=clock.copy();var advance=nextClock.advance(nowNanos);
+        if (lastFrame != null && advance.executedSteps() == 0 && hooks.afterFrame().isEmpty()) {
+            budget.steps(members.size());
+            budget.checkCancelled();
+            var frame = new CodedPoseFrame(instanceId, generation, frameId, advance.totalSteps(),
+                    advance.totalSteps() / 60.0, lastFrame.pose(), lastFrame.variables(),
+                    lastFrame.controllers(), List.of());
+            clock = nextClock;
+            lastFrame = frame;
+            return frame;
+        }
         var nextMixer=mixer.copy();
-        var nextMembers=members.stream().map(CodedPlayback::copy).toList();
+        var nextMembers=new ArrayList<CodedPlayback>(members.size());
+        for (int i = 0, n = members.size(); i < n; i++) nextMembers.add(members.get(i).copy());
         var context=new MolangContext(inputs,scripts,functions,budget,random,hooks);
         for(var member:nextMembers)context.retainedDeferred(member.deferred.size());
         if(lastFrame==null){context.initializeHooks();pulse(0,nextMembers,context,inputs.effectsAllowed(),inputs.controllerCommands(),nextMixer);}
         for(int offset=advance.executedSteps()-1;offset>=0;offset--)pulse(advance.totalSteps()-offset,nextMembers,context,inputs.effectsAllowed(),inputs.controllerCommands(),nextMixer);
-        var finalContext=context.overlay(Map.of("life_time",advance.totalSteps()/60.0));finalContext.afterFrameHooks();finalContext.flushDeferred();
-        var snapshots=new ArrayList<CodedControllerSnapshot>();
+        var finalContext=context.overlayKnown(Map.of("life_time",advance.totalSteps()/60.0));finalContext.afterFrameHooks();finalContext.flushDeferred();
+        var snapshots=new ArrayList<CodedControllerSnapshot>(nextMembers.size());
+        budget.steps(nextMembers.size());
         for(int index=0;index<nextMembers.size();index++) {
-            budget.step();var member=nextMembers.get(index);
-            snapshots.add(new CodedControllerSnapshot(definitions.get(index).name(),member.clip==null?"":member.clip.name(),member.localTime,member.contributing));
+            var member=nextMembers.get(index);
+            if (member.jsonActive) {
+                snapshots.add(new CodedControllerSnapshot(definitions.get(index).name(),member.jsonState,member.jsonStateTime,true));
+            } else {
+                snapshots.add(new CodedControllerSnapshot(definitions.get(index).name(),member.clip==null?"":member.clip.name(),member.localTime,member.contributing));
+            }
         }
         var pose=nextMixer.pose();
         var effects=new ArrayList<EffectCommand>();context.appendEffects(effects,instanceId,generation,sequence);
@@ -68,10 +84,15 @@ public final class CodedAnimationCollection {
         clock=nextClock;members=nextMembers;mixer=nextMixer;scripts=nextScripts;random=nextRandom;sequence=nextSequence;lastFrame=frame;return frame;
     }
     private void pulse(long step,List<CodedPlayback> candidates,MolangContext context,boolean emit,Map<String,CodedControllerCommand> commands,CodedPoseMixer candidateMixer) {
-        context=context.overlay(Map.of("life_time",step/60.0,"delta_time",1.0/60));context.beforeStepHooks();
+        candidateMixer.beginPulse();
+        double lifeTime = step / 60.0;
+        context=context.overlayKnown(Map.of("life_time",lifeTime,"delta_time",1.0/60));context.beforeStepHooks();
         for(int index=0;index<candidates.size();index++) {
-            context.budget().step();var member=candidates.get(index);var definition=definitions.get(index);member.pulseStep=step;member.selectionAnchor=candidateMixer.relativeAnchor();
-            var local=context.memberScope(definition.name(),member.contextVariables,member.deferred).overlay(Map.of("life_time",step/60.0,"delta_time",1.0/60,"anim_time",member.localTime,"all_animations_finished",member.finished?1.0:0.0,"any_animation_finished",member.finished?1.0:0.0));
+            context.budget().step();var member=candidates.get(index);var definition=definitions.get(index);member.pulseStep=step;member.anchorSource=candidateMixer;
+            var local=context.memberScope(definition.name(),member.contextVariables,member.deferred).overlayKnown(Map.of("life_time",lifeTime,"delta_time",1.0/60,"anim_time",member.localTime,"all_animations_finished",member.finished?1.0:0.0,"any_animation_finished",member.finished?1.0:0.0));
+            if (member.tickJson(step, local, emit)) {
+                continue;
+            }
             local.codedControl(member);
             CodedPlayDecision decision;
             try {
@@ -95,7 +116,7 @@ public final class CodedAnimationCollection {
                     decision=switch(result){case 2->CodedPlayDecision.CONTINUE;case 3->CodedPlayDecision.STOP;case 4->CodedPlayDecision.PAUSE;default->CodedPlayDecision.BYPASS;};
                     if(decision==CodedPlayDecision.BYPASS)decision=fallback(definition.fallback(),local,member);
                 }
-            } finally {local.codedControl(null);}
+            } finally {local.codedControl(null); member.anchorSource=null;}
             member.sample(step,decision,local,bind.boneCount(),emit);
         }
         candidateMixer.mix(candidates,step,context.budget());

@@ -40,7 +40,7 @@ public final class PoseAnimationPlayer {
     public PoseAnimationPlayer(PoseAnimationLibrary library,BonePose bindPose,int maximumCatchUpSteps,double resetSeconds,long randomSeed,
                                Map<String,MolangProgram> functions,MolangHooks hooks) {
         this.library=Objects.requireNonNull(library);
-        this.functions=Map.copyOf(functions);this.hooks=Objects.requireNonNull(hooks);
+        this.functions=MolangContext.functionCopy(functions);this.hooks=Objects.requireNonNull(hooks);
         this.bindPose=Objects.requireNonNull(bindPose);
         if (library.boneCount()!=bindPose.boneCount()) throw new IllegalArgumentException("Player bind pose does not match animation skeleton");
         if (!Double.isFinite(resetSeconds) || resetSeconds<0 || resetSeconds>60) throw new IllegalArgumentException("Reset duration must be 0..60 seconds");
@@ -71,6 +71,16 @@ public final class PoseAnimationPlayer {
         Objects.requireNonNull(inputs); Objects.requireNonNull(budget).step();
         FixedStepClock candidateClock=clock.copy();
         FixedStepClock.Advance advance=candidateClock.advance(nowNanos);
+        if (!pending && lastFrame != null && advance.executedSteps() == 0 && hooks.afterFrame().isEmpty()) {
+            budget.checkCancelled();
+            PoseFrame frame = new PoseFrame(instanceId, generation, frameId, advance.totalSteps(),
+                    advance.totalSteps() / 60.0, advance.interpolation(), advance.droppedSteps(),
+                    lastFrame.animation(), lastFrame.animationTimeSeconds(), lastFrame.finished(),
+                    lastFrame.pose(), lastFrame.variables(), List.of());
+            clock = candidateClock;
+            lastFrame = frame;
+            return frame;
+        }
         long firstStep=advance.totalSteps()-advance.executedSteps();
         State candidate=state.copy();
         MolangContext context=new MolangContext(inputs,scriptState,functions,budget,randomState,hooks);
@@ -119,7 +129,7 @@ public final class PoseAnimationPlayer {
         effectSequence=0; lastFrame=null; state=new State(bindPose); requested=null; requestedBlend=0; pending=false;
     }
     private MolangContext local(State candidate,long step,double localTime,MolangContext context) {
-        return context.overlay(Map.of("anim_time",localTime,"life_time",step/60.0,"delta_time",1.0/60,
+        return context.overlayKnown(Map.of("anim_time",localTime,"life_time",step/60.0,"delta_time",1.0/60,
                 "animation_finished",finished(candidate,(step-candidate.startedStep)/60.0)?1.0:0.0));
     }
     private static boolean finished(State candidate,double elapsed) {
@@ -131,7 +141,7 @@ public final class PoseAnimationPlayer {
         double localTime=candidate.clip==null?0:candidate.playback!=null?candidate.playback.localTime():candidate.clip.localTime(elapsed);
         boolean drive=candidate.clip!=null && !candidate.onceEnded && (candidate.playback==null || candidate.playback.started());
         PoseAnimationLibrary.Sample sampled=library.sample(candidate.clip,localTime,local(candidate,step,localTime,context),bindPose,drive);
-        float[] rotations=sampled.pose().rotations(),positions=sampled.pose().translations(),scales=sampled.pose().scales();
+        float[] rotations=sampled.rotations(),positions=sampled.translations(),scales=sampled.scales();
         float[][] target={rotations,positions,scales};
         float[][] previous={candidate.pose.rotations(),candidate.pose.translations(),candidate.pose.scales()};
         float[][] neutral={bindPose.rotations(),bindPose.translations(),bindPose.scales()};
@@ -173,7 +183,7 @@ public final class PoseAnimationPlayer {
         for(var effect:pendingEffects) {
             if(effects.size()>=4096) throw new MolangException(MolangException.Reason.CAPACITY,"Too many effects in one frame");
             var cue=effect.cue();
-            effects.add(new EffectCommand(instanceId,generation,Math.addExact(effectSequence,effects.size()),step,cue.kind(),cue.resource(),cue.parameters()));
+            effects.add(new EffectCommand(instanceId,generation,Math.addExact(effectSequence,effects.size()),step,cue.kind(),cue.resource(),cue.parameters(),effect.arguments()));
         }
     }
     private static final class State {
