@@ -1,0 +1,160 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "format-figura",
+    "version": "1.3.1",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.3.1"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "scene",
+          "version": {
+            "requires": "1.3.1"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "script-lua",
+          "version": {
+            "requires": "1.3.1"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-figura-1.3.1.jar",
+          "url": "format-figura-1.3.1.jar",
+          "size": 89864,
+          "sha512": "5bbf7d5acffb0622d92e3d6bd54bc229be3195548e0cf7a37d65d799111ae9eb6908b6ca12a42ef86aa060bf7c5bde5b8e11d3edc83ba207841dd824b703f100",
+          "sha256": "19439a619c14dc04c3f596005b851affce24f16666282b0f59e5a578fad6b91d",
+          "sha1": "b6e46305af39a7cedc813993ebc9be7f1863f69c",
+          "md5": "609660745904ebcf18e37e42c477d2cc"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "format-common",
+          "version": {
+            "requires": "1.3.1"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "format-bbmodel",
+          "version": {
+            "requires": "1.3.1"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.3.1"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "scene",
+          "version": {
+            "requires": "1.3.1"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "script-lua",
+          "version": {
+            "requires": "1.3.1"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-figura-1.3.1.jar",
+          "url": "format-figura-1.3.1.jar",
+          "size": 89864,
+          "sha512": "5bbf7d5acffb0622d92e3d6bd54bc229be3195548e0cf7a37d65d799111ae9eb6908b6ca12a42ef86aa060bf7c5bde5b8e11d3edc83ba207841dd824b703f100",
+          "sha256": "19439a619c14dc04c3f596005b851affce24f16666282b0f59e5a578fad6b91d",
+          "sha1": "b6e46305af39a7cedc813993ebc9be7f1863f69c",
+          "md5": "609660745904ebcf18e37e42c477d2cc"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-figura-1.3.1-sources.jar",
+          "url": "format-figura-1.3.1-sources.jar",
+          "size": 26282,
+          "sha512": "73a45472b954c7646777317e3457170e9af9cce4710b3fe8c974401195106f66c46ffa9ff25a959d54416ba978e41dc679efb479803edb0ddc457b595874f5fc",
+          "sha256": "624195bc1865c0b9056d65bdf04520c468eb686c6bcfb00c6af09c0e6aec39f0",
+          "sha1": "7dbabdcc072ab49dc633749ad0e8c6bb06c21e11",
+          "md5": "9cd91e7b3d52512d7effe64246004e3c"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-figura-1.3.1-javadoc.jar",
+          "url": "format-figura-1.3.1-javadoc.jar",
+          "size": 4173997,
+          "sha512": "171d8c68acc6e5851c10d2347e82af650b245006aa12404da03bebe9ef131fdb06cf254ec839adb511f0eedb336665eb565b69319f876afb66b9b7a824f27810",
+          "sha256": "ac9b9abc41911698edece77a0b7d9247f1db625be1d604755d0ba2b70298b301",
+          "sha1": "d01970ea86f07a728d63c3bc1ce38936f5fa2be8",
+          "md5": "da8a977b59c9da8f2d91e5331adc58bf"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.spm.core",
+    "module": "format-gltf",
+    "version": "1.3.1",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.6.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.3.1"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-gltf-1.3.1.jar",
+          "url": "format-gltf-1.3.1.jar",
+          "size": 52175,
+          "sha512": "affa89d69825e383b3e76636c8537af456a50be99e2fa546ce85d9d9b0b38d654ebdff7e3e00e686b80d88c60b545f85b5e7065c6f897c0bfdd9855db98ddd4d",
+          "sha256": "7828341e995dd295b75cf6bc641971e1f4e150d276686b77f90d0eee1c9aeb74",
+          "sha1": "9d303c068d51a35c155ec792e187299c83520c58",
+          "md5": "4583aa4bde022f6b258621d522148064"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 17,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "dev.spm.core",
+          "module": "format-common",
+          "version": {
+            "requires": "1.3.1"
+          }
+        },
+        {
+          "group": "dev.spm.core",
+          "module": "api",
+          "version": {
+            "requires": "1.3.1"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "format-gltf-1.3.1.jar",
+          "url": "format-gltf-1.3.1.jar",
+          "size": 52175,
+          "sha512": "affa89d69825e383b3e76636c8537af456a50be99e2fa546ce85d9d9b0b38d654ebdff7e3e00e686b80d88c60b545f85b5e7065c6f897c0bfdd9855db98ddd4d",
+          "sha256": "7828341e995dd295b75cf6bc641971e1f4e150d276686b77f90d0eee1c9aeb74",
+          "sha1": "9d303c068d51a35c155ec792e187299c83520c58",
+          "md5": "4583aa4bde022f6b258621d522148064"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-gltf-1.3.1-sources.jar",
+          "url": "format-gltf-1.3.1-sources.jar",
+          "size": 18791,
+          "sha512": "0ef700c0cc2d2f6c81dedc26275243fdc68025061ec4575c4be63ae44eb39bed6b184bb3f8fdca94f335e0756ab07cc38af0f25601ffe33089b4456967000197",
+          "sha256": "8a7fb4694a4a40ebd5209aa9725ed4fadb6aeb3d7f071bcf350a29748e148f94",
+          "sha1": "0e8c1d3d9b431bba3a6215d875a0074ee4568c88",
+          "md5": "7bdbdc64c48d8e7528e29961549dd414"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "format-gltf-1.3.1-javadoc.jar",
+          "url": "format-gltf-1.3.1-javadoc.jar",
+          "size": 4149543,
+          "sha512": "5b65d5ab43e708ebe2d31b0677cef58edd79cd806bf3896fe65c10acdf3f5d5e5922f65c7346ab4972135a9d1ddc25de945ec31d91ed4ee4d919400e417db4c8",
+          "sha256": "57476b2a34ec56ec39f66d5bcb8ed9d7c7342b96b8e575eb9afe2f95e8cd9609",
+          "sha1": "708cc60ee8e699dabc5f420ec5b0ab32c3d62232",
+          "md5": "46b229bb1f6fcf8742db7ea2a59a0be1"
+        }
+      ]
+    }
+  ]
+}
